@@ -609,11 +609,46 @@ function lancetWindow(color) {
     shape.moveTo(-1.1, 0); shape.lineTo(-1.4, 3.4); shape.lineTo(-0.6, 4.1);
     shape.lineTo(0, 5.2); shape.lineTo(0.6, 4.1); shape.lineTo(1.4, 3.4); shape.lineTo(1.1, 0);
     shape.closePath();
-    const p = new THREE.Mesh(new THREE.ShapeGeometry(shape), paneMat(PALETTE[i % 5], 1.5));
-    p.position.set((Math.random() - 0.5) * 30, 10 + Math.random() * 14, 30 - i * 14);
+    const p = new THREE.Mesh(new THREE.ShapeGeometry(shape), paneMat(PALETTE[i % 5], 1.3));
+    p.material.side = THREE.DoubleSide;
+    p.material.opacity = 0.6;
+    p.scale.setScalar(0.8);
+    p.position.set((10 + Math.random() * 8) * (i % 2 ? -1 : 1), 15 + Math.random() * 12, 30 - i * 14);
     p.userData = { spin: 0.12 + Math.random() * 0.2, bob: Math.random() * 6 };
     world.add(p);
     anim.saints.push(p);
+  }
+}
+
+// ============================================================
+// HANGING CENSERS — chains from the vault, slow pendulum sway
+// ============================================================
+{
+  anim.censers = [];
+  for (let k = 0; k < 5; k++) {
+    const g = new THREE.Group();
+    const len = 9 + Math.random() * 5;
+    const chain = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, len, 6),
+      mat(0x3a3428, { metalness: 0.9, roughness: 0.4 })
+    );
+    chain.position.y = -len / 2;
+    const censer = new THREE.Group();
+    const bowl = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
+      mat(0x8a6a30, { metalness: 0.95, roughness: 0.3 })
+    );
+    bowl.rotation.x = Math.PI;
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), glow(0xe8843a, 2.2));
+    ember.position.y = 0.1;
+    const emberLight = new THREE.PointLight(0xe8843a, 6, 12, 1.8);
+    censer.add(bowl, ember, emberLight);
+    censer.position.y = -len;
+    g.add(chain, censer);
+    g.position.set((k % 2 ? -8 : 8) + (Math.random() - 0.5) * 3, 33, 34 - k * 15);
+    g.userData = { phase: Math.random() * 6, amp: 0.06 + Math.random() * 0.05 };
+    world.add(g);
+    anim.censers.push(g);
   }
 }
 
@@ -855,5 +890,15 @@ export function updateWorld(t, dt) {
   if (anim.banners) for (const b of anim.banners) {
     b.rotation.x = Math.sin(t * 0.5 + b.userData.sway) * 0.06;
     b.rotation.z = Math.cos(t * 0.35 + b.userData.sway) * 0.04;
+  }
+  // censers swing as slow pendulums
+  if (anim.censers) for (const c of anim.censers) {
+    c.rotation.x = Math.sin(t * 0.7 + c.userData.phase) * c.userData.amp;
+    c.rotation.z = Math.cos(t * 0.55 + c.userData.phase) * c.userData.amp * 0.7;
+  }
+  // colored floor pools slowly wander, like light through moving glass
+  for (let i = 0; i < anim.caustics.length; i++) {
+    anim.caustics[i].rotation.z = t * 0.05 * (i % 2 ? 1 : -1);
+    anim.caustics[i].position.x += Math.sin(t * 0.13 + i * 2.6) * 0.002;
   }
 }

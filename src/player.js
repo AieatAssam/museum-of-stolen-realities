@@ -62,9 +62,18 @@ let cloak, innerSkirt, hood, scarf, blade, bladePivot, body, circlet, hem;
   body = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.42, 4, 12), robeDark);
   body.position.y = 1.52;
 
-  // shoulder mantle
+  // shoulder mantle + slender sleeved arms
   const mantle = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.55, 18, 1, true), robeDark);
   mantle.position.y = 1.78;
+  for (const side of [-1, 1]) {
+    const sleeve = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.62, 10), robeMat);
+    sleeve.position.set(side * 0.3, 1.42, 0.06);
+    sleeve.rotation.z = side * 0.42;
+    sleeve.rotation.x = -0.12;
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), mat(0x0a0912, { roughness: 0.5 }));
+    hand.position.set(side * 0.42, 1.12, 0.1);
+    g.add(sleeve, hand);
+  }
 
   hood = new THREE.Group();
   const hoodM = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 14), robeMat);

@@ -43,13 +43,19 @@ letterbox(true);
 document.addEventListener('pointerlockchange', () => { initAudio(); }, { once: true });
 
 // ---------- interactions ----------
+let leadHeart = null; // dropped by the fallen Warden
+
 function nearestInteractable() {
   // resonators
   for (const r of anim.resonators) {
     if (!r.active && player.pos.distanceTo(r.pos) < 3.6) return { type: 'resonator', r };
   }
-  if (activated === 3 && warden.dead && player.pos.distanceTo(anim.altar.pos) < 5) {
-    return { type: 'altar' };
+  if (leadHeart && !leadHeart.userData.taken && player.pos.distanceTo(leadHeart.position) < 3) {
+    return { type: 'heart' };
+  }
+  if (player.pos.distanceTo(anim.altar.pos) < 5 && stage < 6) {
+    if (activated === 3 && warden.dead) return { type: 'altar' };
+    return { type: 'altar-locked' };
   }
   return null;
 }
@@ -87,13 +93,25 @@ function activateResonator(r) {
     for (const p of anim.panes) p.userData.boost = 1.35;
     setObjective('Climb the risen glass to the second resonator.');
   } else if (activated === 2) {
-    // god rays double, warden stirs
-    toast('Resonance II', 'Something in the transept unfolds its wings.');
+    // the statue ignites — staged as a cinematic
     for (const b of anim.beams) b.userData.baseOp *= 1.8;
-    hemi.intensity = 0.8;
-    moon.intensity = 1.0;
-    wakeWarden();
-    setObjective('The third resonator lies in the Warden’s transept.');
+    hemi.intensity = 1.9;
+    moon.intensity = 1.8;
+    player.moveLocked = true;
+    cine.active = true; cine.t = 4.2;
+    cine.pos.set(warden.home.x + 6, 4.5, warden.home.z + 9);
+    cine.look.copy(warden.home).add(new THREE.Vector3(0, 1.5, 0));
+    letterbox(true);
+    after(0.8, () => {
+      wakeWarden();
+      sfx.shatter();
+      shake(0.5);
+      toast('Acquisition № 214(b)', 'The exhibit is awake. The exhibit remembers its post.');
+    });
+    after(4.0, () => {
+      player.moveLocked = false;
+      setObjective('The third resonator lies in the Warden’s transept.');
+    });
   } else if (activated === 3) {
     toast('Resonance III', 'The Heart Prism stirs. The Warden objects.');
     bloom.strength = 0.7;
@@ -200,18 +218,65 @@ function tick() {
   if (res === 'killed') {
     sfx.shatter();
     toast('The Rose Warden', 'shatters into four hundred grieving colors.');
-    setObjective('Restore the Heart Prism at the altar.');
+    setObjective(activated === 3
+      ? 'Take what the Warden guarded. Then the altar.'
+      : 'Wake the remaining resonators.');
     bloom.strength = 0.8;
+    // it leaves its Lead Heart behind
+    leadHeart = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5),
+      new THREE.MeshStandardMaterial({
+        color: 0x2a2a35, emissive: 0xb22242, emissiveIntensity: 1.2,
+        roughness: 0.3, metalness: 0.8,
+      })
+    );
+    leadHeart.position.set(warden.pos.x, 1.2, warden.pos.z);
+    const hl = new THREE.PointLight(0xb22242, 12, 10);
+    leadHeart.add(hl);
+    scene.add(leadHeart);
+  }
+
+  // Lead Heart idle spin
+  if (leadHeart && !leadHeart.userData.taken) {
+    leadHeart.rotation.y = t * 1.2;
+    leadHeart.position.y = 1.2 + Math.sin(t * 2) * 0.15;
+  }
+
+  // first-fight combat hint, once
+  if (warden.state === 'exposed' && !warden._hinted) {
+    warden._hinted = true;
+    toast('The shards are only glass', 'Strike while the core burns gold.', 3800);
+  }
+
+  // placard moment at the dormant statue, once
+  if (warden.nearDormant && !warden._placarded) {
+    warden._placarded = true;
+    toast('Acquisition № 214(b) · "Warden of the Rose"', 'Patrons are asked not to tap the glass.', 4200);
   }
 
   // interact
   const inter = nearestInteractable();
   if (inter) {
-    promptAct.textContent = inter.type === 'altar' ? 'Restore the Heart Prism' : 'Resonate';
+    promptAct.textContent =
+      inter.type === 'altar' ? 'Restore the Heart Prism'
+      : inter.type === 'altar-locked' ? (warden.dead || !warden.aggro ? 'Sealed — the resonators still sleep' : 'Sealed — the Warden objects')
+      : inter.type === 'heart' ? 'Take the Lead Heart'
+      : 'Resonate';
     promptEl.classList.add('show');
     if (input.keys.KeyE && !input._eHeld) {
       if (inter.type === 'resonator') activateResonator(inter.r);
       else if (inter.type === 'altar' && stage < 6) restorePrism();
+      else if (inter.type === 'heart') {
+        leadHeart.userData.taken = true;
+        leadHeart.visible = false;
+        player.maxHp += 2; player.hp = player.maxHp;
+        drawHearts();
+        sfx.chime();
+        toast('The Lead Heart', 'What it guarded, it gives. +2 hearts.');
+        if (activated === 3) setObjective('Restore the Heart Prism at the altar.');
+      } else if (inter.type === 'altar-locked') {
+        toast('The Altar', activated < 3 ? `${3 - activated} resonator${activated === 2 ? '' : 's'} still sleep.` : 'The Warden still objects.');
+      }
     }
   } else promptEl.classList.remove('show');
   input._eHeld = input.keys.KeyE;
