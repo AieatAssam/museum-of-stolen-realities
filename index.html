@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Museum of Stolen Realities — The Stained Glass Kingdom</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+<style>
+  :root{
+    --gold:#e8b54a; --ivory:#efe9db; --ink:#05070f; --red:#b22242;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --display:"Didot","Bodoni 72",Georgia,serif;
+  }
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);font-family:var(--display)}
+  canvas{display:block}
+
+  #hud{position:fixed;inset:0;pointer-events:none;color:var(--ivory);z-index:2}
+
+  .bar{position:absolute;left:0;right:0;height:0;background:#000;transition:height 1.6s cubic-bezier(.5,0,.15,1);z-index:5}
+  #bar-top{top:0} #bar-bot{bottom:0}
+  body.cine .bar{height:11vh}
+
+  #vignette{position:absolute;inset:0;box-shadow:inset 0 0 24vmin rgba(0,0,0,.8)}
+  #damage{position:absolute;inset:0;box-shadow:inset 0 0 30vmin rgba(178,34,66,0);transition:box-shadow .5s}
+  body.hurt #damage{box-shadow:inset 0 0 32vmin rgba(178,34,66,.8);transition:box-shadow .05s}
+
+  /* title card */
+  #title{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;transition:opacity 2.2s ease;z-index:4;
+  }
+  #title .no{font-family:var(--mono);font-size:.68rem;letter-spacing:.34em;color:var(--gold);text-transform:uppercase}
+  #title h1{
+    font-weight:400;font-size:clamp(2.4rem,7vw,5rem);margin:.5rem 0 .3rem;letter-spacing:.02em;
+    text-shadow:0 2px 40px rgba(232,181,74,.35);
+  }
+  #title .sub{font-style:italic;color:#9aa3c4;font-size:1.05rem}
+  #title.hide{opacity:0}
+
+  /* objective + resonator pips */
+  #objective{
+    position:absolute;top:1.4rem;left:1.6rem;max-width:20rem;
+    opacity:0;transform:translateY(-6px);transition:opacity .9s ease,transform .9s ease;
+  }
+  #objective.show{opacity:1;transform:none}
+  #objective .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.3em;color:var(--gold);text-transform:uppercase}
+  #objective .v{font-style:italic;font-size:1.02rem;margin-top:.3rem;color:var(--ivory)}
+  #pips{display:flex;gap:.5rem;margin-top:.7rem}
+  #pips i{
+    width:.8rem;height:.8rem;transform:rotate(45deg);display:block;
+    border:1px solid var(--gold);background:transparent;transition:background .6s,box-shadow .6s;
+  }
+  #pips i.on{background:var(--gold);box-shadow:0 0 14px rgba(232,181,74,.9)}
+
+  #hearts{position:absolute;top:1.5rem;right:1.8rem;display:flex;gap:.4rem}
+  #hearts i{
+    width:.95rem;height:.95rem;background:var(--red);display:block;transform:rotate(45deg);
+    box-shadow:0 0 10px rgba(178,34,66,.5);transition:background .3s,box-shadow .3s;
+  }
+  #hearts i.off{background:#232637;box-shadow:none}
+
+  /* interact prompt */
+  #prompt{
+    position:absolute;left:50%;bottom:22%;transform:translateX(-50%) translateY(8px);
+    opacity:0;transition:opacity .35s ease,transform .35s ease;text-align:center;
+  }
+  #prompt.show{opacity:1;transform:translateX(-50%)}
+  #prompt .key{
+    display:inline-block;font-family:var(--mono);font-size:.8rem;letter-spacing:.1em;
+    border:1px solid var(--gold);color:var(--gold);padding:.2rem .55rem;margin-right:.6rem;
+  }
+  #prompt .act{font-style:italic;font-size:1.05rem}
+
+  #bossbar{
+    position:absolute;top:9vh;left:50%;transform:translateX(-50%);width:min(44rem,70vw);
+    opacity:0;transition:opacity .9s;text-align:center;
+  }
+  #bossbar.show{opacity:1}
+  #bossname{font-style:italic;font-size:1.15rem;letter-spacing:.05em;margin-bottom:.45rem;text-shadow:0 1px 20px rgba(0,0,0,.8)}
+  #bosstrack{height:4px;background:rgba(239,233,219,.14);outline:1px solid rgba(232,181,74,.45)}
+  #bossfill{height:100%;background:linear-gradient(90deg,#e8b54a,#f4dfa0);width:100%;transition:width .25s cubic-bezier(.3,1.4,.5,1)}
+
+  #toast{
+    position:absolute;top:15vh;left:50%;transform:translateX(-50%);text-align:center;
+    opacity:0;transition:opacity .7s;white-space:nowrap;
+  }
+  #toast .t1{font-family:var(--mono);font-size:.66rem;letter-spacing:.3em;color:var(--gold);text-transform:uppercase}
+  #toast .t2{font-style:italic;font-size:1.1rem;margin-top:.35rem}
+  #toast.show{opacity:1}
+
+  #hint{
+    position:absolute;bottom:1.2rem;left:50%;transform:translateX(-50%);white-space:nowrap;
+    font-family:var(--mono);font-size:.6rem;letter-spacing:.24em;color:#4d5470;text-transform:uppercase;
+    transition:opacity 1.5s;
+  }
+
+  #ending{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    background:radial-gradient(ellipse at 50% 40%,rgba(20,16,5,.7),rgba(3,4,9,.96));
+    opacity:0;pointer-events:none;transition:opacity 3.5s ease;text-align:center;padding:2rem;z-index:6;
+  }
+  #ending.show{opacity:1}
+  #ending .no{font-family:var(--mono);font-size:.66rem;letter-spacing:.32em;color:var(--gold);text-transform:uppercase}
+  #ending h1{font-weight:400;font-style:italic;font-size:clamp(1.7rem,4vw,3rem);max-width:22em;margin:1.3rem 0}
+  #ending p{color:#9aa3c4;font-style:italic;max-width:46ch}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./node_modules/three/build/three.module.js",
+  "three/addons/": "./node_modules/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud">
+  <div id="vignette"></div><div id="damage"></div>
+  <div class="bar" id="bar-top"></div><div class="bar" id="bar-bot"></div>
+
+  <div id="title">
+    <div class="no">Museum of Stolen Realities · Wing I · Acquisition № 214</div>
+    <h1>The Stained Glass Kingdom</h1>
+    <div class="sub">Restore the Heart Prism. Wake the three resonators. Do not trust the light.</div>
+  </div>
+
+  <div id="objective">
+    <div class="k">Objective</div>
+    <div class="v" id="objtext">Reach the altar of the Heart Prism.</div>
+    <div id="pips"><i></i><i></i><i></i></div>
+  </div>
+
+  <div id="hearts"></div>
+
+  <div id="prompt"><span class="key">E</span><span class="act" id="prompt-act">Resonate</span></div>
+
+  <div id="bossbar"><div id="bossname">The Rose Warden</div><div id="bosstrack"><div id="bossfill"></div></div></div>
+
+  <div id="toast"><div class="t1" id="toast1"></div><div class="t2" id="toast2"></div></div>
+
+  <div id="hint">Click to enter · WASD move · mouse look · space jump · shift dash · click attack · E interact</div>
+
+  <div id="ending">
+    <div class="no">Fragment I of VI · Recovered</div>
+    <h1>"The kingdom remembers its light.<br>Somewhere, the Curator updates your placard."</h1>
+    <p>The Heart Prism is restored — and stolen, again, properly this time. Five wings remain. — end of vertical slice —</p>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
