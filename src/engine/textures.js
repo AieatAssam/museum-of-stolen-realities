@@ -1,4 +1,32 @@
 import * as THREE from 'three';
+import { renderer } from './core.js';
+
+// max-quality sampling for all procedural maps: mipmaps + anisotropy
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+export function tune(t, srgb = false) {
+  t.anisotropy = MAX_ANISO;
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  return t;
+}
+
+// displaced relief plane: fine map-based geometry from a height map
+export function reliefPlane({ width, height, wSegs = 48, hSegs = 96, maps, dispScale = 0.2, dispBias, matOpts = {} }) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height, wSegs, hSegs),
+    new THREE.MeshStandardMaterial({
+      map: maps.map, bumpMap: maps.bumpMap, bumpScale: 1.6,
+      displacementMap: maps.bumpMap, displacementScale: dispScale,
+      displacementBias: dispBias ?? -dispScale / 2,
+      ...matOpts,
+    })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.receiveShadow = true;
+  return m;
+}
 
 // Shared procedural texture factory — canvas-authored maps used by every wing.
 
@@ -8,7 +36,7 @@ export function noiseCanvas(fn, size = 512) {
   fn(c.getContext('2d'), size);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
+  return tune(t);
 }
 
 // soft vertical light-shaft gradient

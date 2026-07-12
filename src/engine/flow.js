@@ -58,8 +58,8 @@ export function spawnWave(pos, color) {
 }
 
 const drops = [];
-export function spawnDrop({ pos, color, prompt, onTake }) {
-  const m = new THREE.Mesh(
+export function spawnDrop({ pos, color, prompt, onTake, mesh }) {
+  const m = mesh || new THREE.Mesh(
     new THREE.OctahedronGeometry(0.5),
     new THREE.MeshStandardMaterial({ color: 0x2a2a35, emissive: color, emissiveIntensity: 1.2, roughness: 0.3, metalness: 0.8 })
   );

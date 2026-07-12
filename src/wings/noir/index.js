@@ -87,7 +87,20 @@ export default {
     api.setObjective(flow.activated === 3
       ? 'Take what the Shadow left behind. Then the marquee.'
       : 'Wake the remaining projectors.');
+    // a real fedora: brim disc, tapered crown, pale band
+    const hat = new THREE.Group();
+    const felt = { color: 0x23232a, roughness: 0.85, metalness: 0.05 };
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.68, 0.06, 28), new THREE.MeshStandardMaterial(felt));
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.42, 24), new THREE.MeshStandardMaterial(felt));
+    crown.position.y = 0.24;
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial(felt));
+    top.position.y = 0.45;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.1, 24), new THREE.MeshStandardMaterial({ color: 0xb8b8c4, emissive: 0xdfe6ff, emissiveIntensity: 0.35, roughness: 0.5 }));
+    band.position.y = 0.1;
+    hat.add(brim, crown, top, band);
+    hat.rotation.z = 0.18;
     hatDrop = api.spawnDrop({
+      mesh: hat,
       pos: new THREE.Vector3(shade.pos.x, 1.1, shade.pos.z),
       color: 0xdfe6ff,
       prompt: 'Take the Detective’s Hat',

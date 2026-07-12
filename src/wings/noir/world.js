@@ -3,7 +3,7 @@ import { Reflector } from 'three/addons/objects/Reflector.js';
 import {
   scene, mat, glow, addBoxCollider, addGround,
 } from '../../engine/core.js';
-import { BEAM_TEX, GLOW_TEX, facadeMaps, asphaltMaps } from '../../engine/textures.js';
+import { BEAM_TEX, GLOW_TEX, facadeMaps, asphaltMaps, reliefPlane } from '../../engine/textures.js';
 
 // ============================================================
 // Wing III — The Long Shadow. A monochrome noir city at 3:11 a.m.
@@ -16,7 +16,7 @@ scene.add(world);
 
 // wing atmosphere: dense grey rain-fog, black sky
 scene.fog.color.set(0x0b0b0e);
-scene.fog.density = 0.02;
+scene.fog.density = 0.016;
 scene.background.set(0x08080b);
 
 export const anim = {
@@ -52,6 +52,18 @@ function colorable(material, floodColor) {
   street.receiveShadow = true;
   world.add(street); addGround(street);
 
+  // displaced worn asphalt flanking the mirror lane — real relief geometry
+  for (const sx of [-1, 1]) {
+    const rm = asphaltMaps();
+    rm.map.repeat.set(2, 16); rm.bumpMap.repeat.set(2, 16);
+    const lane = reliefPlane({
+      width: 9, height: 126, wSegs: 24, hSegs: 200, maps: rm,
+      dispScale: 0.16, matOpts: { roughness: 0.45, metalness: 0.3 },
+    });
+    lane.position.set(sx * 9.6, 0.05, 0);
+    world.add(lane); addGround(lane);
+  }
+
   // rain-wet mirror down the middle of the road
   const mirror = new Reflector(new THREE.PlaneGeometry(10, 124), {
     textureWidth: 1024, textureHeight: 1024, color: 0x556, clipBias: 0.003,
@@ -80,13 +92,13 @@ function colorable(material, floodColor) {
 }
 
 // ---------- buildings ----------
-function building(x, z, w, d, h, lit = 0.18) {
+function building(x, z, w, d, h, lit = 0.3) {
   const fm = facadeMaps(lit);
   fm.map.repeat.set(Math.max(1, Math.round(w / 8)), Math.max(1, Math.round(h / 10)));
   fm.bumpMap.repeat.copy(fm.map.repeat);
   const b = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ map: fm.map, bumpMap: fm.bumpMap, bumpScale: 1.4, roughness: 0.8 })
+    new THREE.MeshStandardMaterial({ map: fm.map, bumpMap: fm.bumpMap, bumpScale: 3.2, roughness: 0.75 })
   );
   b.position.set(x, h / 2, z);
   b.castShadow = true; b.receiveShadow = true;
@@ -133,18 +145,47 @@ function building(x, z, w, d, h, lit = 0.18) {
 
 // ---------- fire escape up to the rooftop (node B) ----------
 {
-  const railMat = mat(0x35353c, { metalness: 0.85, roughness: 0.45 });
+  const railMat = mat(0x6a6a76, { metalness: 0.9, roughness: 0.35 });
   const steps = [
     [10, 1.6, 15], [12.5, 3.4, 13], [14.5, 5.2, 15], [14.5, 7.0, 17.5],
     [14.5, 8.8, 15], [14.7, 10.6, 12.4], [15.5, 11.9, 14.3],
   ];
+  let prev = null;
   for (const [x, y, z] of steps) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.18, 2.6), railMat);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.22, 2.6), railMat);
     p.position.set(x, y, z);
+    p.castShadow = true;
     world.add(p); addGround(p);
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.05, 0.05), glow(0xf2f2ee, 0.25));
-    rail.position.set(x, y + 0.55, z - 1.25);
-    world.add(rail);
+    // glowing rails on both open sides so the route reads at a glance
+    for (const dz of [-1.25, 1.25]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.06, 0.06), glow(0xfff4d8, 0.9));
+      rail.position.set(x, y + 0.6, z + dz);
+      world.add(rail);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.6, 0.06), railMat);
+      post.position.set(x - 1.2, y + 0.3, z + dz);
+      world.add(post);
+    }
+    // small landing lamp
+    const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: GLOW_TEX, color: 0xfff0d0, transparent: true, opacity: 0.5,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    lampGlow.scale.setScalar(1.6);
+    lampGlow.position.set(x, y + 1.1, z);
+    world.add(lampGlow);
+    const pl = new THREE.PointLight(0xfff0d0, 4, 7, 1.8);
+    pl.position.set(x, y + 1, z);
+    world.add(pl);
+    // diagonal stringer connecting to the previous landing
+    if (prev) {
+      const dir = new THREE.Vector3(x - prev[0], y - prev[1], z - prev[2]);
+      const len = dir.length();
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, len), railMat);
+      beam.position.set((x + prev[0]) / 2, (y + prev[1]) / 2, (z + prev[2]) / 2);
+      beam.lookAt(new THREE.Vector3(x, y, z));
+      world.add(beam);
+    }
+    prev = [x, y, z];
     anim.escapes.push(p);
   }
 }
@@ -157,7 +198,7 @@ function lamp(x, z) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), glow(0xfff4d8, 2.4));
   head.position.set(x, 6.6, z);
   world.add(head);
-  const light = new THREE.PointLight(0xfff0d0, 14, 20, 1.7);
+  const light = new THREE.PointLight(0xfff0d0, 20, 26, 1.7);
   light.position.set(x, 6.3, z);
   world.add(light);
   // volumetric cone
@@ -180,7 +221,7 @@ function lamp(x, z) {
   world.add(pool);
   anim.lampPools.push(pool);
 }
-for (let k = 0; k < 6; k++) lamp(k % 2 ? -10.4 : 10.4, 44 - k * 17);
+for (let k = 0; k < 8; k++) lamp(k % 2 ? -10.4 : 10.4, 48 - k * 14);
 
 // ---------- neon signage (abstract bars + one red intrusion) ----------
 function neonBar(x, y, z, w, h, color, ry = 0) {
@@ -302,16 +343,16 @@ projector(-10, 0, -28);     // C — guardian's plaza
 }
 
 // ---------- lighting: cold moon + sodium accents ----------
-export const hemi = new THREE.HemisphereLight(0x555a70, 0x0a0a0e, 1.15);
+export const hemi = new THREE.HemisphereLight(0x6a7088, 0x14141c, 1.65);
 scene.add(hemi);
-export const moon = new THREE.DirectionalLight(0xc8d2f0, 0.9);
+export const moon = new THREE.DirectionalLight(0xc8d2f0, 1.5);
 moon.position.set(-30, 60, 20);
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
 moon.shadow.camera.left = -60; moon.shadow.camera.right = 60;
 moon.shadow.camera.top = 70; moon.shadow.camera.bottom = -70;
 scene.add(moon);
-scene.add(new THREE.AmbientLight(0x2a2d3a, 1.1));
+scene.add(new THREE.AmbientLight(0x363a4c, 1.5));
 
 // ---------- the color flood (climax) ----------
 export const flood = { k: 0, target: 0 };
