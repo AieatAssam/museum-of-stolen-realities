@@ -43,7 +43,7 @@ await new Promise(r => setTimeout(r, 600));
 await page.evaluate(() => window.__game.teleport(0, 1, -48));
 await new Promise(r => setTimeout(r, 700));
 await page.keyboard.down('KeyE'); await new Promise(r => setTimeout(r, 250)); await page.keyboard.up('KeyE');
-await new Promise(r => setTimeout(r, 5000));
+await new Promise(r => setTimeout(r, 7500));
 await page.screenshot({ path: SHOT + '/n5-colorflood.png' });
 await new Promise(r => setTimeout(r, 7000));
 await page.screenshot({ path: SHOT + '/n6-ending.png' });

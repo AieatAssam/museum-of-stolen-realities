@@ -282,6 +282,40 @@ for (let k = 0; k < 4; k++) {
   anim.steam.push(s);
 }
 
+// footage texture: flickering abstract frames, redrawn each activation pulse
+function footageCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 160;
+  return { canvas: c, tex: new THREE.CanvasTexture(c) };
+}
+export function drawFootage(f, t, colorful = 0) {
+  const g = f.canvas.getContext('2d');
+  const W = 256, H = 160;
+  g.fillStyle = '#0a0a0c';
+  g.fillRect(0, 0, W, H);
+  // sweeping silhouette skyline + circling searchlight, like an old newsreel
+  g.fillStyle = colorful ? `hsl(${(t * 40) % 360},70%,60%)` : '#e8e8e0';
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const h = 40 + 50 * Math.abs(Math.sin(i * 2.4 + t * 0.7));
+    g.fillRect(i * (W / n) + 4, H - h, W / n - 8, h);
+  }
+  g.strokeStyle = colorful ? '#fff' : '#f2f2ee';
+  g.lineWidth = 5;
+  g.beginPath();
+  const a = t * 1.6;
+  g.moveTo(W / 2, H);
+  g.lineTo(W / 2 + Math.cos(a) * 130, H - Math.abs(Math.sin(a)) * 150);
+  g.stroke();
+  // grain
+  for (let i = 0; i < 220; i++) {
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.2)';
+    g.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+  }
+  if (Math.random() < 0.06) { g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(0, 0, W, H); }
+  f.tex.needsUpdate = true;
+}
+
 // ---------- activation nodes: three film projectors ----------
 function projector(x, y, z) {
   const g = new THREE.Group();
@@ -309,9 +343,36 @@ function projector(x, y, z) {
   anim.projectors.push(node);
   return node;
 }
+// each projector throws a cone of light and a flickering picture onto the facing wall
+function aimProjector(node, wallX, wallZ, ry, w = 7, h = 4.4) {
+  const from = node.pos.clone().add(new THREE.Vector3(0, 2.3, 0));
+  const to = new THREE.Vector3(wallX, from.y + 1.2, wallZ);
+  const dir = to.clone().sub(from);
+  const len = dir.length();
+  const beam = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.2, len),
+    new THREE.MeshBasicMaterial({ map: BEAM_TEX, color: 0xfff8e0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+  );
+  beam.position.copy(from).addScaledVector(dir, 0.5);
+  beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  beam.layers.set(1);
+  world.add(beam);
+  const f = footageCanvas();
+  const img = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ map: f.tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  img.position.set(wallX, from.y + 1.2, wallZ);
+  img.rotation.y = ry;
+  world.add(img);
+  node.beam = beam; node.img = img; node.footage = f;
+}
 projector(8, 0, 20);        // A — street plaza
 projector(18, 12.4, 8);     // B — the low rooftop
 projector(-10, 0, -28);     // C — guardian's plaza
+aimProjector(anim.projectors[0], -13.3, 18, Math.PI / 2);
+aimProjector(anim.projectors[1], 13.4, -6, -Math.PI / 2, 8, 5);
+aimProjector(anim.projectors[2], 13.9, -26, -Math.PI / 2);
 
 // ---------- the cinema + marquee altar (relic site) ----------
 {
@@ -338,6 +399,19 @@ projector(-10, 0, -28);     // C — guardian's plaza
   const light = new THREE.PointLight(0xdfe6ff, 6, 16);
   light.position.set(0, 4, -50);
   world.add(light);
+  // the picture house screen: framed white sheet high on the end wall
+  const screenFrame = new THREE.Mesh(new THREE.BoxGeometry(21, 12.4, 0.5), mat(0x0c0c0f, { roughness: 0.6 }));
+  screenFrame.position.set(0, 14, -61.6);
+  world.add(screenFrame);
+  const screenF = footageCanvas();
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 11.4),
+    new THREE.MeshStandardMaterial({ color: 0x3c3c42, emissive: 0xffffff, emissiveIntensity: 0.25, emissiveMap: screenF.tex, map: screenF.tex, roughness: 0.9 })
+  );
+  screen.position.set(0, 14, -61.2);
+  world.add(screen);
+  anim.screen = { mesh: screen, footage: screenF, playing: false, colorful: 0 };
+
   anim.marquee = { frame, negative, light, redSign, pos: new THREE.Vector3(0, 0.8, -50) };
   world.add(cin);
 }
@@ -353,6 +427,33 @@ moon.shadow.camera.left = -60; moon.shadow.camera.right = 60;
 moon.shadow.camera.top = 70; moon.shadow.camera.bottom = -70;
 scene.add(moon);
 scene.add(new THREE.AmbientLight(0x363a4c, 1.5));
+
+// ---------- dawn sun + rainbow (revealed by the climax) ----------
+export const dawn = { sun: null, sunLight: null, rainbow: null };
+{
+  dawn.sun = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: GLOW_TEX, color: 0xffd9a0, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  dawn.sun.scale.setScalar(46);
+  dawn.sun.position.set(-16, 20, -110);
+  scene.add(dawn.sun);
+  dawn.sunLight = new THREE.DirectionalLight(0xffc878, 0);
+  dawn.sunLight.position.set(-18, 26, -110);
+  scene.add(dawn.sunLight);
+  // rainbow: seven nested translucent arcs over the skyline
+  dawn.rainbow = new THREE.Group();
+  const RB = [0xff4444, 0xff9a3c, 0xffe14a, 0x4ade6a, 0x3ca8ff, 0x5a6cff, 0xa05aff];
+  RB.forEach((c, i) => {
+    const arc = new THREE.Mesh(
+      new THREE.TorusGeometry(46 - i * 1.6, 0.7, 8, 64, Math.PI),
+      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+    );
+    dawn.rainbow.add(arc);
+  });
+  dawn.rainbow.position.set(6, 8, -100);
+  scene.add(dawn.rainbow);
+}
 
 // ---------- the color flood (climax) ----------
 export const flood = { k: 0, target: 0 };
@@ -390,13 +491,37 @@ export function updateWorld(t, dt) {
   anim.lampPools.forEach((p, i) => {
     p.material.opacity = 0.18 + Math.sin(t * 2.2 + i * 1.7) * 0.05;
   });
-  // projectors
+  // projectors: spin, glow, and actually PROJECT
   for (const n of anim.projectors) {
     n.reel.rotation.z += dt * (n.active ? 4 : 0.3);
     if (n.active) {
       n.light.intensity = 18 + Math.sin(t * 7) * 4;
       n.lens.material.emissiveIntensity = 2.2 + Math.sin(t * 7) * 0.6;
+      if (n.beam) {
+        const flick = 0.9 + Math.sin(t * 23 + n.pos.x) * 0.1;
+        n.beam.material.opacity = Math.min(0.22, n.beam.material.opacity + dt * 0.2) * flick;
+        n.img.material.opacity = Math.min(0.75, n.img.material.opacity + dt * 0.5) * flick;
+        if ((t * 12 | 0) % 2 === 0) drawFootage(n.footage, t + n.pos.z, flood.k > 0.05 ? 1 : 0);
+      }
     }
+  }
+  // the picture house screen
+  if (anim.screen.playing && (t * 12 | 0) % 2 === 0) {
+    drawFootage(anim.screen.footage, t, anim.screen.colorful);
+    anim.screen.mesh.material.emissiveIntensity = 2.4 + Math.sin(t * 19) * 0.5;
+  }
+  // dawn + rainbow rise with the flood
+  if (flood.k > 0.01) {
+    dawn.sun.material.opacity = flood.k * 0.95;
+    dawn.sun.position.y = 24 + flood.k * 32;
+    dawn.sunLight.intensity = flood.k * 2.6;
+    dawn.rainbow.children.forEach((arc, i) => {
+      arc.material.opacity = Math.max(0, flood.k - i * 0.04) * 0.5;
+    });
+  } else {
+    dawn.sun.material.opacity *= 0.98;
+    dawn.rainbow.children.forEach(a => a.material.opacity *= 0.98);
+    dawn.sunLight.intensity *= 0.98;
   }
   // negative hovers
   anim.marquee.negative.position.y = 2.6 + Math.sin(t * 1.3) * 0.1;
@@ -424,9 +549,9 @@ export function updateWorld(t, dt) {
       b.material.opacity = 0.13 + k * 0.12;
     });
     anim.rain.material.color.lerpColors(new THREE.Color(0x9aa0b8), new THREE.Color(0x9ad4ff), k);
-    hemi.color.lerpColors(new THREE.Color(0x555a70), new THREE.Color(0x8a7ade), k);
-    hemi.intensity = 1.15 + k * 0.9;
-    scene.fog.color.lerpColors(new THREE.Color(0x0b0b0e), new THREE.Color(0x1a2148), k);
+    hemi.color.lerpColors(new THREE.Color(0x555a70), new THREE.Color(0xb09ae8), k);
+    hemi.intensity = 1.65 + k * 1.3;
+    scene.fog.color.lerpColors(new THREE.Color(0x0b0b0e), new THREE.Color(0x35406e), k);
     scene.background.copy(scene.fog.color);
   }
 }

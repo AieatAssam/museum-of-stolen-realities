@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { anim, hemi, updateWorld, flood } from './world.js';
+import { anim, hemi, updateWorld, flood, dawn } from './world.js';
 import { shade } from './guardian.js';
 import { scene } from '../../engine/core.js';
 import { flow } from '../../engine/flow.js';
@@ -109,7 +109,8 @@ export default {
         api2.player.hp = api2.player.maxHp;
         api2.drawHearts();
         api2.sfx.chime();
-        api2.toast('The Detective’s Hat', 'Someone kept it brushed all these years. +2 hearts.');
+        api2.collect('provenances', 'The Detective’s Hat');
+        api2.toast('The Detective’s Hat', 'Provenance secured for the collection. +2 hearts.');
         if (flow.activated === 3) api2.setObjective('Develop the Negative at the cinema marquee.');
       },
     });
@@ -131,7 +132,7 @@ export default {
       api.sfx.bigChime();
       api.letterbox(true);
       api.cine.active = true;
-      api.cine.t = 11.5;
+      api.cine.t = 13;
       api.cine.pos.set(8, 3.5, -38);
       api.cine.look.copy(anim.marquee.negative.position);
       api.after(0.6, () => {
@@ -140,21 +141,29 @@ export default {
         api.burstSparks(anim.marquee.negative.position, 0xffffff, 10);
         api.shake(0.35);
       });
-      api.after(2.0, () => {
-        // ELEVEN SECONDS OF COLOR
+      api.after(1.2, () => {
+        // the picture house wakes: the screen starts playing
+        anim.screen.playing = true;
+        api.cine.pos.set(0, 8, -40);
+        api.cine.look.set(0, 14, -61);
+      });
+      api.after(3.4, () => {
+        // ELEVEN SECONDS OF COLOR — the film bursts off the screen, dawn breaks
         flood.target = 1;
-        api.bloom.strength = 0.85;
+        anim.screen.colorful = 1;
+        api.bloom.strength = 1.0;
         api.sfx.shatter();
         api.toast('3:11 a.m.', 'For eleven seconds, the city remembers.', 5000);
-        // turn to face the whole boulevard as it floods with color
-        api.cine.pos.set(0, 13, -46);
-        api.cine.look.set(0, 3, 30);
+        // face the boulevard: sun climbs over the rooftops, a rainbow spans the sky
+        api.cine.pos.set(0, 13, -20);
+        api.cine.look.set(0, 16, -95);
       });
-      api.after(8.5, () => {
+      api.after(10.2, () => {
         flood.target = 0;             // the monochrome lid comes back down
+        anim.screen.colorful = 0;
         api.bloom.strength = 0.5;
       });
-      api.after(10.5, () => api.endGame());
+      api.after(12.2, () => api.endGame());
     },
   },
 

@@ -22,7 +22,8 @@ function dropLeadHeart(api) {
       api2.player.hp = api2.player.maxHp;
       api2.drawHearts();
       api2.sfx.chime();
-      api2.toast('The Lead Heart', 'What it guarded, it gives. +2 hearts.');
+      api2.collect('provenances', 'The Lead Heart');
+      api2.toast('The Lead Heart', 'Provenance secured for the collection. +2 hearts.');
       if (flow.activated === 3) api2.setObjective('Restore the Heart Prism at the altar.');
     },
   });

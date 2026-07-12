@@ -76,8 +76,16 @@ export const api = {
   THREE, scene, camera, bloom, toast, letterbox, shake, cine, after, sfx,
   burstSparks, spawnWave, spawnDrop, setObjective, drawHearts, player, flow,
   lockPlayer(v) { player.moveLocked = v; },
+  // persistent progression — the hub reads this later
+  collect(kind, name) {
+    const key = 'msr-progress';
+    const p = JSON.parse(localStorage.getItem(key) || '{}');
+    (p[kind] = p[kind] || []).includes(name) || p[kind].push(name);
+    localStorage.setItem(key, JSON.stringify(p));
+  },
   endGame() {
     flow.stage = 6;
+    api.collect('fragments', wing.meta.title);
     document.getElementById('ending').classList.add('show');
   },
 };
