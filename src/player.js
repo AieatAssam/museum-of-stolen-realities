@@ -200,13 +200,14 @@ export function damagePlayer(n, fromPos) {
 }
 
 // attack query — main.js asks "did this swing hit X?"
-export function attackHits(targetPos, range = 2.8) {
+// The swing aims where the CAMERA looks, not where the run animation faces.
+export function attackHits(targetPos, range = 3.4) {
   if (player.attackAnim <= 0.12 || player.attackAnim > 0.3) return false;
   const d = targetPos.clone().sub(player.pos);
   if (d.length() > range + 1.2) return false;
   d.setY(0).normalize();
-  const f = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
-  return f.dot(d) > 0.25;
+  const f = new THREE.Vector3(-Math.sin(input.lookX), 0, -Math.cos(input.lookX));
+  return f.dot(d) > 0.2;
 }
 
 // ---------- per-frame ----------
@@ -288,6 +289,8 @@ export function updatePlayer(dt, t, zone) {
   // ----- attack -----
   if (input.attack && p.attackCd <= 0 && !p.moveLocked && !p.dead) {
     p.attackCd = 0.45; p.attackAnim = 0.3;
+    // snap facing to the camera's aim so the swing goes where you look
+    p.yaw = Math.atan2(-Math.sin(input.lookX), -Math.cos(input.lookX));
     trail.material.opacity = 0.85;
     trail.position.copy(p.pos).y += 1.3;
     trail.rotation.z = -input.lookX + Math.PI / 2;

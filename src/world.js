@@ -472,11 +472,14 @@ export function makeSlab(x, y, z, w = 3.4, d = 3.4, visible = true) {
   const ledge = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 16), stoneMat);
   ledge.position.set(-18, 10, -6);
   world.add(ledge); addGround(ledge); addBoxCollider(ledge);
-  // stairs of glass slabs — LOCKED until resonator A (spawned hidden)
+  // stairs of glass slabs — LOCKED until resonator A (spawned hidden).
+  // The flight climbs OUTSIDE the ledge footprint (x > -13) and tops out
+  // level with the ledge so the last hop lands cleanly on it.
   const steps = [
-    [-4, 1.6, 10], [-8, 3.2, 6], [-12, 4.8, 2], [-15, 6.5, -1], [-17, 8.4, -4],
+    [-4, 1.8, 10], [-7.5, 3.6, 7], [-10.5, 5.4, 3.5],
+    [-12.4, 7.2, 0], [-12.4, 9.0, -3.5], [-12.2, 10.4, -6.5],
   ];
-  anim.stairSlabs = steps.map(([x, y, z]) => makeSlab(x, y, z, 3.2, 3.2, false));
+  anim.stairSlabs = steps.map(([x, y, z]) => makeSlab(x, y, z, 3.4, 3.4, false));
 }
 
 // ============================================================
@@ -527,7 +530,7 @@ function makeResonator(x, y, z, color) {
   return r;
 }
 makeResonator(36, 0, 6, 0x1a7a5e);       // A — side chapel
-makeResonator(-18, 11, -10, 0x7a2bc9);   // B — west gallery ledge
+makeResonator(-18, 10.5, -10, 0x7a2bc9); // B — west gallery ledge
 makeResonator(14, 0, -46, 0xb22242);     // C — far transept, warden territory
 
 // ============================================================

@@ -138,12 +138,12 @@ export function updateWarden(dt, t) {
     w.pos.y = w.home.y + Math.sin(t * 0.5) * 0.3;
   } else if (w.state === 'patrol') {
     // drift toward player, keep midrange
-    const desired = player.pos.clone().add(new THREE.Vector3(0, 3.2, 0));
+    const desired = player.pos.clone().add(new THREE.Vector3(0, 2.6, 0));
     const dir = desired.sub(w.pos);
     const d = dir.length();
-    if (d > 7) w.pos.addScaledVector(dir.normalize(), dt * 5);
-    else if (d < 4.5) w.pos.addScaledVector(dir.normalize(), -dt * 4);
-    w.pos.y = 3.2 + Math.sin(t * 1.1) * 0.5;
+    if (d > 6) w.pos.addScaledVector(dir.normalize(), dt * 5);
+    else if (d < 3) w.pos.addScaledVector(dir.normalize(), -dt * 4);
+    w.pos.y = 2.6 + Math.sin(t * 1.1) * 0.5;
     if (w.stateT > 2.6 && dist < 26) {
       setState(Math.random() < 0.6 ? 'volley' : 'sweep');
     }
