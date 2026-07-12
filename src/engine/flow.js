@@ -85,6 +85,7 @@ export const api = {
 let wing = null;
 
 function nearestInteractable() {
+  if (player.moveLocked) return null; // no prompts inside cinematics
   for (let i = 0; i < wing.nodes.length; i++) {
     const n = wing.nodes[i];
     if (!n.active && player.pos.distanceTo(n.pos) < (n.radius || 3.6)) return { type: 'node', i, n };
