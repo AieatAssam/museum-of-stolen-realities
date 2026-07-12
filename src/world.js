@@ -66,6 +66,112 @@ function glowTexture() {
 }
 export const GLOW_TEX = glowTexture();
 
+// ---------- procedural texture factory: color + matching bump ----------
+function noiseCanvas(fn, size = 512) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  fn(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+// weathered masonry: courses of stone, per-block tint, cracks, grime
+function stoneMaps(baseR, baseG, baseB) {
+  const draw = (g, S, forBump) => {
+    g.fillStyle = forBump ? '#808080' : `rgb(${baseR},${baseG},${baseB})`;
+    g.fillRect(0, 0, S, S);
+    const rows = 8, courseH = S / rows;
+    for (let r = 0; r < rows; r++) {
+      const off = (r % 2) * courseH;
+      for (let x = -1; x < 5; x++) {
+        const bw = S / 4, bx = x * bw + off;
+        const v = (Math.random() - 0.5) * 26;
+        g.fillStyle = forBump
+          ? `rgb(${128 + v},${128 + v},${128 + v})`
+          : `rgb(${baseR + v},${baseG + v},${baseB + v * 1.4})`;
+        g.fillRect(bx + 2, r * courseH + 2, bw - 4, courseH - 4);
+        // edge wear highlight on top edge
+        g.fillStyle = forBump ? 'rgba(200,200,200,.35)' : 'rgba(160,170,220,.06)';
+        g.fillRect(bx + 2, r * courseH + 2, bw - 4, 3);
+      }
+      // mortar line
+      g.fillStyle = forBump ? 'rgb(40,40,40)' : 'rgba(0,0,0,.5)';
+      g.fillRect(0, r * courseH, S, 2);
+    }
+    // cracks
+    g.strokeStyle = forBump ? 'rgba(30,30,30,.8)' : 'rgba(0,0,0,.35)';
+    g.lineWidth = 1.5;
+    for (let i = 0; i < 14; i++) {
+      g.beginPath();
+      let x = Math.random() * S, y = Math.random() * S;
+      g.moveTo(x, y);
+      for (let s = 0; s < 6; s++) { x += (Math.random() - 0.5) * 60; y += Math.random() * 40; g.lineTo(x, y); }
+      g.stroke();
+    }
+    // grime blotches
+    for (let i = 0; i < 40; i++) {
+      const rr = 10 + Math.random() * 50;
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, rr);
+      gr.addColorStop(0, forBump ? 'rgba(90,90,90,.25)' : 'rgba(0,0,0,.16)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.save();
+      g.translate(Math.random() * S, Math.random() * S);
+      g.fillStyle = gr;
+      g.fillRect(-rr, -rr, rr * 2, rr * 2);
+      g.restore();
+    }
+  };
+  return {
+    map: noiseCanvas((g, S) => draw(g, S, false)),
+    bumpMap: noiseCanvas((g, S) => draw(g, S, true)),
+  };
+}
+
+// worn plank wood for pews
+function woodMaps() {
+  const draw = (g, S, forBump) => {
+    g.fillStyle = forBump ? '#808080' : '#241a2e';
+    g.fillRect(0, 0, S, S);
+    for (let y = 0; y < S; y += 4) {
+      const v = (Math.random() - 0.5) * 18 + Math.sin(y * 0.1) * 8;
+      g.fillStyle = forBump ? `rgba(${128 + v},${128 + v},${128 + v},.8)` : `rgba(${40 + v},${28 + v * 0.7},${52 + v},.55)`;
+      g.fillRect(0, y, S, 3);
+    }
+    g.strokeStyle = forBump ? 'rgba(60,60,60,.9)' : 'rgba(0,0,0,.4)';
+    for (let i = 0; i < 9; i++) {
+      const y = Math.random() * S;
+      g.beginPath(); g.moveTo(0, y); g.lineTo(S, y + (Math.random() - 0.5) * 20); g.stroke();
+    }
+  };
+  return { map: noiseCanvas((g, S) => draw(g, S, false)), bumpMap: noiseCanvas((g, S) => draw(g, S, true)) };
+}
+
+// cloth weave for banners
+function weaveMaps(hexColor) {
+  const c = new THREE.Color(hexColor);
+  const R = c.r * 255, G = c.g * 255, B = c.b * 255;
+  const draw = (g, S, forBump) => {
+    g.fillStyle = forBump ? '#808080' : `rgb(${R},${G},${B})`;
+    g.fillRect(0, 0, S, S);
+    for (let y = 0; y < S; y += 3) {
+      g.fillStyle = forBump ? 'rgba(96,96,96,.5)' : 'rgba(0,0,0,.14)';
+      g.fillRect(0, y, S, 1);
+    }
+    for (let x = 0; x < S; x += 3) {
+      g.fillStyle = forBump ? 'rgba(160,160,160,.3)' : 'rgba(255,255,255,.05)';
+      g.fillRect(x, 0, 1, S);
+    }
+    // age stains + fraying darkness at bottom
+    const fade = g.createLinearGradient(0, 0, 0, S);
+    fade.addColorStop(0.75, 'rgba(0,0,0,0)');
+    fade.addColorStop(1, 'rgba(0,0,0,.4)');
+    g.fillStyle = fade;
+    g.fillRect(0, 0, S, S);
+  };
+  return { map: noiseCanvas((g, S) => draw(g, S, false), 256), bumpMap: noiseCanvas((g, S) => draw(g, S, true), 256) };
+}
+
 // ---------- glass material ----------
 const paneMat = (color, intensity = 2.2) => new THREE.MeshStandardMaterial({
   color, emissive: color, emissiveIntensity: intensity,
@@ -73,8 +179,22 @@ const paneMat = (color, intensity = 2.2) => new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide,
 });
 const leadMat = mat(0x0a0a10, { roughness: 0.5, metalness: 0.7 });
-const stoneMat = mat(0x2a2f4d, { roughness: 0.75, metalness: 0.15 });
-const darkStone = mat(0x1a1e33, { roughness: 0.85 });
+const _stone = stoneMaps(58, 64, 96);
+_stone.map.repeat.set(2, 2); _stone.bumpMap.repeat.set(2, 2);
+const stoneMat = new THREE.MeshStandardMaterial({
+  map: _stone.map, bumpMap: _stone.bumpMap, bumpScale: 2.2,
+  roughness: 0.8, metalness: 0.12,
+});
+const _dark = stoneMaps(34, 40, 66);
+_dark.map.repeat.set(3, 3); _dark.bumpMap.repeat.set(3, 3);
+const darkStone = new THREE.MeshStandardMaterial({
+  map: _dark.map, bumpMap: _dark.bumpMap, bumpScale: 2.0,
+  roughness: 0.88, metalness: 0.08,
+});
+const _wood = woodMaps();
+const pewWood = new THREE.MeshStandardMaterial({
+  map: _wood.map, bumpMap: _wood.bumpMap, bumpScale: 1.4, roughness: 0.85,
+});
 
 // ---------- procedural floor tile texture ----------
 function tileTexture() {
@@ -102,13 +222,32 @@ function tileTexture() {
 // FLOOR — polished stone + real mirror strip down the nave
 // ============================================================
 {
+  const tileMap = tileTexture();
   const floor = new THREE.Mesh(
     new THREE.BoxGeometry(56, 1, 130),
-    new THREE.MeshStandardMaterial({ map: tileTexture(), roughness: 0.35, metalness: 0.5 })
+    new THREE.MeshStandardMaterial({ map: tileMap, roughness: 0.35, metalness: 0.5 })
   );
   floor.position.set(0, -0.5, 0);
   floor.receiveShadow = true;
   world.add(floor); addGround(floor);
+
+  // uneven worn-stone relief flanking the mirror aisle (real displaced geometry)
+  const reliefMaps = stoneMaps(48, 54, 84);
+  reliefMaps.map.repeat.set(4, 18); reliefMaps.bumpMap.repeat.set(4, 18);
+  for (const sx of [-1, 1]) {
+    const relief = new THREE.Mesh(
+      new THREE.PlaneGeometry(20.5, 128, 40, 200),
+      new THREE.MeshStandardMaterial({
+        map: reliefMaps.map, bumpMap: reliefMaps.bumpMap, bumpScale: 1.6,
+        displacementMap: reliefMaps.bumpMap, displacementScale: 0.22, displacementBias: -0.11,
+        roughness: 0.55, metalness: 0.3,
+      })
+    );
+    relief.rotation.x = -Math.PI / 2;
+    relief.position.set(sx * 17.1, 0.04, 0);
+    relief.receiveShadow = true;
+    world.add(relief); addGround(relief);
+  }
 
   // mirror strip — the processional aisle
   const mirror = new Reflector(new THREE.PlaneGeometry(13, 124), {
@@ -162,19 +301,39 @@ function tileTexture() {
     }
   }
 
-  // pews — two blocks of rows flanking the mirror aisle
-  const pewMat = mat(0x1c1526, { roughness: 0.9 });
+  // pews — carved wood with end caps and a gold devotional line
   for (let r = 0; r < 9; r++) {
     for (const side of [-1, 1]) {
       const z = 40 - r * 7;
-      const pew = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.9, 1.1), pewMat);
+      const pew = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.9, 1.1), pewWood);
       pew.position.set(side * 11, 0.45, z);
       pew.castShadow = true; pew.receiveShadow = true;
       world.add(pew);
-      const back = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, 0.18), pewMat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, 0.18), pewWood);
       back.position.set(side * 11, 1.4, z + 0.45);
+      back.castShadow = true;
       world.add(back);
+      for (const ex of [-3.35, 3.35]) {
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.7, 1.2), pewWood);
+        cap.position.set(side * 11 + ex, 0.85, z + 0.1);
+        world.add(cap);
+      }
+      const line = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.05, 0.05), glow(0xc8a35a, 0.3));
+      line.position.set(side * 11, 1.96, z + 0.45);
+      world.add(line);
       addBoxCollider(pew);
+    }
+  }
+
+  // cornice trims running the length of both walls + pilaster strips
+  for (const side of [-1, 1]) {
+    for (const [ty, th] of [[12.5, 0.5], [30, 0.7]]) {
+      const cornice = new THREE.Mesh(new THREE.BoxGeometry(0.8, th, 118), stoneMat);
+      cornice.position.set(side * 21.9, ty, 0);
+      world.add(cornice);
+      const gold = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 118), glow(0xc8a35a, 0.35));
+      gold.position.set(side * 21.4, ty + th / 2, 0);
+      world.add(gold);
     }
   }
 
@@ -183,9 +342,13 @@ function tileTexture() {
     const side = k % 2 ? -1 : 1;
     const z = 30 - k * 12;
     const banner = new THREE.Group();
+    const wm = weaveMaps(PALETTE[k % 5]);
     const cloth = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.4, 9, 1, 6),
-      mat(PALETTE[k % 5], { roughness: 0.9, side: THREE.DoubleSide })
+      new THREE.PlaneGeometry(2.4, 9, 4, 10),
+      new THREE.MeshStandardMaterial({
+        map: wm.map, bumpMap: wm.bumpMap, bumpScale: 0.8,
+        roughness: 0.92, side: THREE.DoubleSide,
+      })
     );
     cloth.position.y = -4.5;
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3, 8), glow(0xc8a35a, 0.4));
@@ -219,10 +382,16 @@ function lancetWindow(color) {
   tip.position.set(0, 13.1, 0);
   g.add(tip);
   anim.panes.push(tip);
-  // lead frame
+  // lead frame + carved stone surround (window recess)
   const frame = new THREE.Mesh(new THREE.BoxGeometry(2.9, 12.4, 0.24), leadMat);
   frame.position.set(0, 7, -0.14);
   g.add(frame);
+  const surround = new THREE.Mesh(new THREE.BoxGeometry(3.9, 13.6, 0.5), stoneMat);
+  surround.position.set(0, 7, -0.5);
+  g.add(surround);
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.4, 0.9), stoneMat);
+  sill.position.set(0, 0.4, -0.3);
+  g.add(sill);
   return g;
 }
 
@@ -543,6 +712,10 @@ makeResonator(14, 0, -46, 0xb22242);     // C — far transept, warden territory
   const steps = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 8.5, 0.6, 24), darkStone);
   steps.position.set(0, 0.3, -38);
   world.add(steps); addGround(steps);
+  const daisTrim = new THREE.Mesh(new THREE.TorusGeometry(5.6, 0.08, 8, 48), glow(0xc8a35a, 0.5));
+  daisTrim.rotation.x = Math.PI / 2;
+  daisTrim.position.set(0, 1.42, -38);
+  world.add(daisTrim);
 
   const socket = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.14, 10, 40), glow(0xe8b54a, 0.6));
   socket.position.set(0, 3.4, -38);
@@ -570,7 +743,7 @@ makeResonator(14, 0, -46, 0xb22242);     // C — far transept, warden territory
 // ============================================================
 // LIGHTS + DUST
 // ============================================================
-export const hemi = new THREE.HemisphereLight(0x6a7ade, 0x141830, 1.5);
+export const hemi = new THREE.HemisphereLight(0x6a7ade, 0x141830, 1.7);
 scene.add(hemi);
 export const moon = new THREE.DirectionalLight(0x9eb0f4, 1.6);
 moon.position.set(20, 50, 30);
@@ -630,7 +803,7 @@ export function updateWorld(t, dt) {
   // caustic pools pulse
   for (let i = 0; i < anim.caustics.length; i++) {
     const c = anim.caustics[i];
-    c.material.opacity = 0.16 + Math.sin(t * 0.6 + i * 2.1) * 0.07;
+    c.material.opacity = 0.28 + Math.sin(t * 0.6 + i * 2.1) * 0.1;
     c.scale.setScalar(1 + Math.sin(t * 0.4 + i) * 0.08);
   }
   // floating shards
