@@ -3,7 +3,7 @@ import {
   scene, camera, input, mat, glow, resolveCollisions, groundHeightAt,
   shake, ui,
 } from './core.js';
-import { GLOW_TEX } from './world.js';
+import { GLOW_TEX } from './textures.js';
 
 // ============================================================
 // Vesper — the Reality Thief. Procedural animation:

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { scene, mat, glow, ui, shake, addBoxCollider, addGround } from './core.js';
+import { scene, mat, glow, ui, shake, addBoxCollider, addGround } from '../../engine/core.js';
 import { PALETTE, GLOW_TEX } from './world.js';
-import { player, damagePlayer, attackHits, burstSparks } from './player.js';
+import { player, damagePlayer, attackHits, burstSparks } from '../../engine/player.js';
 
 // ============================================================
 // The Rose Warden — a crowned angel of stained glass.
