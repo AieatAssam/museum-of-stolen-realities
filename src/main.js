@@ -113,9 +113,16 @@ function activateResonator(r) {
       setObjective('The third resonator lies in the Warden’s transept.');
     });
   } else if (activated === 3) {
-    toast('Resonance III', 'The Heart Prism stirs. The Warden objects.');
     bloom.strength = 0.7;
-    setObjective('Defeat the Rose Warden.');
+    if (warden.dead) {
+      toast('Resonance III', 'The Heart Prism stirs. Nothing is left to object.');
+      setObjective(leadHeart && !leadHeart.userData.taken
+        ? 'Take what the Warden guarded. Then the altar.'
+        : 'Restore the Heart Prism at the altar.');
+    } else {
+      toast('Resonance III', 'The Heart Prism stirs. The Warden objects.');
+      setObjective('Defeat the Rose Warden.');
+    }
   }
 }
 
@@ -169,6 +176,7 @@ window.__game = {
   player, warden, bloom, anim, scene, camera, input,
   teleport(x, y, z) { player.pos.set(x, y, z); player.vel.set(0, 0, 0); },
   activateAll() { for (const r of anim.resonators) if (!r.active) activateResonator(r); },
+  activateOne(i) { const r = anim.resonators[i]; if (r && !r.active) activateResonator(r); },
   killWarden() { wakeWarden(); while (!warden.dead) wardenTakeHit(); },
   get stage() { return { activated, wardenDead: warden.dead, stage }; },
 };
