@@ -12,7 +12,9 @@ https://claude.ai/code/artifact/8511ed25-0da6-4913-9eda-c48ae3280205
 ```bash
 npm install
 python3 -m http.server 8642
-# open http://localhost:8642 — click the canvas to enter (pointer lock)
+# open http://localhost:8642            (Wing I — The Stained Glass Kingdom)
+# open http://localhost:8642/?wing=noir  (Wing III — The Long Shadow)
+# click the canvas to enter (pointer lock)
 ```
 
 ## Play
@@ -39,13 +41,15 @@ transforms the cathedral; the finale is a scripted cinematic.
 ## Structure
 
 ```
-index.html      HUD + import map (three from node_modules, no bundler)
-src/core.js     renderer, composer (clamp + bloom), input, colliders, camera helpers
-src/world.js    cathedral geometry, lighting, resonators, altar, ambient animation
-src/player.js   Vesper: build, movement, combat feel, procedural animation
-src/guardian.js the Rose Warden state machine + projectiles
-src/audio.js    WebAudio ambience and SFX
-src/main.js     game flow: intro → resonators → warden → Heart Prism climax
+index.html               HUD shell + import map (no bundler)
+src/main.js              wing loader (?wing=glass|noir)
+src/engine/core.js       renderer, composer, input, colliders, camera helpers
+src/engine/flow.js       generic wing runner: intro, nodes, guardian, drops, relic, UI
+src/engine/player.js     Vesper: movement, combat feel, procedural animation
+src/engine/audio.js      WebAudio ambience and SFX
+src/engine/textures.js   shared procedural texture factory
+src/wings/glass/         Wing I — cathedral world, Rose Warden, story beats
+src/wings/noir/          Wing III — noir city, the Better Half, color-flood climax
 ```
 
 ## Tests
@@ -53,7 +57,8 @@ src/main.js     game flow: intro → resonators → warden → Heart Prism clima
 ```bash
 SHOT_DIR=/tmp node smoke.mjs    # full flow: 3 resonators → warden → climax, fails on console errors
 node physics.mjs                # wall clipping, dash tunneling, slab standing, camera occlusion, pew colliders
-SHOT_DIR=/tmp node gallery.mjs  # screenshot gallery of every beat
+SHOT_DIR=/tmp node gallery.mjs  # screenshot gallery of every beat (glass)
+SHOT_DIR=/tmp node noir-smoke.mjs  # full flow + screenshots for the noir wing
 ```
 
 All drive headless Chrome (`puppeteer-core` + system Chrome) against the
