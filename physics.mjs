@@ -96,9 +96,9 @@ check('slab-flight', allStand, slabDetail || `${slabTops.length} slabs OK`);
 // 8. attack aims where the camera looks
 {
   await page.evaluate(() => { window.__game.input.lookX = 0; window.__game.teleport(0, 0, -43.5); });
-  await new Promise(r => setTimeout(r, 3500)); // let the warden drift back into melee band
-  await page.evaluate(() => { const w = window.__game.warden; w.pos.set(0, 2.6, -47); });
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 3500)); // clear the wake cinematic
+  await page.evaluate(() => { const w = window.__game.warden; w.state = 'patrol'; w.stateT = 0; w.pos.set(0, 2.6, -46.5); });
+  await new Promise(r => setTimeout(r, 120));
   const hp0 = await page.evaluate(() => window.__game.warden.hp);
   await page.evaluate(() => { window.__game.input.attack = true; window.__game.input.locked = true; });
   await new Promise(r => setTimeout(r, 600));
