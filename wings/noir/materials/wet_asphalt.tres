@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3]
+
+[ext_resource type="Shader" path="res://wings/noir/shaders/wet_ground.gdshader" id="s"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/asphalt_albedo.png" id="a"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/asphalt_normal.png" id="n"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/asphalt_roughness.png" id="r"]
+
+[resource]
+resource_name = "wet_asphalt"
+shader = ExtResource("s")
+shader_parameter/albedo_tex = ExtResource("a")
+shader_parameter/normal_tex = ExtResource("n")
+shader_parameter/rough_tex = ExtResource("r")
+shader_parameter/uv_scale = 0.3
+shader_parameter/tint = Color(0.55, 0.55, 0.55, 1)
+shader_parameter/puddles = 0.55
+shader_parameter/wetness = 0.6
