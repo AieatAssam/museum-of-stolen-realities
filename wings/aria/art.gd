@@ -66,6 +66,7 @@ func on_enter() -> void:
 	RenderingServer.gi_set_use_half_resolution(true)
 	RenderingServer.environment_set_sdfgi_ray_count(RenderingServer.ENV_SDFGI_RAY_COUNT_16)
 	RenderingServer.environment_set_sdfgi_frames_to_update_light(RenderingServer.ENV_SDFGI_UPDATE_LIGHT_IN_8_FRAMES)
+	_music_now = &""
 	if Game.player:
 		_music_for(_area_of(Game.player.global_position))
 
@@ -620,5 +621,22 @@ func _feed_cymatics() -> void:
 # =============================================================================================
 # Music: one leitmotif (G, E, C, the cadence) re-voiced per area, as vertical stems
 
+## Per area: stem intensity (0 bed, .33 + strings, .66 + the sung motif, 1 + choir), ambience, its dB.
+const SCORE := {
+	&"foyer": [0.2, "amb_hall", -4.0],
+	&"auditorium": [0.62, "amb_hall", -2.0],
+	&"pit": [0.4, "amb_drips", -3.0],
+	&"corridor": [0.45, "amb_water", -6.0],
+	&"flyloft": [0.3, "amb_rigging", -3.0],
+	&"dome": [1.0, "amb_crystal", -3.0],
+}
+
+
 func _music_for(area: StringName) -> void:
-	pass
+	if area == _music_now:
+		return
+	_music_now = area
+	var s: Array = SCORE[area]
+	Audio.play_ambience(load(AUDIO + s[1] + ".ogg"), 3.0, s[2])
+	if not (wing.get(&"_fall_on") or Quest.is_done(&"fall")):  # the fall silences the score for good
+		Audio.set_intensity(s[0], 4.0)

@@ -270,7 +270,7 @@ func _build_duet(aud: Node3D) -> void:
 		b.strength = 22.0
 		stage.add_child(b)
 		b.struck.connect(func(_n: Node3D) -> void: _duet_answer(d[1]))
-	_sung = load(AUDIO + "note_glass.ogg")
+	_sung = load(AUDIO + "note_sirena.ogg")
 	var cue := TriggerZone.make_box(Vector3(30, 3, 3), false)
 	cue.position = Vector3(0, 1.5, -19)
 	cue.triggered.connect(_duet_cue)
