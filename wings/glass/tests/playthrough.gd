@@ -33,7 +33,7 @@ func check(cond: bool, what: String) -> bool:
 		print("  FAIL ", what, "   at ", Game.player.global_position if Game.player else Vector3.ZERO)
 		# every later step depends on this one: stop rather than cascade
 		print("[glass] stopped after first failure (%.1fs game)" % (_frames / float(Engine.physics_ticks_per_second)))
-		get_tree().quit(1)
+		Game.quit(1)
 	return cond
 
 
@@ -245,6 +245,7 @@ func _run() -> void:
 	await _secs(1.0)
 	await walk(Vector3(12.6, 9, -52.2))
 	await walk(Vector3(-1.3, 0, -63.2), 12.0)
+	await walk(Vector3(0.6, 0, -64.6), 3.0)  # core's step-up can leave us on the beam's low end: step off its south side
 	check(pos().y > -0.5 and pos().y < 1.0, "walked back down the beam to P2")
 	await use("m2")
 	await use("m2")
@@ -385,7 +386,7 @@ func _run() -> void:
 
 	print("[glass] done in %.1fs real, %.1fs game, %d failure(s)" % [(Time.get_ticks_msec() - t0) / 1000.0, _frames / float(Engine.physics_ticks_per_second), _fails])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
 
 
 ## Phase 1: board a petal when one points at the balcony at full exhale, ride it in to the tear,
