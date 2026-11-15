@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://wings/clay/clay.gd" id="1"]
+[ext_resource type="Script" path="res://core/checkpoint.gd" id="2"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.094, 0.063, 0.035, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.5, 0.4, 0.3, 1)
+ambient_light_energy = 0.6
+tonemap_mode = 3
+
+[node name="Clay" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"clay"
+spawn_checkpoint = &"start"
+void_height = -30.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Checkpoints" type="Node3D" parent="."]
+
+[node name="start" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 36)
+script = ExtResource("2")
