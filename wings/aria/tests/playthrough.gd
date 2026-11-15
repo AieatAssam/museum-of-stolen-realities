@@ -64,7 +64,7 @@ func _stand(at: Vector3, target: Vector3) -> void:
 
 
 func _instrument(name_: String) -> Node3D:
-	return Game.wing.get_node("Instruments/" + name_) as Node3D
+	return Game.wing.find_child(name_, true, false) as Node3D
 
 
 func _run() -> void:
@@ -90,10 +90,32 @@ func _run() -> void:
 	await frames(4)
 	check(Game.player.mode_name() == &"song", "song mode active")
 
+	print("[aria] foyer: the demo horn lifts, the stair climbs to the gallery, the route leads back into the auditorium")
+	var demo := Game.wing.find_child("DemoHorn", true, false) as Node3D
+	var fy0 := Game.player.global_position.y
+	await _stand(demo.global_position + Vector3(0, 0, 0.8), demo.global_position + Vector3(0, 1.5, 0))
+	_tap(&"primary")
+	var fy_max := fy0
+	var f_end := Time.get_ticks_msec() + 1600
+	while Time.get_ticks_msec() < f_end:
+		await frames(1)
+		fy_max = maxf(fy_max, Game.player.global_position.y)
+	check(fy_max - fy0 > 1.0, "the foyer's demo horn lifts her (%.2f m)" % (fy_max - fy0))
+	await _stand(Vector3(0, 0.5, 27), Vector3(0, 0.5, 40))
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.y > 2.6, 10.0)
+	_send(&"move_forward", false)
+	check(Game.player.global_position.y > 2.6, "walking up the grand staircase reaches the gallery (y %.2f)" % Game.player.global_position.y)
+	await _stand(Vector3(0, 3.3, 36), Vector3(0, 3.3, 20))
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.z < 12.0, 14.0)
+	_send(&"move_forward", false)
+	check(Game.player.global_position.z < 12.0 and Game.player.global_position.y < 1.5, "walking down from the gallery reaches the auditorium floor")
+
 	print("[aria] objective one: strike the horns, lift under one")
 	# stand 0.8 m off the west horn's axis and aim at it: inside the column, the lift beats gravity
 	var horns: Array[Node3D] = []
-	for n: Node in Game.wing.get_node("Instruments").get_children():
+	for n: Node in Game.wing.find_child("Instruments", true, false).get_children():
 		var inst := n as Instrument
 		if inst and inst.note_id == &"note_horn":
 			horns.append(inst)
@@ -171,7 +193,7 @@ func _run() -> void:
 	check(_count_provs() == 3, "three provenances recorded")
 
 	print("[aria] fragment")
-	var frag: Node3D = Game.wing.get_node("FragmentSpot")
+	var frag: Node3D = Game.wing.find_child("FragmentSpot", true, false)
 	check(frag.visible, "fragment appears once the objectives are done")
 	await _stand(frag.global_position + Vector3(0, -1.0, 1.6), frag.global_position)
 	_tap(&"interact")
