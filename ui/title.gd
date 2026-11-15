@@ -86,7 +86,11 @@ func _ready() -> void:
 	_build_menu()
 	_left.modulate.a = 0.0
 	create_tween().tween_property(_left, "modulate:a", 1.0, 2.0).set_trans(Tween.TRANS_SINE)
-	Audio.play_music([Audio.stream("hub_bed_0"), Audio.stream("hub_bed_1")] as Array[AudioStream], 4.0, 1.0)
+	# the hub theme, half its bands: the atrium picks up the same playback (no restart) on New Game
+	var theme: Array[AudioStream] = []
+	for i in 7:
+		theme.append(Audio.stream("hub_theme_%d" % i))
+	Audio.play_music(theme, 4.0, 0.5)
 	Audio.play_ambience(Audio.stream("amb_hub"), 4.0, -6.0)
 
 
