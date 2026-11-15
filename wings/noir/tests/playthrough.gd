@@ -228,7 +228,10 @@ func _run() -> void:
 	await _until(func() -> bool: return Game.player.global_position.x < -21.0, 5.0)
 	check(Quest.is_step_done(&"cross_lit", &"latch_gap"), "latching across the rooftop gap completes latch_gap")
 	check(Game.player.global_position.x < -21.0, "the latch carries the player to the far roof (at %.2f)" % Game.player.global_position.x)
-	await _tp(Vector3(-22.8, 7.05, -29.0), Vector3(-19.5, 7.05, -29.0))
+	# x < -21 is reached mid-traversal; a press before the 1.2 s tween ends lets go instead of latching
+	await _until(func() -> bool: return not (Game.player.mode as ShadowstepMode).latched, 3.0)
+	# latch the far roof itself: aimed level at (-19.5, 7.05) the 4 m ray passes over the lower near roof
+	await _tp(Vector3(-23.2, 7.05, -29.0), Vector3(-22.75, 7.0, -29.0))
 	await frames(10)
 	await _until(func() -> bool: return not _gap_lit(), 14.0)
 	_tap(&"secondary")
@@ -315,4 +318,4 @@ func _run() -> void:
 
 	_sampling = false
 	print("[noir] done, %d failure(s)" % _fails)
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
