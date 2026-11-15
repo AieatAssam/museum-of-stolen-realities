@@ -657,14 +657,10 @@ func _build_marks() -> void:
 	var holder := _group(self, "ShotMarks")
 	var marks := [
 		["gate", Vector3(-20, 2.0, 6), Vector3(6, 6, 0)],
-		["first_swing", Vector3(-2, 3, 8), Vector3(10, 4, -2)],
-		["usher", Vector3(20, -1, 6), Vector3(28, -2, 0)],
-		["light_well", Vector3(37, -1, 5), Vector3(52, -3, 0)],
 		["perch", Vector3(60, -1, 4), Vector3(76, 1, -6)],
 		["shaft_rim", Vector3(76, -1, 2), Vector3(110, 5, 0)],
 		["shaft_down", Vector3(129, -5.5, -6), Vector3(100, -14, -20)],
 		["foundry", Vector3(130, -26, 45), Vector3(130, -18, 60)],
-		["guild_door", Vector3(118, -29, 70), Vector3(130, -29, 80)],
 		["gallery", Vector3(92, -29.5, 91), Vector3(62, -27, 91)],
 		["arena", Vector3(40, -29, 105), Vector3(40, -32, 60)],
 		["eye_reveal", Vector3(84, -68.3, -12), Vector3(118, 30, -8)],

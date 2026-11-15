@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://wings/chitin/tests/resume_heist.gd" id="1"]
+
+[node name="ResumeHeist" type="Node"]
+script = ExtResource("1")
