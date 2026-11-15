@@ -223,9 +223,9 @@ func _build_foyer(areas: Node3D) -> void:
 	demo.name = "DemoHorn"
 	foyer.add_child(demo)
 	_provenance(foyer, "score", Vector3(-13, 2.8, 39))
-	_placard(foyer, Vector3(-8, 1.4, 25), 0.0, "I", "The Foyer", "Acq. No. 003  ·  Entrance",
+	_placard(foyer, Vector3(-8, 1.4, 25), 0.0, "I", "The Foyer", "Acq. No. 003\nEntrance",
 		"Visitors are asked to leave their umbrellas at the door. The door has been gone since 1961. The umbrellas were never recovered, and the foyer still smells of rain.")
-	_placard(foyer, Vector3(-14.9, 1.6, 33), 90.0, "II", "The Gallery Ramp", "Acq. No. 003  ·  Gallery",
+	_placard(foyer, Vector3(-14.9, 1.6, 33), 90.0, "II", "The Gallery Ramp", "Acq. No. 003\nGallery",
 		"The ramp was built for a procession that was never scheduled. Its handrail was removed for conservation. Conservators have not agreed what conservation required, or who signed the form.")
 
 
@@ -250,7 +250,7 @@ func _build_auditorium(areas: Node3D) -> void:
 	_box(geo, Vector3(30, 0.6, 2), Vector3(0, 0.3, -22), walk)
 	_build_instruments(aud)
 	_build_duet(aud)
-	_placard(aud, Vector3(-12, 1.4, 12), 90.0, "III", "The Flooded Auditorium", "Acq. No. 003  ·  Hall",
+	_placard(aud, Vector3(-12, 1.4, 12), 90.0, "III", "The Flooded Auditorium", "Acq. No. 003\nHall",
 		"Water reached the second row in the spring. Seats in the first row were never counted, so that loss is recorded as nil. The horns are kept operational for educational purposes only.")
 
 
@@ -299,7 +299,7 @@ func _build_duet(aud: Node3D) -> void:
 	cue.position = Vector3(0, 1.5, -19)
 	cue.triggered.connect(_duet_cue)
 	stage.add_child(cue)
-	_placard(stage, Vector3(-13, 1.4, -27), 90.0, "IX", "La Sirena", "Acq. No. 003  ·  Stage",
+	_placard(stage, Vector3(-13, 1.4, -27), 90.0, "IX", "La Sirena", "Acq. No. 003\nStage",
 		"She sang the chorus from this stage and was never paid for it. The score records two dynamics only, loud and soft, and the orchestra played both as a single note.")
 
 
@@ -341,9 +341,9 @@ func _build_pit(areas: Node3D) -> void:
 	well.strength = 14.0
 	root.add_child(well)
 	_provenance(pit, "baton", Vector3(-30.5, -3, -3))
-	_placard(pit, Vector3(-20, -1.6, -4), 0.0, "IV", "The Orchestra Pit", "Acq. No. 003  ·  Under-stage",
+	_placard(pit, Vector3(-20, -1.6, -4), 0.0, "IV", "The Orchestra Pit", "Acq. No. 003\nUnder-stage",
 		"Musicians descended here before each performance. The records show the pit was dry for the entire run, although the flood reports list it as the first room to fill.")
-	_placard(pit, Vector3(-30, -1.6, -15), 90.0, "V", "The Gantry", "Acq. No. 003  ·  Technical",
+	_placard(pit, Vector3(-30, -1.6, -15), 90.0, "V", "The Gantry", "Acq. No. 003\nTechnical",
 		"Technicians reached the gantry by lifting with the pipes. The pipes are documented as silent during the period. The source of the sound is listed as unknown, which is listed as a finding.")
 
 
@@ -369,7 +369,7 @@ func _build_corridor(areas: Node3D) -> void:
 	drop.triggered.connect(func(_p: Player) -> void: Game.respawn())
 	cor.add_child(drop)
 	SongMode.flip_box = AABB(Vector3(22, 0, 36), Vector3(10, 8, 6))
-	_placard(cor, Vector3(18, 4.2, 36.05), 0.0, "VI", "The Scored Corridor", "Acq. No. 003  ·  Passage",
+	_placard(cor, Vector3(18, 4.2, 36.05), 0.0, "VI", "The Scored Corridor", "Acq. No. 003\nPassage",
 		"Gravity here reverses on the downbeat, as composed. The score marks each reversal with a rest, which is the only part of the score the audience is said to remember.")
 
 
@@ -400,9 +400,9 @@ func _build_fly_loft(areas: Node3D) -> void:
 	var organ := _instrument("pipes", "note_organ_g", &"loft_organ", &"lift", Vector3(48, 2.8, 32))
 	root.add_child(organ)
 	_provenance(loft, "tuning_fork", Vector3(61, 2.8, 31))
-	_placard(loft, Vector3(52, 4.2, 30.6), 0.0, "VII", "The Fly-Loft", "Acq. No. 003  ·  Rigging",
+	_placard(loft, Vector3(52, 4.2, 30.6), 0.0, "VII", "The Fly-Loft", "Acq. No. 003\nRigging",
 		"Stagehands stored the flown scenery here until it was sold. The inventory lists four drops. Three were found, and the fourth is said to have been requested by the chorus.")
-	_placard(loft, Vector3(56, 4.2, 41.4), 180.0, "VIII", "The Tuning Fork", "Acq. No. 003  ·  Statue",
+	_placard(loft, Vector3(56, 4.2, 41.4), 180.0, "VIII", "The Tuning Fork", "Acq. No. 003\nStatue",
 		"A fork sets the pitch for the whole orchestra. The statue beside it is inscribed with the note A. The inscription has been corrected twice, and the correction was signed by the statue.")
 
 
@@ -479,11 +479,11 @@ func _build_dome(areas: Node3D) -> void:
 	exit_zone.position = Vector3(0, 12, -60)
 	exit_zone.triggered.connect(_on_exit_zone)
 	dome.add_child(exit_zone)
-	_placard(dome, Vector3(-10, 1.4, -40), 0.0, "X", "The Dome", "Acq. No. 003  ·  Rotunda",
+	_placard(dome, Vector3(-10, 1.4, -40), 0.0, "X", "The Dome", "Acq. No. 003\nRotunda",
 		"The rotunda was built to hold the audience after the performance. The chandelier was hung for the applause, which was cancelled. Its rigging was never inspected by anyone.")
-	_placard(dome, Vector3(-10.5, 1.4, -52), 90.0, "XI", "The Audience", "Acq. No. 003  ·  Seating",
+	_placard(dome, Vector3(-10.5, 1.4, -52), 90.0, "XI", "The Audience", "Acq. No. 003\nSeating",
 		"Twelve figures were seated for the fall. Their heads are fixed in the direction of the chandelier, as the catalogue records, and they have not been moved since. None were identified.")
-	_placard(dome, Vector3(-6, 1.4, -61.2), 0.0, "XII", "The Exit", "Acq. No. 003  ·  Ledge",
+	_placard(dome, Vector3(-6, 1.4, -61.2), 0.0, "XII", "The Exit", "Acq. No. 003\nLedge",
 		"The only exit is a ledge, and the ledge is reached by the chord. Visitors who reached it were asked to sign the book. The book was lost in the flood.")
 
 
@@ -722,10 +722,7 @@ func _provenance(parent: Node3D, id: String, pos: Vector3) -> void:
 
 func _placard(parent: Node3D, pos: Vector3, yaw_deg: float, heading: String, title: String, catalog: String, body: String) -> void:
 	var pl := Placard.new()
-	pl.heading = heading
-	pl.title = title
-	pl.catalog_line = catalog
-	pl.body = body
+	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)  # catalog: "Acq. No. 003\nEntrance"
 	pl.position = pos
 	pl.rotation_degrees.y = yaw_deg
 	parent.add_child(pl)
