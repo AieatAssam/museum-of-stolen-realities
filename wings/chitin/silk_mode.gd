@@ -321,7 +321,12 @@ func _rope(delta: float) -> void:
 	p.velocity += p.gravity_vector * delta
 	var side := p.head.global_basis.x
 	p.velocity += (side - up * side.dot(up)) * mi.x * ROPE_STEER * delta
-	if absf(mi.x) < 0.1 and pivots.is_empty():
+	# A clockwork lift (anchor with meta "lift") hauls her: no governor, sway damped out.
+	var lift := anchor_node.has_meta(&"lift")
+	if lift:
+		var hv := p.velocity - up * p.velocity.dot(up)
+		p.velocity -= hv * minf(1.0, 1.5 * delta)
+	elif absf(mi.x) < 0.1 and pivots.is_empty():
 		_keep_plane(delta)
 	_update_wraps()
 	var c := pivot()
@@ -337,7 +342,7 @@ func _rope(delta: float) -> void:
 				p.velocity -= n * vr
 			if free < free_before and free > 0.5:
 				p.velocity *= minf(free_before / free, 1.05)  # angular momentum as the line shortens
-			if not p.is_on_floor():
+			if not p.is_on_floor() and not lift:
 				_govern(delta, n, free)
 			corr = -n * clampf(d - free, 0.0, 0.05) / delta
 	p.velocity += corr
