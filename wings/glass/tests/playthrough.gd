@@ -114,7 +114,7 @@ func walk(target: Vector3, max_s: float = 30.0, r: float = 0.55, sprint: bool = 
 	var to := target - pos()
 	if Game.player.test_move(Game.player.global_transform, Vector3(to.x, 0, to.z).normalized() * 0.5, c):
 		var o: Node = c.get_collider()
-		print("    blocked by ", o.get_parent().name, " at ", c.get_position(), " n=", c.get_normal(), " beam=", o.has_meta(&"beam"), " ", o.get_meta(&"beam_a", null), " -> ", o.get_meta(&"beam_b", null))
+		print("    blocked by ", o.get_parent().name, " at ", c.get_position(), " n=", c.get_normal(), " beam=", o.has_meta(&"beam"), " ", o.get_meta(&"beam_a") if o.has_meta(&"beam_a") else "", " -> ", o.get_meta(&"beam_b") if o.has_meta(&"beam_b") else "")
 	return false
 
 

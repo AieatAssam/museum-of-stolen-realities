@@ -1,5 +1,5 @@
 shader_type spatial;
-// Translucent leaded glass for walls, floors and piers. Triplanar so code-built boxes need no UVs.
+// Translucent leaded glass for walls, floors and piers. World-projected so code-built boxes need no UVs.
 // The glass is lit from *behind* (backlight): colour passes, lead stays black — the only true dark.
 render_mode diffuse_burley;
 
@@ -12,6 +12,7 @@ uniform float backlight = 0.6;
 uniform float lead_cut = 0.13;     // luminance below which a texel is lead
 uniform float dark = 0.0;          // heist: windows going out
 uniform float shimmer = 0.15;
+uniform bool triplanar = false;    // modelled (curved) meshes: blend 3 projections, no seams
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -21,16 +22,26 @@ void vertex() {
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
-#define TRI(t, p, w) (texture(t, (p).zy) * (w).x + texture(t, (p).xz) * (w).y + texture(t, (p).xy) * (w).z)
 
 void fragment() {
+	// Nearly every surface is an axis-aligned box face: project on the dominant axis only
+	// (2 fetches instead of 6 triplanar; this material covers most of the 1440p frame).
 	vec3 p = wpos * scale;
-	vec3 w = pow(abs(wnrm), vec3(6.0));
-	w /= (w.x + w.y + w.z);
-	vec3 c = TRI(albedo_tex, p, w).rgb;
+	vec3 an = abs(wnrm);
+	vec2 uv = an.x > an.y && an.x > an.z ? p.zy : (an.y > an.z ? p.xz : p.xy);
+	vec3 c;
+	vec3 nt;
+	if (triplanar) {
+		vec3 w = pow(an, vec3(6.0));
+		w /= (w.x + w.y + w.z);
+		c = (texture(albedo_tex, p.zy) * w.x + texture(albedo_tex, p.xz) * w.y + texture(albedo_tex, p.xy) * w.z).rgb;
+		nt = (texture(normal_tex, p.zy) * w.x + texture(normal_tex, p.xz) * w.y + texture(normal_tex, p.xy) * w.z).rgb;
+	} else {
+		c = texture(albedo_tex, uv).rgb;
+		nt = texture(normal_tex, uv).rgb;
+	}
 	float lum = dot(c, vec3(0.299, 0.587, 0.114));
 	float glass = smoothstep(lead_cut, lead_cut + 0.08, lum);
-	vec3 nt = TRI(normal_tex, p, w).rgb;
 	NORMAL_MAP = nt;
 	NORMAL_MAP_DEPTH = 0.8;
 	ALBEDO = c * tint.rgb * mix(0.25, 0.7, glass);

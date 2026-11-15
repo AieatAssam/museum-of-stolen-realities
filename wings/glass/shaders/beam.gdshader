@@ -17,8 +17,10 @@ void vertex() {
 
 void fragment() {
 	float nv = abs(dot(NORMAL, VIEW));
-	float core = pow(nv, 5.0);
-	float halo = pow(nv, 1.6);
+	// near the eye (standing on a beam) the core would fill the screen white: let it thin to halo
+	float near = smoothstep(1.5, 9.0, length(VERTEX));
+	float core = pow(nv, 5.0) * mix(0.12, 1.0, near);
+	float halo = pow(nv, 1.6) * mix(0.45, 1.0, near);
 	// along-beam coordinate in metres (cylinder Y axis was stretched to length)
 	float along = (local_pos.y + 0.5) * beam_len;
 	float t = TIME * 1.4;

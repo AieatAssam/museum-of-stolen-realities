@@ -2,3 +2,4 @@ _raw/*.png
 _tmp/
 tools/*.log
 _shots/
+__pycache__/

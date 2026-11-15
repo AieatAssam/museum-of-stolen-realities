@@ -23,7 +23,7 @@ const MARKS := [
 	["12_rose_dark", H + Vector3(-15.0, 1.7, 0.0), H + Vector3(5.0, -0.5, -4.0), "rose2"],
 	["13_east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0), "lens"],
 	["14_shattered", Vector3(0.0, 4.0, -104.0), Vector3(0.0, 8.0, -122.0), "shatter"],
-	["15_heist", Vector3(0.0, 7.9, -122.8), Vector3(-2.0, 4.0, -150.0), "heist"],
+	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 4.0, -150.0), "heist"],
 ]
 
 var _cam: Camera3D
@@ -142,9 +142,26 @@ func _perf_diag() -> void:
 		if not l is DirectionalLight3D:
 			l.visible = false
 	await measure("+local lights off")
-	for mi: GeometryInstance3D in _w.find_children("*", "MeshInstance3D", true, false):
-		mi.visible = false
-	await measure("+meshes off")
+	var cats := {"beams": [], "windows": [], "glass": [], "multimesh": [], "other": []}
+	for gi: GeometryInstance3D in _w.find_children("*", "GeometryInstance3D", true, false):
+		var m: Material = gi.material_override
+		var sh := ""
+		if m is ShaderMaterial and (m as ShaderMaterial).shader:
+			sh = (m as ShaderMaterial).shader.resource_path.get_file()
+		if gi is MultiMeshInstance3D:
+			cats["multimesh"].append(gi)
+		elif sh == "beam.gdshader":
+			cats["beams"].append(gi)
+		elif sh == "window.gdshader":
+			cats["windows"].append(gi)
+		elif sh == "leaded_glass.gdshader":
+			cats["glass"].append(gi)
+		else:
+			cats["other"].append(gi)
+	for k: String in cats:
+		for gi: GeometryInstance3D in cats[k]:
+			gi.visible = false
+		await measure("+%s off (%d)" % [k, cats[k].size()])
 
 
 func _run() -> void:
@@ -169,8 +186,11 @@ func _run() -> void:
 		await _perf_diag()
 		get_tree().quit()
 		return
+	var only := OS.get_environment("GLASS_SHOTS")  # e.g. "03_nave,04" to re-shoot a few
 	for m: Array in MARKS:
 		await _state(m[3])
+		if only != "" and not Array(only.split(",")).any(func(o: String) -> bool: return (m[0] as String).begins_with(o)):
+			continue
 		if _cam == null or not is_instance_valid(_cam):
 			_cam = Camera3D.new()
 			_cam.fov = 75.0

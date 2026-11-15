@@ -327,6 +327,42 @@ func _mesh_of(name: String) -> Mesh:
 	return mesh
 
 
+## Repeats of a modelled part as one MultiMesh (one draw per surface for every instance).
+## `swap` renames Blender materials (e.g. the gold shaft glazed red).
+func _mm(name: String, xforms: Array, swap: Dictionary = {}) -> MultiMeshInstance3D:
+	var src := _mesh_of(name)
+	if src == null or xforms.is_empty():
+		return null
+	var mesh: Mesh = src.duplicate()
+	for i in mesh.get_surface_count():
+		var sm := mesh.surface_get_material(i)
+		if sm:
+			var m := MaterialLib.lookup(swap.get(sm.resource_name, sm.resource_name), [MATS.trim_suffix("/"), MaterialLib.CORE_DIR])
+			if m:
+				mesh.surface_set_material(i, m)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	geo.add_child(mmi)
+	return mmi
+
+
+## A modelled clustered pier from y0 to y1 (colliders stay the code boxes). Capitals at `caps`.
+func _pier_xf(out: Dictionary, base: Vector3, top: float, caps: Array, s: float = 1.0) -> void:
+	var y := base.y
+	if base.y >= -0.01:
+		out["pier_base"].append(Transform3D(Basis.from_scale(Vector3.ONE * s), base))
+		y += 0.62 * s
+	out["pier_shaft"].append(Transform3D(Basis.from_scale(Vector3(s, top - y, s)), Vector3(base.x, y, base.z)))
+	for c: float in caps:
+		out["pier_capital"].append(Transform3D(Basis.from_scale(Vector3.ONE * s), Vector3(base.x, c - 0.72 * s, base.z)))
+
+
 func _use(id: String, pos: Vector3, size: Vector3, prompt: String, cb: Callable, hold: float = 0.0) -> Interactable:
 	var it := Interactable.make_box(size, prompt)
 	it.position = pos
@@ -410,32 +446,13 @@ func _mirror(id: String, pos: Vector3, from: Vector3, targets: Array, index: int
 	optics.add_child(m)
 	m.setup(Vector2(face, face))
 	optics.add_element(m)
-	var disc := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = face * 0.5
-	cm.bottom_radius = face * 0.5
-	cm.height = 0.06
-	disc.mesh = cm
-	disc.material_override = M["silver"]
-	disc.rotation.x = PI / 2
-	m.head.add_child(disc)
-	var rim := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = face * 0.5
-	tm.outer_radius = face * 0.5 + 0.07
-	rim.mesh = tm
-	rim.material_override = M["brass"]
-	rim.rotation.x = PI / 2
-	m.head.add_child(rim)
-	var post := MeshInstance3D.new()
-	var pm := CylinderMesh.new()
-	pm.top_radius = 0.06
-	pm.bottom_radius = 0.18
-	pm.height = 0.9
-	post.mesh = pm
-	post.material_override = M["lead"]
-	post.position = Vector3(0, -0.5, 0)
-	m.add_child(post)
+	var head := _model("mirror_head")
+	head.scale = Vector3.ONE * face / 1.1
+	m.head.add_child(head)
+	var collar := _model("mirror_collar")
+	collar.position.y = -0.11
+	collar.scale = Vector3.ONE * face / 1.1
+	m.add_child(collar)
 	mirrors[id] = m
 	_use(id, pos + Vector3(0, 0.3, 0), Vector3(1.4, 1.6, 1.4), "Turn the mirror", func() -> void:
 		m.turn()
@@ -523,13 +540,17 @@ func _build_cloister() -> void:
 	_west_door.visible = false
 	(_west_door.get_child(0) as StaticBody3D).collision_layer = 0
 	# arcade around the garth: lead-framed glass piers, a glazed roof over the walks
+	var cpier := {"pier_base": [], "pier_shaft": [], "pier_capital": []}
 	for side in 4:
 		for k in 8:
 			var u := -10.5 + k * 3.0
 			var p := Vector3(u, 0, 11) if side == 0 else (Vector3(u, 0, -11) if side == 1 else (Vector3(11, 0, u) if side == 2 else Vector3(-11, 0, u)))
 			if side >= 2 and absf(u) < 5.5:
 				continue
-			_block(p + Vector3(-0.3, 0, -0.3), p + Vector3(0.3, 5.2, 0.3), "glass_gold")
+			_block(p + Vector3(-0.3, 0, -0.3), p + Vector3(0.3, 5.2, 0.3), "glass_gold").visible = false
+			_pier_xf(cpier, p, 5.2, [5.2], 0.5)
+	for part: String in cpier:
+		_mm(part, cpier[part])
 	_block(Vector3(-17.5, 5.6, 11), Vector3(17.5, 5.9, 17.5), "glass_quarry", false)
 	_block(Vector3(-17.5, 5.6, -17.5), Vector3(17.5, 5.9, -11), "glass_quarry", false)
 	_block(Vector3(11, 5.6, -11), Vector3(17.5, 5.9, 11), "glass_quarry", false)
@@ -566,8 +587,12 @@ func _build_nave() -> void:
 	_block(Vector3(-15.5, -1, -34), Vector3(15.5, 0, -17.5), "glass_floor")
 	_block(Vector3(-4, -0.6, -48), Vector3(4, 0, -43), "glass_floor")    # P1
 	_block(Vector3(-4, -0.6, -65), Vector3(4, 0, -59), "glass_floor")    # P2
+	var isl := {"pier_shaft": [], "pier_capital": []}
 	for p: Vector3 in [Vector3(0, -0.6, -45.5), Vector3(0, -0.6, -62)]:
-		_block(p + Vector3(-1.2, -14, -1.2), p + Vector3(1.2, 0, 1.2), "glass_gold", false)
+		isl["pier_shaft"].append(Transform3D(Basis.from_scale(Vector3(2, 13.0, 2)), p + Vector3(0, -14, 0)))
+		isl["pier_capital"].append(Transform3D(Basis.from_scale(Vector3(2, 1, 2)), p + Vector3(0, -1.0, 0)))
+	for part: String in isl:
+		_mm(part, isl[part])
 	# walls and vault (the nave is roofed: its sky is hidden in haze until the roof)
 	_block(Vector3(15.5, -12, -121), Vector3(16.5, 26, -17.5), "glass_wall")
 	_block(Vector3(-16.5, -3, -107.5), Vector3(-15.5, 26, -17.5), "glass_wall")
@@ -577,10 +602,27 @@ func _build_nave() -> void:
 	_block(Vector3(-16.5, -12, -121), Vector3(-15.5, -3, -88), "glass_wall")
 	_block(Vector3(-16.5, 25.5, -121), Vector3(16.5, 26.5, -17.5), "glass_quarry", false)
 	# piers of the arcade
+	# Modelled: clustered piers (capitals at the arcade and vault springs), pointed arcade arches,
+	# a ribbed vault bay per bay. All MultiMesh; the code boxes stay as invisible colliders.
+	var red := {"pier_base": [], "pier_shaft": [], "pier_capital": []}
+	var gold := {"pier_base": [], "pier_shaft": [], "pier_capital": []}
+	var arches: Array = []
+	var bays: Array = []
 	for k in 9:
 		var z := -22.0 - k * 11.0
+		var y0 := -12.0 if z < -34 and z > -80 else 0.0
 		for x: float in [-9.5, 9.5]:
-			_block(Vector3(x - 0.6, -12 if z < -34 and z > -80 else 0, z - 0.6), Vector3(x + 0.6, 25.5, z + 0.6), "glass_red" if k % 2 == 0 else "glass_gold", z > -34 or z < -80)
+			_block(Vector3(x - 0.6, y0, z - 0.6), Vector3(x + 0.6, 25.5, z + 0.6), "glass_red", z > -34 or z < -80).visible = false
+			_pier_xf(red if k % 2 == 0 else gold, Vector3(x, y0, z), 25.5, [8.0, 14.0])
+			if k < 8:
+				arches.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(x, 8.0, z - 5.5)))
+		if k < 8:  # the apse bay stays open so no rib crosses the east window
+			bays.append(Transform3D(Basis.IDENTITY, Vector3(0, 14.0, z)))
+	for part: String in red:
+		_mm(part, red[part], {"glass_gold_m": "glass_red_m"})
+		_mm(part, gold[part])
+	_mm("arch_arcade", arches)
+	_mm("vault_bay", bays)
 	# triforium: south gallery over the nave (Provenance A), north stub over the choir (the way back
 	# from the Rose hall)
 	_block(Vector3(12, 8.6, -80), Vector3(15.5, 9, -20), "glass_floor")
@@ -664,13 +706,7 @@ func _build_choir() -> void:
 	lens_choir.make_body(Vector3(0.9, 0.9, 0.9))
 	lens_choir.body.collision_layer = 0
 	optics.add_element(lens_choir)
-	var cradle := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.42
-	tm.outer_radius = 0.55
-	cradle.mesh = tm
-	cradle.material_override = M["brass"]
-	cradle.rotation.x = PI / 2
+	var cradle := _model("lens_cradle")
 	cradle.position = LENS_POS
 	geo.add_child(cradle)
 	_use("lens_holder", LENS_POS, Vector3(1.2, 1.4, 1.2), "Set the Widow's lantern in the lens", _place_lantern)
@@ -714,20 +750,11 @@ func _build_crypt() -> void:
 	optics.add_child(prism)
 	prism.setup()
 	optics.add_element(prism)
-	var pv := MeshInstance3D.new()
-	var pmesh := PrismMesh.new()
-	pmesh.size = Vector3(0.9, 0.8, 0.9)
-	pv.mesh = pmesh
-	var pg := StandardMaterial3D.new()
-	pg.albedo_color = Color(0.9, 0.95, 1.0, 0.35)
-	pg.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	pg.emission_enabled = true
-	pg.emission = Color("fff1d2")
-	pg.emission_energy_multiplier = 1.4
-	pg.roughness = 0.02
-	pv.material_override = pg
-	prism.head.add_child(pv)
-	_block(PRISM_O + Vector3(-0.6, -0.12, -0.6), PRISM_O + Vector3(0.6, -0.4, 0.6), "brass", false)
+	prism.head.add_child(_model("prism"))
+	var stand := _model("prism_stand")
+	stand.position = PRISM_O + Vector3(0, -0.02, 0)
+	stand.scale.y = 0.33  # a low turntable: the beams leave the crystal at its centre
+	geo.add_child(stand)
 	_use("prism", PRISM_O + Vector3(0, 0.4, 0), Vector3(1.6, 1.6, 1.6), "Turn the prism", func() -> void:
 		prism.turn()
 		Audio.sfx(load(SND + "mirror_turn.ogg"), PRISM_O, 0.0, 0.5, 0.8))
@@ -761,13 +788,7 @@ func _build_crypt() -> void:
 	optics.add_child(lens_crypt)
 	lens_crypt.make_body(Vector3(0.9, 0.9, 0.9))
 	optics.add_element(lens_crypt)
-	var lv := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.38
-	sm.height = 0.5
-	lv.mesh = sm
-	lv.material_override = pg
-	lens_crypt.add_child(lv)
+	lens_crypt.add_child(_model("lens"))
 	_mirror("m6", m6, PRISM_O, [Vector3(10, -7.88, m6.z - 1.0), lens_crypt.position, reliq], 0, 0.8)
 	pts["m6"] = m6 + Vector3(-1.0, -0.12, 0.6)
 	_receptor("verdance", Vector3(0, -7.88, -120.6), GlassOptics.GOLD | GlassOptics.BLUE, Vector3(1.6, 1.2, 0.6), func() -> void: _restore(&"verdance"))
@@ -855,7 +876,7 @@ func _build_roof() -> void:
 		_ramp(Vector3(-23.6, 21.5, z), Vector3(-16.5, 24.5, z), 0.7, "glass_gold", false)
 	# the hidden one: a fallen buttress you can climb, to a pinnacle niche (Provenance C)
 	_ramp(Vector3(-20.5, 16, -60), Vector3(-23.6, 18.3, -60), 1.6, "glass_red")
-	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.4, 18.3, -58.8), "glass_floor")
+	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.6, 18.3, -58.8), "glass_floor")
 	_prov_spots["iron"] = Vector3(-24.3, 18.8, -60)
 	pts["iron"] = Vector3(-22.5, 17.4, -60)
 	# THE REVEAL: crest the stair and the sky is one window, and something leans in to look.
@@ -875,7 +896,7 @@ func _build_rose() -> void:
 	for i in 36:
 		var a := TAU * i / 36.0
 		var deg := rad_to_deg(wrapf(a, -PI, PI))
-		if absf(deg) < 9.0 or (deg > -40.0 and deg < -24.0):
+		if absf(deg) < 9.0 or (deg > -40.0 and deg < -24.0) or absf(deg) > 155.0:
 			continue
 		var c := HALL + Vector3(cos(a) * r, 6, sin(a) * r)
 		var mi := MeshInstance3D.new()
@@ -885,6 +906,7 @@ func _build_rose() -> void:
 		mi.material_override = M["glass_wall"]
 		geo.add_child(mi)
 		mi.global_transform = Transform3D(Basis(Vector3.UP, -a), c)
+	_block(HALL + Vector3(-28.6, -11, -12.6), HALL + Vector3(-27.6, 27, 12.6), "glass_wall", false)  # flat bay behind the rose
 	_block(HALL + Vector3(23.4, -0.4, -2), HALL + Vector3(28, 0, 2), "glass_floor")           # balcony
 	_block(HALL + Vector3(-22, -0.4, -4), HALL + Vector3(-13, 0, 4), "glass_floor")           # dais
 	_block(HALL + Vector3(18.2, -0.4, -18), HALL + Vector3(25.5, -0.01, -12.2), "glass_floor")      # exit landing
@@ -1039,15 +1061,18 @@ func _build_east_and_heist() -> void:
 	# escape platforms out in the sky, joined by heliostat beams that die one by one
 	var plats := [Vector3(7, 5.5, -136), Vector3(2, 4.5, -150), Vector3(-6, 3.5, -163), Vector3(-8, 2.5, -178)]
 	var prev := Vector3(0, 6.3, -124.5)
+	var posts := {"pier_shaft": [], "pier_capital": []}
 	for i in plats.size():
 		var p: Vector3 = plats[i]
 		_block(p + Vector3(-2, -0.5, -2), p + Vector3(2, 0, 2), "glass_floor" if i < 3 else "glass_gold")
-		_block(p + Vector3(-0.5, -12, -0.5), p + Vector3(0.5, -0.5, 0.5), "glass_red", false)
+		_pier_xf(posts, p + Vector3(0, -14, 0), p.y - 0.5, [p.y - 0.5], 1.2)
 		var from := prev + Vector3(0, -0.07, -0.08)
 		var to := p + Vector3(0.3 * signf(prev.x - p.x), -0.07, 2.0)
 		_source("h%d" % i, from, to, GlassOptics.GOLD if i % 2 == 0 else GlassOptics.RED, false)
 		pts["h%d" % i] = p
 		prev = p + Vector3(0, 0, -2.0)
+	_mm("pier_shaft", posts["pier_shaft"], {"glass_gold_m": "glass_red_m"})
+	_mm("pier_capital", posts["pier_capital"])
 	var ex: Vector3 = plats[3]
 	var frame := _model("frame_exit")
 	if frame == null and ResourceLoader.exists("res://hub/models/frame.glb"):
