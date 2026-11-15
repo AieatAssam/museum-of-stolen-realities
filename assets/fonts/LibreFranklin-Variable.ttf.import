@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://b167wouhu5ysw"
-path="res://.godot/imported/CrimsonPro-Regular.ttf-dbe6a7b09c4c9b8306e334ad4ae551b4.fontdata"
+uid="uid://c70bqpj1hjdue"
+path="res://.godot/imported/LibreFranklin-Variable.ttf-3eed60a994c37607c2f210f45d14e78f.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/CrimsonPro-Regular.ttf"
-dest_files=["res://.godot/imported/CrimsonPro-Regular.ttf-dbe6a7b09c4c9b8306e334ad4ae551b4.fontdata"]
+source_file="res://assets/fonts/LibreFranklin-Variable.ttf"
+dest_files=["res://.godot/imported/LibreFranklin-Variable.ttf-3eed60a994c37607c2f210f45d14e78f.fontdata"]
 
 [params]
 

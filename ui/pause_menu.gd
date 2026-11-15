@@ -9,11 +9,13 @@ func _ready() -> void:
 	layer = 85
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.017, 0.012, 0.78)
+	bg.color = Color(Style.INK, 0.86)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	_center = CenterContainer.new()
-	_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_center = CenterContainer.new()  # a left column (x 160..860), clear of the centre of the view
+	_center.anchor_bottom = 1.0
+	_center.offset_left = 160
+	_center.offset_right = 860
 	add_child(_center)
 	_build_main()
 
@@ -24,21 +26,20 @@ func _build_main() -> void:
 	_main = VBoxContainer.new()
 	_main.add_theme_constant_override(&"separation", 10)
 	_main.alignment = BoxContainer.ALIGNMENT_CENTER
+	_main.custom_minimum_size.x = 520
 	_center.add_child(_main)
 	var info := Game.registry.get_info(Game.wing.wing_id) if Game.wing else null
-	_main.add_child(Style.catalog(info.numeral + "  ·  " + info.acquisition_no if info else "The Atrium", 16, Style.GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	_main.add_child(Style.label(info.title if info else "Intermission", Style.DISPLAY, 56, Style.IVORY, HORIZONTAL_ALIGNMENT_CENTER))
-	_main.add_child(Style.rule(240))
+	_main.add_child(Style.label(info.title if info else "Paused", Style.DISPLAY, Style.SIZE_HEADING + 8, Style.IVORY))
 	var first := _btn("Resume", Game.resume)
 	_btn("Journal", func() -> void:
 		Game.resume()
 		Game.open_menu(&"journal"))
 	_btn("Settings", _show_settings)
 	if Game.wing and Game.wing.wing_id != Game.HUB_ID:
-		_btn("Return to the Atrium", func() -> void:
+		_btn("Return to the atrium", func() -> void:
 			get_tree().paused = false
 			Game.return_to_hub())
-	_btn("Quit to Title", func() -> void:
+	_btn("Quit to title", func() -> void:
 		get_tree().paused = false
 		Game.quit_to_title())
 	first.grab_focus.call_deferred()
@@ -47,6 +48,7 @@ func _build_main() -> void:
 func _btn(text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.pressed.connect(func() -> void:
 		Audio.ui(&"select")
 		cb.call())
