@@ -294,10 +294,21 @@ func _prov_name(id: String) -> String:
 
 func _plaque(parent: Node, at: Vector3, yaw: float, medium: String, title: String, acq: String, body: String) -> void:
 	var p := Placard.new()
+	p.size = Vector2(1.3, 0.9)  # bigger than the house plate: read at 2 m through the fog
 	parent.add_child(p)
 	p.position = at
 	p.rotation_degrees.y = yaw
 	p.set_label(Placard.fields(title, "", medium, acq, body), false)
+	# a hooded picture light over the plate: the room stays dark, the label does not
+	var lamp := SpotLight3D.new()
+	lamp.position = Vector3(0, 0.75, 0.55)
+	lamp.light_color = Color(1.0, 0.93, 0.8)
+	lamp.light_energy = 1.6
+	lamp.spot_range = 2.0
+	lamp.spot_angle = 40.0
+	lamp.light_volumetric_fog_energy = 0.0
+	p.add_child(lamp)
+	lamp.look_at(p.global_position + Vector3.DOWN * 0.15, Vector3.UP)
 
 
 func _checkpoint_at(id: String, at: Vector3) -> void:
@@ -396,7 +407,7 @@ func _build_plaza(s: Node3D) -> void:
 	# one pool of light over the two figures; the approach stays in shade
 	_spot(s, Vector3(0, 5, -59), 7.0, 9.0, 20.0)
 	_model(s, PATH_FIGURE, Vector3(-1.4, 0, -58), 90.0)
-	_model(s, PATH_FIGURE, Vector3(1.4, 0, -58), -90.0)
+	_model(s, "res://wings/noir/models/figure_woman.glb", Vector3(1.4, 0, -58), -90.0)
 	_better_items.clear()
 	for spec in [[Vector3(-1.4, 0.9, -58), "Reunite them", "reunite"], [Vector3(1.4, 0.9, -58), "Release them", "release"]]:
 		var it := Interactable.make_box(Vector3(1.2, 1.8, 1.2), spec[1])
