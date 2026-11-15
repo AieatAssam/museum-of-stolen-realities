@@ -1,7 +1,22 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://wings/clay/clay.gd" id="1"]
 [ext_resource type="Script" path="res://core/checkpoint.gd" id="2"]
+[ext_resource type="Script" path="res://core/post/post_grade.gd" id="3"]
+[ext_resource type="AudioStream" path="res://wings/clay/audio/bed_0.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://wings/clay/audio/bed_1.ogg" id="5"]
+[ext_resource type="AudioStream" path="res://wings/clay/audio/amb_wind.ogg" id="6"]
+
+[sub_resource type="Resource" id="grade"]
+script = ExtResource("3")
+tint = Color(1.04, 0.98, 0.9, 1)
+saturation = 0.85
+contrast = 1.08
+lift = Color(0.05, 0.03, 0.02, 1)
+grain = 0.05
+aberration = 0.3
+vignette = 0.45
+grain_fps = 12.0
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -10,18 +25,32 @@ ambient_light_source = 2
 ambient_light_color = Color(0.5, 0.4, 0.3, 1)
 ambient_light_energy = 0.6
 tonemap_mode = 3
+fog_enabled = true
+fog_light_color = Color(0.22, 0.15, 0.09, 1)
+fog_density = 0.008
 
 [node name="Clay" type="Node3D"]
 script = ExtResource("1")
 wing_id = &"clay"
 spawn_checkpoint = &"start"
+grade = SubResource("grade")
+music_layers = Array[AudioStream]([ExtResource("4"), ExtResource("5")])
+music_intensity = 0.0
+ambience = ExtResource("6")
 void_height = -30.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
 
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 12, 0)
+light_color = Color(1, 0.86, 0.66, 1)
+light_energy = 1.4
+shadow_enabled = true
+directional_shadow_max_distance = 60.0
+
 [node name="Checkpoints" type="Node3D" parent="."]
 
 [node name="start" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 34)
 script = ExtResource("2")
