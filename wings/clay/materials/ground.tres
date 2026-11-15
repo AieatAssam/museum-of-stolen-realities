@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3]
+
+[ext_resource type="Shader" path="res://wings/clay/shaders/clay_terrain.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_moss_albedo.png" id="2"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_moss_normal.png" id="3"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_terracotta_albedo.png" id="4"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_terracotta_normal.png" id="5"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_wood_albedo.png" id="6"]
+[ext_resource type="Texture2D" path="res://wings/clay/textures/clay_wood_normal.png" id="7"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/moss_tex = ExtResource("2")
+shader_parameter/moss_normal = ExtResource("3")
+shader_parameter/clay_tex = ExtResource("4")
+shader_parameter/clay_normal = ExtResource("5")
+shader_parameter/wood_tex = ExtResource("6")
+shader_parameter/wood_normal = ExtResource("7")
