@@ -1,18 +1,18 @@
 shader_type spatial;
-// The onlooker: a vast silhouette (head, hand, loupe) pressed against the far side of the sky window.
-// A quad far out along its gaze (glass.gd places it); fully opaque black where it blocks the light
-// (the sky behind is HDR, so any leak shows), a warm rim where the outside light wraps its edge.
+// The onlooker: a vast face and hand with a loupe pressed to the far side of the sky window, seen
+// through the glass (textures/onlooker_face.png, keyed RGBA: dark indigo form, warm rim, a glint in
+// the magnified eye). A quad far out along its gaze; glass.gd places it. Borders melt; `reveal` fades it.
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 
-uniform sampler2D shape : hint_default_white, filter_linear_mipmap;
+uniform sampler2D face : source_color, filter_linear_mipmap;
 uniform float reveal = 0.0;
 
 void fragment() {
-	vec2 uv = vec2(1.0 - UV.x, UV.y);  // seen from its back face
-	float edge = smoothstep(0.0, 0.1, uv.x) * smoothstep(1.0, 0.82, uv.x) * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.72, uv.y);
-	float m = smoothstep(0.25, 0.55, 1.0 - textureLod(shape, uv, 0.0).r) * edge;  // shoulders and border melt into the light
-	float soft = 1.0 - textureLod(shape, uv, 4.0).r;
-	float rim = clamp(soft * edge - m, 0.0, 1.0);
-	ALBEDO = mix(vec3(1.0, 0.72, 0.42) * rim * 3.0, vec3(0.0), m);
-	ALPHA = clamp(m + rim * 0.9, 0.0, 1.0) * reveal;
+	vec2 uv = UV;
+	vec4 f = texture(face, uv);
+	float edge = smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.9, uv.x) * smoothstep(0.0, 0.05, uv.y) * smoothstep(1.0, 0.8, uv.y);
+	// through a few metres of tinted glass: the form stays readable, the rim and the eye carry
+	vec3 c = mix(f.rgb * 1.15, vec3(0.06, 0.08, 0.2), 0.2) + f.rgb * smoothstep(0.55, 0.9, max(f.r, f.g)) * 3.0;
+	ALBEDO = c;
+	ALPHA = f.a * edge * reveal;
 }

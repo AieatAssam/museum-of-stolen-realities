@@ -12,4 +12,4 @@ shader_parameter/bay_off = 0.0
 shader_parameter/lw = 2.2
 shader_parameter/tier_a = Vector2(0.6, 7.4)
 shader_parameter/tier_b = Vector2(0, 0)
-shader_parameter/energy = 3.4
+shader_parameter/energy = 4.0

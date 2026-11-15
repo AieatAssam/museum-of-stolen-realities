@@ -70,7 +70,7 @@ var _eye_dir := Vector3(-0.39, 0.8, -0.92).normalized()
 var _onlooker_mat: ShaderMaterial
 var _reveal_t0: float = 0.0
 
-const AMBIENT := 0.42
+const AMBIENT := 0.7
 
 
 # =============================================================================================
@@ -157,7 +157,7 @@ func _ready() -> void:
 	optics = GlassOptics.new()
 	optics.name = "Optics"
 	add_child(optics)
-	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister", "glazed_tower"]:
+	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister", "glazed_tower", "glazed_ruby"]:
 		M[n] = load(MATS + n + ".tres")
 	_build_environment()
 	_build_shot_marks()
@@ -227,7 +227,7 @@ func _build_environment() -> void:
 	_onlooker.mesh = oq
 	_onlooker_mat = ShaderMaterial.new()
 	_onlooker_mat.shader = load("res://wings/glass/shaders/onlooker.gdshader")
-	_onlooker_mat.set_shader_parameter(&"shape", load("res://wings/glass/textures/onlooker.png"))
+	_onlooker_mat.set_shader_parameter(&"face", load("res://wings/glass/textures/onlooker_face.png"))
 	_onlooker.material_override = _onlooker_mat
 	_onlooker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_onlooker.visible = false
@@ -860,14 +860,25 @@ func _build_crypt() -> void:
 	_block(Vector3(-15.5, -8, -122), Vector3(-15, 2.1, -86), "glass_crypt")
 	_block(Vector3(-15.5, -8, -83.6), Vector3(-15, 2.1, -80.4), "glass_crypt")
 	_block(Vector3(-15.5, -4.5, -86), Vector3(-15, 2.1, -83.6), "glass_crypt")
-	_block(Vector3(-15.5, -8, -122.5), Vector3(15.5, 2.1, -122), "glass_crypt")
+	_block(Vector3(-15.5, -8, -121.0), Vector3(15.5, 2.1, -120.95), "glass_crypt")  # in front of the east wall's foot
 	_gates["white"] = _block(Vector3(-15.4, -8, -86), Vector3(-15.1, -4.5, -83.6), "glass_quarry")
+	# the low ribbed vault: transverse ribs on engaged piers, a teal glass web between them with
+	# diagonal ribs and a ring boss; the stair slot's bay stays open, the shaft drops through an eye
+	var zs: Array[float] = [-80.6, -86.7, -92.29, -98.23, -104.17, -110.11, -116.06, -121.8]
+	var ribs: Array = []
+	var webs: Array = []
+	for i in zs.size():
+		ribs.append(Transform3D(Basis.IDENTITY, Vector3(0, 0, zs[i])))
+		if i + 1 < zs.size() and i != 5:
+			webs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, (zs[i] - zs[i + 1]) / 6.0)), Vector3(0, 0, zs[i])))
+	_mm("crypt_rib", ribs)
+	_mm("crypt_web", webs)
 	# Ruby chapel x -15..-10, z -90..-106, behind the gold gate; a slit admits red at z -92.7
-	_block(Vector3(-10.25, -8, -92.45), Vector3(-9.95, -3, -90), "glass_red")
-	_block(Vector3(-10.25, -8, -98.9), Vector3(-9.95, -3, -92.95), "glass_red")
-	_block(Vector3(-10.25, -8, -106), Vector3(-9.95, -3, -101.3), "glass_red")
-	_block(Vector3(-15, -8, -90.3), Vector3(-10, -3, -90), "glass_red")
-	_block(Vector3(-15, -8, -106), Vector3(-10, -3, -105.7), "glass_red")
+	_block(Vector3(-10.25, -8, -92.45), Vector3(-9.95, -3, -90), "glazed_ruby")
+	_block(Vector3(-10.25, -8, -98.9), Vector3(-9.95, -3, -92.95), "glazed_ruby")
+	_block(Vector3(-10.25, -8, -106), Vector3(-9.95, -3, -101.3), "glazed_ruby")
+	_block(Vector3(-15, -8, -90.3), Vector3(-10, -3, -90), "glazed_ruby")
+	_block(Vector3(-15, -8, -106), Vector3(-10, -3, -105.7), "glazed_ruby")
 	_gates["gold"] = _block(Vector3(-10.2, -8, -101.3), Vector3(-10.0, -3, -98.9), "glass_gold")
 	_light(Vector3(-12.5, -5, -98), Color("b22242"), 0.8, 6.0)
 	_light(Vector3(0, -2, -100), Color("8a3fd1"), 0.5, 16.0)
@@ -882,6 +893,7 @@ func _build_crypt() -> void:
 	prism.setup()
 	optics.add_element(prism)
 	prism.head.add_child(_model("prism"))
+	prism.head.add_child(_spectrum_fan())
 	var stand := _model("prism_stand")
 	stand.position = PRISM_O + Vector3(0, -0.02, 0)
 	stand.scale.y = 0.33  # a low turntable: the beams leave the crystal at its centre
@@ -937,6 +949,32 @@ func _build_crypt() -> void:
 	_placard(Vector3(-3, -6.5, -82.6), Vector3(0, 0, -1), "Original glazing, face-down", "Removed during re-leading", "Stained glass, stored per conservation guidance", "214.3",
 		"Panes removed in the re-leading are kept face-down, which is how glass is stored and how saints are kept quiet. Light of a pane's own colour, applied from behind, will regrettably turn it over.")
 	pts["white_gate"] = Vector3(-14, -8, -84.8)
+
+
+## The prism's dispersion thrown on the floor: red at -35 degrees through gold to violet at +35 (the
+## gameplay beams leave along -35, 0 and +35), soft at the edges, fading over 5 m.
+func _spectrum_fan() -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 48
+	var ring := func(k: int, r: float, a: float) -> void:
+		var t := float(k) / n
+		var yaw := deg_to_rad(lerpf(-42.0, 42.0, t))
+		var c := Color.from_hsv(lerpf(0.0, 0.78, t), 0.95, 1.0)
+		c.a = a * smoothstep(0.0, 0.12, t) * smoothstep(1.0, 0.88, t)
+		st.set_color(c)
+		st.add_vertex(Vector3(sin(yaw) * r, -0.105, -cos(yaw) * r))
+	for k in n:
+		for seg: Array in [[0.35, 0.9, 1.6, 0.85], [1.6, 0.85, 5.0, 0.0]]:
+			ring.call(k, seg[0], seg[1]); ring.call(k + 1, seg[0], seg[1]); ring.call(k + 1, seg[2], seg[3])
+			ring.call(k, seg[0], seg[1]); ring.call(k + 1, seg[2], seg[3]); ring.call(k, seg[2], seg[3])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var m := ShaderMaterial.new()
+	m.shader = load("res://wings/glass/shaders/spectrum.gdshader")
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
 
 
 ## A face-down saint's pane lying on a bier (or set in a niche): a quad of the saint's window, face
@@ -1042,37 +1080,30 @@ func _build_rose() -> void:
 	_block(HALL + Vector3(23.4, -0.4, -2), HALL + Vector3(28, 0, 2), "glass_floor")           # balcony
 	_block(HALL + Vector3(-22, -0.4, -4), HALL + Vector3(-13, 0, 4), "glass_floor")           # dais
 	_block(HALL + Vector3(18.2, -0.4, -18), HALL + Vector3(25.5, -0.01, -12.2), "glass_floor")      # exit landing
-	var boss := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 3.9
-	cm.bottom_radius = 3.9
-	cm.height = 0.4
-	boss.mesh = cm
-	boss.material_override = M["glass_red"]
-	boss.position = HALL + Vector3(0, -0.2, 0)
+	# her dais (modelled; the collider stays a plain cylinder) and the tear she weeps, in its cradle
+	var boss := _model("rose_dais")
+	boss.position = HALL
 	geo.add_child(boss)
 	var sb := StaticBody3D.new()
 	sb.set_meta(&"surface", "glass")
+	sb.position = HALL + Vector3(0, -0.2, 0)
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = 3.9
 	cyl.height = 0.4
 	cs.shape = cyl
 	sb.add_child(cs)
-	boss.add_child(sb)
-	var tear := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.5
-	sm.height = 1.2
-	tear.mesh = sm
-	var tm := StandardMaterial3D.new()
-	tm.albedo_color = Color("8a3fd1")
-	tm.emission_enabled = true
-	tm.emission = Color("8a3fd1")
-	tm.emission_energy_multiplier = 4.0
-	tear.material_override = tm
-	tear.position = HALL + Vector3(0, 1.2, 0)
+	geo.add_child(sb)
+	var tear := _model("rose_tear")
+	tear.position = HALL
 	geo.add_child(tear)
+	var glint := OmniLight3D.new()
+	glint.light_color = Color("a66bff")
+	glint.light_energy = 1.2
+	glint.omni_range = 4.0
+	glint.shadow_enabled = false
+	glint.position = HALL + Vector3(0, 1.2, 0)
+	geo.add_child(glint)
 	# THE ROSE WIDOW: a 23 m rose of modelled tracery; her petals of panes light with her floor.
 	var rw := _window("rose", HALL + Vector3(-27.4, 12, 0), Vector2(23, 23), Vector3(1, 0, 0), "win_rose", 0.0, "rose_pane")
 	rw.scale = Vector3.ONE * 11.5  # the whole end wall: 23 m, floor to cornice
@@ -1722,7 +1753,16 @@ func _look_for(cam: Camera3D) -> void:
 	var in_hall := c.distance_to(HALL) < 31.0
 	var black := in_hall and rose.phase == 2
 	env.ambient_light_energy = 0.0 if black else AMBIENT
-	env.volumetric_fog_density = 0.004 if black else 0.009
+	env.volumetric_fog_density = 0.004 if black or c.y < -2.0 else 0.009  # the crypt stays clear and dark
+	# the eye adapts: the crypt, the cloister and the tower stair are lit only by their own glass
+	var ex := 2.1
+	if c.y < -2.0:
+		ex = 2.8
+	elif c.z > -17.5:
+		ex = 2.5
+	elif c.x < -16.2 and c.y < 14.5 and not in_hall:
+		ex = 4.3
+	env.tonemap_exposure = ex
 	sky_mat.set_shader_parameter(&"dark", 0.97 if black else _heist_dark)
 	(_model_mat("glass_wall_uv")).set_shader_parameter(&"dark", 1.0 if black else 0.0)
 	if _rose_pane_mat:
