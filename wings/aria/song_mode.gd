@@ -10,6 +10,9 @@ const Instrument := preload("res://wings/aria/instrument.gd")
 ## Set by the wing on each downbeat. While flipping, gravity reverses inside flip_box.
 static var flipping: bool = false
 static var flip_box: AABB = AABB()
+## Set by the wing while La Sirena sings: a pull (negative) or a float (positive) inside duet_box.
+static var duet_box: AABB = AABB()
+static var duet_accel: float = 0.0
 
 var walk_speed: float = 4.2
 var ground_accel: float = 12.0
@@ -55,6 +58,8 @@ func physics(delta: float) -> void:
 	vertical += (p.gravity_vector + up * _field_at(p.global_position)) * delta
 	if flipping and flip_box.has_point(p.global_position):
 		vertical -= 2.0 * p.gravity_vector * delta  # reverses gravity: net pull is now upward
+	if duet_box.has_point(p.global_position):
+		vertical += up * duet_accel * delta
 
 	if _jump_pressed and (on_floor or _since_floor < 0.1):
 		vertical = up * jump_speed
@@ -112,18 +117,19 @@ func _aimed() -> Node3D:
 
 
 func _update_hold(delta: float) -> void:
-	# one held note: the struck instrument nearest Vesper stays sustained while breath lasts
+	# one held note: the last note struck is carried with her, anywhere, while breath lasts
 	var holding_now := _holding and breath > 0.0
 	if holding_now:
 		breath = maxf(breath - delta, 0.0)
 	else:
 		breath = minf(breath + delta * 1.5, breath_max)
-	var target: Node3D = null
+	var target: Instrument = null
 	if holding_now and last_struck and is_instance_valid(last_struck):
-		if last_struck.global_position.distance_to(player.global_position) < 9.0:
-			target = last_struck
+		target = last_struck as Instrument
 	for inst: Node in player.get_tree().get_nodes_in_group(Instrument.GROUP):
-		(inst as Node3D).held = inst == target
+		var ins := inst as Instrument
+		ins.held = ins == target
+		ins.carry_to = player if ins == target else null
 
 
 func _release_hold() -> void:
@@ -131,7 +137,9 @@ func _release_hold() -> void:
 	if player == null or not player.is_inside_tree():
 		return
 	for inst: Node in player.get_tree().get_nodes_in_group(Instrument.GROUP):
-		(inst as Node3D).held = false
+		var ins := inst as Instrument
+		ins.held = false
+		ins.carry_to = null
 
 
 func bob_scale() -> float:

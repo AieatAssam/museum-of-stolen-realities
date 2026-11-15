@@ -23,6 +23,7 @@ const GROUP := &"aria_instruments"
 var env: float = 0.0       # 0..1 eased envelope
 var timer: float = 0.0     # sustain left (seconds)
 var held: bool = false     # the player is holding this note with the secondary verb
+var carry_to: Node3D       # while held, the field follows this node in x and z (a carried lift)
 
 
 func _ready() -> void:
@@ -51,12 +52,16 @@ func _physics_process(delta: float) -> void:
 func field_at(p: Vector3) -> float:
 	if env <= 0.001:
 		return 0.0
-	var dx := p.x - global_position.x
-	var dz := p.z - global_position.z
+	var c := global_position
+	if carry_to:  # a carried note follows the player in x and z and keeps its own height
+		c.x = carry_to.global_position.x
+		c.z = carry_to.global_position.z
+	var dx := p.x - c.x
+	var dz := p.z - c.z
 	var d2 := dx * dx + dz * dz
 	if d2 >= radius * radius:
 		return 0.0
-	var h := p.y - global_position.y
+	var h := p.y - c.y
 	var rad := 1.0 - d2 / (radius * radius)
 	var a := 0.0
 	if kind == &"lift":

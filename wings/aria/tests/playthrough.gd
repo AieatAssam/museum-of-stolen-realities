@@ -1,14 +1,18 @@
 extends Node
-## Plays The Drowned Aria with the wing's own mechanics: strikes via the primary verb, the lift
-## column under a sounding horn, the chord, the cadence on the glass, a held note on secondary,
-## the provenances via interact, and the fragment. Positions are set with debug_teleport and aim
-## is set by facing the instrument, so every mechanic is exercised by real verbs.
+## Plays The Drowned Aria start to finish with the wing's own mechanics: strikes via the primary verb,
+## the lift columns, the chord, the cadence on the glass, a held note on secondary (carried anywhere),
+## the provenances via interact, La Sirena's duet, the silent fall, and the heist out through the chord.
+## Positions are set with debug_teleport and aim is set by facing the instrument, so every mechanic is
+## exercised by real verbs. Section times are physics ticks converted to seconds of wing time.
 ## Run:  Godot --headless --path . wings/aria/tests/playthrough.tscn
 
 const Instrument := preload("res://wings/aria/instrument.gd")
 const SongMode := preload("res://wings/aria/song_mode.gd")
+const AriaWing := preload("res://wings/aria/aria.gd")
 
 var _fails: int = 0
+var _sec_names: Array[String] = []
+var _sec_ticks: Array[int] = []
 
 
 func _ready() -> void:
@@ -73,8 +77,20 @@ func _instrument(name_: String) -> Node3D:
 	return Game.wing.find_child(name_, true, false) as Node3D
 
 
+## Calls a read-only accessor on the aria wing (the wing is typed as Wing in Game).
+func _aria(method: StringName) -> Variant:
+	return Game.wing.call(method)
+
+
+## Named section: prints its heading and starts the physics-tick clock for the timing table.
+func _section(name_: String, text: String) -> void:
+	_sec_names.append(name_)
+	_sec_ticks.append(Engine.get_physics_frames())
+	print("[aria] %s: %s" % [name_, text])
+
+
 func _run() -> void:
-	print("[aria] boot, new game")
+	_section("boot", "new game")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
 	Save.load_game()
 	Game.new_game()
@@ -84,7 +100,7 @@ func _run() -> void:
 		Cinematics.skip()
 	await _until(func() -> bool: return not Cinematics.playing and not Transitions.busy, 15.0)
 
-	print("[aria] enter the wing")
+	_section("enter", "the wing")
 	await Game.debug_goto(&"aria")
 	await _until(func() -> bool: return Game.wing != null and Game.wing.wing_id == &"aria" and not Transitions.busy, 30.0)
 	check(Game.wing != null and Game.wing.wing_id == &"aria", "aria wing loads")
@@ -94,8 +110,9 @@ func _run() -> void:
 	check(Quest.provenances.size() == 3, "aria declares 3 provenances")
 	await frames(4)
 	check(Game.player.mode_name() == &"song", "the wing starts her in song mode (start_mode)")
+	check(Game.wing.get_node_or_null("Areas") != null, "areas are grouped under Areas/")
 
-	print("[aria] foyer: the demo horn lifts, the stair climbs to the gallery, the route leads back into the auditorium")
+	_section("foyer", "the demo horn lifts, the stair climbs to the gallery, the route leads back into the auditorium")
 	var demo := Game.wing.find_child("DemoHorn", true, false) as Node3D
 	await _stand(demo.global_position + Vector3(0, 0, 0.8), demo.global_position + Vector3(0, 1.5, 0))
 	var fy0 := Game.player.global_position.y
@@ -116,7 +133,7 @@ func _run() -> void:
 	_send(&"move_forward", false)
 	check(Game.player.global_position.z < 12.0 and Game.player.global_position.y < 1.5, "walking down from the gallery reaches the auditorium floor")
 
-	print("[aria] objective one: strike the horns, lift under one")
+	_section("brass", "strike the horns, lift under one")
 	# stand 0.8 m off the west horn's axis and aim at it: inside the column, the lift beats gravity
 	var horns: Array[Node3D] = []
 	for n: Node in Game.wing.find_child("Instruments", true, false).get_children():
@@ -140,7 +157,7 @@ func _run() -> void:
 		await frames(10)
 	check(Quest.is_done(&"brass"), "objective 'Wake the brass' done")
 
-	print("[aria] objective two: strike the three pipes within one sounding window")
+	_section("chord", "strike the three pipes within one sounding window")
 	var pipes := ["Instrument_organ_c", "Instrument_organ_e", "Instrument_organ_g"]
 	for pipe: String in pipes:
 		var pn := _instrument(pipe)
@@ -150,7 +167,7 @@ func _run() -> void:
 	await _until(func() -> bool: return Quest.is_done(&"chord"), 3.0)
 	check(Quest.is_done(&"chord"), "the chord step completes on three sounding pipes")
 
-	print("[aria] objective three: G, E, C on the glass, then a held note")
+	_section("cadence", "G, E, C on the glass")
 	var glass := {"g": "Instrument_g", "e": "Instrument_e", "c": "Instrument_c"}
 	for note: String in ["g", "e", "c"]:
 		var gn := _instrument(glass[note])
@@ -159,7 +176,7 @@ func _run() -> void:
 		await frames(10)
 	check(Quest.is_done(&"cadence"), "the cadence G, E, C completes the objective")
 
-	print("[aria] sink well: strike it, then drop through its footprint (A/B against the silent well)")
+	_section("sink", "strike the auditorium well, then drop through its footprint (A/B against the silent well)")
 	var well := _instrument("Instrument_sink_low")
 	# B: the same drop with the well silent, measured first so the well's tail does not leak in
 	await _until(func() -> bool: return well.env <= 0.001, 15.0)
@@ -171,7 +188,7 @@ func _run() -> void:
 	print("  drop with the well sounding %.2f m, silent %.2f m" % [drop_sink, drop_silent])
 	check(drop_sink > drop_silent + 0.3, "the sink well draws her down faster (%.2f m vs %.2f m over 0.6 s)" % [drop_sink, drop_silent])
 
-	# held note: secondary sustains the struck note nearby; breath should drop while held
+	_section("hold", "secondary sustains the last note struck, and spends breath")
 	var song: MovementMode = Game.player.modes[&"song"]
 	var gn0 := _instrument(glass["c"])
 	await _stand(gn0.global_position + Vector3(0, 0, 1.5), gn0.global_position + Vector3(0, 1.5, 0))
@@ -184,7 +201,26 @@ func _run() -> void:
 	var breath1: float = song.get("breath")
 	check(breath1 < breath0 - 0.5, "holding a note spends breath (%.2f -> %.2f)" % [breath0, breath1])
 
-	print("[aria] orchestra pit: walk down the ramp, one pipe stays below the gantry, two together reach it")
+	_section("carried", "a held note travels with her: far from the horn, it still lifts her, and breath limits it")
+	var horn_c := horns[2]
+	await _stand(horn_c.global_position + Vector3(0, 0, 0.8), horn_c.global_position + Vector3(0, 1.5, 0))
+	_tap(&"primary")
+	await phys(1.6)
+	await _stand(Vector3(-14, 0.5, 6), Vector3(-14, 1.5, 0))
+	check(horn_c.global_position.distance_to(Game.player.global_position) > 15.0, "she is more than 15 m from the horn it carries")
+	var cy0 := Game.player.global_position.y
+	_send(&"secondary", true)
+	await phys(1.0)
+	var cy1 := Game.player.global_position.y
+	check((horn_c as Instrument).carry_to == Game.player, "the held horn is carried by the player")
+	check(cy1 - cy0 > 0.5, "the carried note lifts her far from the instrument (%.2f m)" % (cy1 - cy0))
+	await _until(func() -> bool: return float(song.get("breath")) <= 0.001, 10.0)
+	check(float(song.get("breath")) <= 0.001, "holding until breath runs out stops the note's hold")
+	_send(&"secondary", false)
+	await phys(0.5)
+	check((horn_c as Instrument).carry_to == null, "releasing the verb lets the note go")
+
+	_section("pit", "walk down the ramp, one pipe stays below the gantry, two together reach it")
 	await _stand(Vector3(-11, 0.5, -10), Vector3(-30, 0.5, -10))
 	_send(&"move_forward", true)
 	await _until(func() -> bool: return Game.player.global_position.y < -2.5, 12.0)
@@ -219,8 +255,10 @@ func _run() -> void:
 	_send(&"move_forward", false)
 	var gpos := Game.player.global_position
 	check(on_gantry, "pit_a and pit_b together lift her, and she lands on the gantry (peak y %.2f, at x %.1f z %.1f y %.2f)" % [py_two, gpos.x, gpos.z, gpos.y])
+	# the sink well in the pit is a trap off the route: the test only confirms it exists and is silent by default
+	check(_instrument("Instrument_pit_well") != null, "the pit's sink well is placed")
 
-	print("[aria] fly-loft: the tuning-fork statue rings its note and lifts her")
+	_section("fly-loft", "the tuning-fork statue rings its note and lifts her")
 	var fork := Game.wing.find_child("TuningForkStatue", true, false) as Node3D
 	await _stand(Vector3(56, 2.8, 40.8), fork.global_position + Vector3(0, 1.5, 0))
 	var fk0 := Game.player.global_position.y
@@ -231,7 +269,7 @@ func _run() -> void:
 		fk_max = maxf(fk_max, Game.player.global_position.y)
 	check(fk_max - fk0 > 1.0, "the fork statue lifts her (%.2f m)" % (fk_max - fk0))
 
-	print("[aria] scored corridor: a fall outside the flip sends her to the corridor checkpoint; a crossing inside it succeeds")
+	_section("corridor", "a fall outside the flip sends her to the corridor checkpoint; a crossing inside it succeeds")
 	await _stand(Vector3(17, 2.8, 39), Vector3(30, 2.8, 39))
 	await frames(10)
 	await _stand(Vector3(21, 2.8, 39), Vector3(30, 2.8, 39))
@@ -259,7 +297,7 @@ func _run() -> void:
 	var cx := Game.player.global_position
 	check(cx.x > 47.0 and cx.y > 2.0, "walking the gallery, then crossing on a downbeat, reaches the fly-loft (x %.1f, y %.2f)" % [cx.x, cx.y])
 
-	print("[aria] provenances by interact")
+	_section("provenances", "three hidden collectibles by interact")
 	var pickups: Array[Node] = Game.wing.find_children("*", "Pickup", true, false)
 	for pk: Node in pickups:
 		var pick := pk as Pickup
@@ -270,17 +308,128 @@ func _run() -> void:
 		await seconds(2.5)
 	check(_count_provs() == 3, "three provenances recorded")
 
-	print("[aria] fragment")
-	var frag: Node3D = Game.wing.find_child("FragmentSpot", true, false)
-	check(frag.visible, "fragment appears once the objectives are done")
-	await _stand(frag.global_position + Vector3(0, -1.0, 1.6), frag.global_position)
-	_tap(&"interact")
-	await _until(func() -> bool: return Game.wing != null and Game.wing.wing_id == Game.HUB_ID, 30.0)
-	check(Quest.has_fragment(&"aria"), "aria fragment recorded")
-	check(Game.wing != null and Game.wing.wing_id == Game.HUB_ID, "finish() returned to the atrium")
+	_section("duet", "La Sirena: a wrong answer repeats its round, then three rounds of correct answers")
+	await _stand(Vector3(0, 0.5, -12), Vector3(0, 0.5, -20))
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.z < -19.5, 8.0)
+	_send(&"move_forward", false)
+	await _until(func() -> bool: return _aria(&"duet_window_open") as bool, 15.0)
+	check(_aria(&"duet_window_open") as bool, "the duet cue opens the first answer window")
+	check(_aria(&"duet_round") == 0, "the duet starts in round one")
+	# a deliberate wrong answer: strike the bowl that is not in the phrase
+	var expected: Array = _aria(&"duet_expected")
+	var wrong := &"c" if expected[0] != &"c" else &"e"
+	await _strike_bowl(wrong)
+	await _until(func() -> bool: return not (_aria(&"duet_window_open") as bool), 3.0)
+	check(_aria(&"duet_round") == 0 and not Quest.is_done(&"duet"), "a wrong answer repeats round one")
+	await _until(func() -> bool: return _aria(&"duet_window_open") as bool, 15.0)
+	check((_aria(&"duet_expected") as Array) == expected, "the repeated round sings the same phrase")
+	var guard := 0
+	while not Quest.is_done(&"duet") and guard < 40:
+		guard += 1
+		await _until(func() -> bool: return (_aria(&"duet_window_open") as bool) or Quest.is_done(&"duet"), 20.0)
+		if Quest.is_done(&"duet"):
+			break
+		for n: StringName in _aria(&"duet_expected"):
+			await _strike_bowl(n)
+		await _until(func() -> bool: return not (_aria(&"duet_window_open") as bool), 3.0)
+	check(Quest.is_done(&"duet"), "all three rounds answered, the duet is done")
+	check(Quest.is_step_done(&"duet", &"round3"), "round three completed")
 
+	_section("fall", "the silent chandelier: music cut, every figure looks up, she moves freely for ninety seconds")
+	check(_aria(&"fall_running") as bool, "the chandelier begins its fall with the duet's last note")
+	var fragment_spot: Node3D = Game.wing.find_child("FragmentSpot", true, false)
+	check(fragment_spot.visible, "the fragment is on the stage as the last note ends")
+	var chand := Game.wing.find_child("Chandelier", true, false) as Node3D
+	var ch0 := chand.global_position.y
+	await _stand(Vector3(0, 0.5, -40), Vector3(0, 0.5, -48))
+	var fx0 := Game.player.global_position
+	_send(&"move_forward", true)
+	await phys(2.0)
+	_send(&"move_forward", false)
+	var fx1 := Game.player.global_position
+	check(fx0.distance_to(fx1) > 0.5, "she moves freely during the fall (%.2f m in 2 s)" % fx0.distance_to(fx1))
+	var ch1 := chand.global_position.y
+	# the fall eases in and out over 90 s (11 m total), so the first two seconds move only centimetres
+	check(ch0 - ch1 > 0.005 and ch0 - ch1 < 0.05, "the chandelier descends slowly (%.3f m in 2 s of 90)" % (ch0 - ch1))
+	var fig := Game.wing.find_child("Figure00", true, false) as Node3D
+	var head := fig.get_child(1) as Node3D
+	var to_chand := (chand.global_position - head.global_position).normalized()
+	var facing := -head.global_transform.basis.z.normalized()
+	check(facing.dot(to_chand) > 0.95, "the first figure's head follows the chandelier")
+	await _until(func() -> bool: return Quest.is_done(&"fall"), 150.0)
+	check(Quest.is_done(&"fall"), "the fall completes after ninety seconds")
+	check(absf(chand.global_position.y - 4.0) < 0.05, "the chandelier comes to rest at y 4 (%.2f)" % chand.global_position.y)
+
+	_section("heist", "take the fragment, gravity lets go in stages, climb the chord to the ledge, leave by the one exit")
+	var marks := get_tree().get_nodes_in_group(&"shot_marks")
+	check(marks.size() == 12, "twelve camera marks in group shot_marks (%d)" % marks.size())
+	var plac := Game.wing.find_children("*", "Placard", true, false)
+	check(plac.size() <= 12 and plac.size() >= 8, "placards in the wing, at most twelve (%d)" % plac.size())
+	await _stand(fragment_spot.global_position + Vector3(0, -1.0, 1.6), fragment_spot.global_position)
+	_tap(&"interact")
+	await _until(func() -> bool: return Quest.has_fragment(&"aria"), 6.0)
+	check(Quest.has_fragment(&"aria"), "the fragment is taken")
+	await seconds(0.3)
+	check(absf(Game.player.gravity_vector.y - Game.wing.gravity.y * 0.5) < 0.2, "gravity lets go in stages: half first (%.2f)" % Game.player.gravity_vector.y)
+	await seconds(3.5)
+	check(Game.player.gravity_vector.length() < 0.1, "then gravity is gone (%.2f)" % Game.player.gravity_vector.length())
+	# the sink in the dome: with no gravity it still pulls her down through its footprint
+	var sink := _instrument("Instrument_dome_sink")
+	await _stand(Vector3(0, 0.5, -48), Vector3(0, 1.5, -54))
+	_tap(&"primary")
+	await phys(0.4)
+	await _stand(Vector3(0, 2.5, -54), Vector3(0, 2.5, -55))
+	var sy0 := Game.player.global_position.y
+	await phys(0.5)
+	var sink_drop := sy0 - Game.player.global_position.y
+	check(sink_drop > 0.5, "the sink well pulls her down with no gravity (%.2f m in 0.5 s)" % sink_drop)
+	await phys(9.0)  # let the sink fall silent before the chord route
+	# the chord route: strike both columns, then climb between them to the ledge
+	for col_name: String in ["Heist_heist_a", "Heist_heist_b"]:
+		var col := _instrument(col_name)
+		await _stand(col.global_position + Vector3(0, 0, 2.2), col.global_position + Vector3(0, 1.5, 0))
+		_tap(&"primary")
+		await frames(4)
+	# rise inside the chord's footprint (the lift is weakest at its top, so she stays within 2.6 m of both columns)
+	await _stand(Vector3(0, 0.5, -56), Vector3(0, 0.5, -62))
+	await _until(func() -> bool: return Game.player.global_position.y >= 8.0, 25.0)
+	var rise := Game.player.global_position
+	print("  climb: risen to y %.2f at x %.2f z %.2f" % [rise.y, rise.x, rise.z])
+	check(rise.y >= 8.0, "the chord lifts her clear of the ledge (y %.2f)" % rise.y)
+	# with gravity gone nothing pulls her back down, so once above the ledge she drifts onto it
+	_send(&"move_forward", true)
+	var climb_t := 0.0
+	while climb_t < 30.0 and Game.wing != null and Game.wing.wing_id != Game.HUB_ID:
+		await phys(1.0)
+		climb_t += 1.0
+		if Game.player == null:  # the exit may already have swapped the wing out
+			break
+		var cp := Game.player.global_position
+		print("  climb t=%.0f s  x %.2f y %.2f z %.2f" % [climb_t, cp.x, cp.y, cp.z])
+	_send(&"move_forward", false)
+	check(Game.wing == null or Game.wing.wing_id == Game.HUB_ID, "the ledge exit returns to the atrium")
+	check(Quest.has_fragment(&"aria"), "aria fragment recorded")
+
+	_section("end", "")
+	_print_timings()
 	print("[aria] done, %d failure(s)" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
+
+
+## Strike the duet bowl for `note`: stand two metres off it, face it, and press primary.
+func _strike_bowl(note: StringName) -> void:
+	var bowl := _instrument("Duet_" + String(note))
+	await _stand(bowl.global_position + Vector3(0, 0, 2.0), bowl.global_position + Vector3(0, 1.5, 0))
+	_tap(&"primary")
+	await frames(6)
+
+
+func _print_timings() -> void:
+	print("[aria] section times (wing time, from physics ticks at %d Hz):" % Engine.physics_ticks_per_second)
+	for i: int in _sec_names.size() - 1:
+		var secs := float(_sec_ticks[i + 1] - _sec_ticks[i]) / Engine.physics_ticks_per_second
+		print("  %-12s %6.1f s  (%.2f min)" % [_sec_names[i], secs, secs / 60.0])
 
 
 ## Drop from 2.5 m above the well's floor origin for 0.6 s of physics, returning metres fallen.
