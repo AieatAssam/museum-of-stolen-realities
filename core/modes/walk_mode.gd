@@ -13,7 +13,7 @@ var jump_speed: float = 4.9
 var coyote_time: float = 0.10
 var jump_buffer: float = 0.10
 var corner_nudge: float = 0.22   # sideways correction when a jump clips a ceiling edge
-var step_height: float = 0.38
+var step_height: float = Player.STEP_HEIGHT
 
 var crouching: bool = false
 var _since_floor: float = 0.0

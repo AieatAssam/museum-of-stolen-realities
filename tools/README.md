@@ -45,10 +45,28 @@ tools/.venv/bin/python tools/make_pbr.py noise:7 assets/textures/plaster plaster
 After adding PNGs:
 
 ```sh
-$G --headless --path . --import          # creates .import files
+tools/godot_import.sh                    # creates .import files (and strips iCloud copies, below)
 python3 tools/fix_imports.py             # applies the rules below, deletes stale imports
-$G --headless --path . --import          # re-imports with the rules
+tools/godot_import.sh                    # re-imports with the rules
 ```
+
+Commit every `.import` file next to its asset (fonts included). A fresh clone without them fails to
+parse any script that `preload`s the asset on its first import.
+
+### iCloud conflict copies
+
+The repo lives in an iCloud-synced folder. iCloud sometimes writes conflict copies such as
+`title 2.gd` or `project 2.godot`. A copy of a script that declares `class_name` registers the same
+class a second time, and Godot's global class cache (`.godot/global_script_class_cache.cfg`) can end
+up pointing `Wing`, `Placard` and others at the stale copy. Symptoms: "Could not find base class",
+or old behaviour after an edit.
+
+**Always import with `tools/godot_import.sh` (not `$G --import`).** It runs the headless import,
+then `tools/strip_conflict_copies.py`, which removes every cache entry whose file or folder name
+ends in ` 2`, ` 3`, and so on. The copies are not deleted, because they may hold someone's work.
+Compare them by hand, then remove them. `.gitignore` already ignores them.
+`python3 tools/strip_conflict_copies.py --test` runs its self-check. `tests/run_smoke.sh` calls the
+wrapper first.
 
 | File | Import |
 |---|---|
@@ -118,9 +136,10 @@ The owner's rule:
 
 - Use Creative Commons material where it beats synthesis, especially sound and music.
 - **CC0 and CC-BY only.** No NC, no SA, no ND, no "free for personal use".
-- **Every downloaded file gets a row in `/CREDITS.md`.**
-- CC-BY rows are shown automatically on the in-game credits card. The atrium reads `CREDITS.md`
-  at the end of the game.
+- **Every downloaded file gets a row in a CREDITS table.** Shared assets go in `/CREDITS.md`. A
+  wing's own files (`wings/<id>/...`) go in `wings/<id>/CREDITS.md`.
+- `core/credits.gd` (`Credits.rows()` / `Credits.cards()`) merges every table. CC-BY rows and the
+  typefaces appear on the in-game credits card at the end of the game.
 
 Good sources:
 
@@ -132,10 +151,11 @@ Good sources:
 | incompetech | Kevin MacLeod, CC-BY |
 | Sonniss GDC bundles | Royalty-free. Not CC, so these also need a CREDITS row and the owner's OK |
 
-Download with the helper. It refuses other licences and writes the CREDITS row:
+Download with the helper. It refuses other licences and writes the CREDITS row in the right table:
 
 ```sh
 tools/fetch_cc.sh <direct file url> assets/audio/cc/<name>.ogg "<title>" "<author>" "<source page url>" CC-BY-4.0
+tools/fetch_cc.sh <direct file url> wings/<id>/audio/<name>.ogg "<title>" "<author>" "<source page url>" CC0-1.0
 python3 tools/fix_imports.py && $G --headless --path . --import
 ```
 
@@ -146,26 +166,67 @@ python3 tools/fix_imports.py && $G --headless --path . --import
 ## 7. Tests
 
 ```sh
-tests/run_smoke.sh                                   # headless; exit 1 on any failed check or script error
-$G --path . --resolution 2560x1440 tests/shots.tscn  # windowed real render; PNGs to shots/, frame times to stdout
+tests/run_smoke.sh                       # headless core regression; exit 1 on any failed check, script error or leak
+tests/run_playthrough.sh <wing_id>       # headless: wings/<id>/tests/playthrough.gd played by real input
+$G --path . --resolution 1920x1080 tests/shots.tscn -- --wing=<id> [--ui] [--secs=4]   # windowed
+$G --path . --resolution 2560x1440 tests/ui_shots.tscn -- --out=<name>                  # windowed
 ```
 
-**`smoke`** covers:
+**`smoke`** (`tests/smoke.gd`) covers:
 
-- New game, then the intro, which it skips.
-- Walking into the Conservation door with real input.
-- The template wing: a lamp via E, a void respawn, the fragment, then back.
-- Each exhibit wing via the debug API. A missing scene must fail gracefully.
-- All six fragments, then both finales.
+- New game from the title, the intro skipped, then walking into the Conservation door with real
+  input. Then the template wing: a lamp via E, a void respawn, the fragment, and back.
+- **Hardening regressions:**
+  - a goto during a transition queues;
+  - leaving mid-cinematic clears the bars, card and skip label and restores input;
+  - a 40-word toast sits in the lower left and hides under the reader;
+  - the stairs (0.18 m and 0.35 m risers) are climbed by walking, with camera speed under 15 m/s (a snapped riser reads ~42).
+- Each exhibit wing via the debug API. A missing scene must fail gracefully. Then all six
+  fragments and both finales.
 
-**`shots`** covers:
+**Wing playthroughs.** Extend `Playthrough` (`core/playthrough.gd`) in
+`wings/<id>/tests/playthrough.gd` and write `run()`. The helpers are:
 
-- The title, the full intro, and the atrium at named camera marks (`MARKS` in `tests/shots.gd`;
-  add yours there).
-- The fragment-fill ceremony, THE THIEF stages, the alcove and the template wing.
-- Frame times, measured with vsync off: average, p95, p99, max and GPU ms (`[perf]` lines).
+- `enter`, `walk_to`, `jump_across`, `use(node, hold_secs)`, `look_at`, `tap`, `hold`;
+- `until(cond, timeout, "what")`, `check`, `frames`, `seconds`, `skip_cinematics`.
 
-Look at every PNG before calling visual work done.
+They steer with real input events. The test gets a throwaway save. `wings/_template/tests/playthrough.gd`
+is the example: about 100 lines that complete the whole wing.
+
+**`shots`** (`tests/shots.gd`) works on one wing per run.
+
+- **Marks.** Every `Marker3D` under the wing's `ShotMarks` node is a mark. The camera sits on the
+  marker and looks down its -Z. The player's view is also shot.
+- **UI.** The HUD, placards and cinematic overlays are hidden unless you pass `--ui`.
+- **Output.** `shots/<wing>/<mark>.png`, and one `[perf]` line per mark with avg/p95/p99 ms of:
+  - **frame**: wall time per frame, which is what the player feels;
+  - **cpu**: render-thread CPU time to record the frame;
+  - **gpu**: GPU time from timestamp queries.
+- **Reading the numbers.** On macOS/Metal the GPU timestamps read 0, so `gpu` prints
+  "n/a (driver)". Read `frame - cpu` as the GPU-bound share. Vsync is switched off, but the macOS
+  compositor can still pace a windowed run to the display (~16.7 ms at 60 Hz). To find headroom,
+  run fullscreen or compare marks.
+
+**`ui_shots`** captures every UI surface (title, settings, HUD and toast, prompt, plaques, reader,
+cinematic card, pause, journal, credits) to `shots/ui_<name>/`.
+
+Look at every PNG before calling visual work done. `shots/` is git-ignored.
+
+### Known pitfalls
+
+- A coroutine whose node is freed never resumes. `await` on a wing node after a scene change
+  silently drops the rest of the function. Don't keep core state in such a function.
+- Never `get_tree().quit()` directly. Use `Game.quit(code)`, which waits out the transition and
+  stops audio; otherwise you get "ObjectDB instances leaked".
+- `Game.debug_goto`, `enter_wing` and `return_to_hub` queue behind a running transition and return
+  `bool`. Use `await` and check the result.
+- A newly added font or texture needs its `.import` committed (see §3).
+- A stale class cache from iCloud copies causes "Could not find base class". Re-run
+  `tools/godot_import.sh`.
+- `Label3D` has no `centered`. Position it by its alignment instead (left/top hangs from the origin).
+- Rails grabbed at an end always ride into the rail.
+- In headless tests, frame pacing is uneven. Count physics ticks (`Engine.get_physics_frames()`)
+  instead of wall time when a check depends on distance walked.
 
 ### Debug API (console, tests)
 

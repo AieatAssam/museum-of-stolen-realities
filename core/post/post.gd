@@ -5,6 +5,7 @@ extends CanvasLayer
 var _rect: ColorRect
 var _mat: ShaderMaterial
 var _tween: Tween
+var _fade_tween: Tween
 
 
 func _ready() -> void:
@@ -40,11 +41,17 @@ func apply(g: PostGrade, seconds: float = 1.5) -> void:
 
 
 ## Fade the 3D view to ink (1) or back (0). UI above layer 50 stays visible.
+## A newer fade (or a scene change, which resets to 0) cancels a running one; its await returns.
 func fade_to(amount: float, seconds: float) -> void:
+	if _fade_tween:
+		_fade_tween.kill()
+	_fade_tween = null
 	if seconds <= 0.0:
 		_mat.set_shader_parameter("fade", amount)
 		return
 	var t := create_tween()
+	_fade_tween = t
 	t.tween_method(func(v: float) -> void: _mat.set_shader_parameter("fade", v),
 		float(_mat.get_shader_parameter("fade")), amount, seconds)
-	await t.finished
+	while t.is_valid() and t.is_running():  # not `await t.finished`: a killed tween never emits it
+		await get_tree().process_frame

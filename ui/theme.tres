@@ -1,11 +1,7 @@
-[gd_resource type="Theme" load_steps=16 format=3]
-
-[ext_resource type="FontFile" path="res://assets/fonts/CrimsonPro-Regular.ttf" id="body"]
-[ext_resource type="FontFile" path="res://assets/fonts/ArsenalSC-Regular.ttf" id="cat"]
-
-[sub_resource type="FontVariation" id="cat_spaced"]
-base_font = ExtResource("cat")
-spacing_glyph = 3
+[gd_resource type="Theme" load_steps=13 format=3]
+; Fonts are NOT referenced here: the project theme loads at editor/engine startup, before a fresh
+; checkout has imported its .ttf files, which produced import errors. Style.apply_theme() (called
+; from the Game autoload) installs them at runtime.
 
 [sub_resource type="StyleBoxEmpty" id="empty"]
 content_margin_left = 6.0
@@ -97,7 +93,6 @@ corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
 [resource]
-default_font = ExtResource("body")
 default_font_size = 24
 Button/colors/font_color = Color(0.913, 0.89, 0.827, 0.72)
 Button/colors/font_focus_color = Color(0.784, 0.639, 0.353, 1)
@@ -105,7 +100,6 @@ Button/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
 Button/colors/font_hover_pressed_color = Color(0.913, 0.89, 0.827, 1)
 Button/colors/font_pressed_color = Color(0.913, 0.89, 0.827, 1)
 Button/colors/font_disabled_color = Color(0.913, 0.89, 0.827, 0.25)
-Button/fonts/font = SubResource("cat_spaced")
 Button/font_sizes/font_size = 22
 Button/styles/normal = SubResource("empty")
 Button/styles/hover = SubResource("btn_hover")
@@ -114,7 +108,6 @@ Button/styles/focus = SubResource("btn_hover")
 Button/styles/disabled = SubResource("empty")
 CheckButton/colors/font_color = Color(0.913, 0.89, 0.827, 0.85)
 CheckButton/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
-CheckButton/fonts/font = ExtResource("body")
 CheckButton/styles/normal = SubResource("empty")
 CheckButton/styles/hover = SubResource("empty")
 CheckButton/styles/pressed = SubResource("empty")
@@ -123,10 +116,8 @@ HSlider/styles/slider = SubResource("slider")
 HSlider/styles/grabber_area = SubResource("slider_fill")
 HSlider/styles/grabber_area_highlight = SubResource("grabber_area")
 Label/colors/font_color = Color(0.913, 0.89, 0.827, 1)
-Label/fonts/font = ExtResource("body")
 OptionButton/colors/font_color = Color(0.913, 0.89, 0.827, 0.9)
 OptionButton/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
-OptionButton/fonts/font = ExtResource("body")
 OptionButton/styles/normal = SubResource("field")
 OptionButton/styles/hover = SubResource("field_hover")
 OptionButton/styles/pressed = SubResource("field_hover")
@@ -135,11 +126,9 @@ Panel/styles/panel = SubResource("panel")
 PanelContainer/styles/panel = SubResource("panel")
 PopupMenu/colors/font_color = Color(0.913, 0.89, 0.827, 0.85)
 PopupMenu/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
-PopupMenu/fonts/font = ExtResource("body")
 PopupMenu/styles/panel = SubResource("popup")
 PopupMenu/styles/hover = SubResource("popup_hover")
 RichTextLabel/colors/default_color = Color(0.913, 0.89, 0.827, 1)
-RichTextLabel/fonts/normal_font = ExtResource("body")
 VScrollBar/styles/scroll = SubResource("scroll")
 VScrollBar/styles/grabber = SubResource("scroll_grab")
 VScrollBar/styles/grabber_highlight = SubResource("scroll_grab")

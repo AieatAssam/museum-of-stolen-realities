@@ -20,6 +20,8 @@ signal mode_changed(mode_name: StringName)
 const RADIUS := 0.32
 const HEIGHT := 1.8
 const CROUCH_HEIGHT := 1.15
+## Tallest riser walked up without jumping (and snapped down when walking off). Stairs need no ramp.
+const STEP_HEIGHT := 0.4
 
 var gravity_vector: Vector3 = Vector3(0, -15.0, 0)
 var modes: Dictionary = {}  # StringName -> MovementMode
@@ -34,7 +36,7 @@ var head: Node3D
 var pitch_node: Node3D
 var camera: Camera3D
 var feet_ray: RayCast3D
-var _shape: CapsuleShape3D
+var _shape: CylinderShape3D
 var _col: CollisionShape3D
 
 var yaw: float = 0.0
@@ -54,6 +56,9 @@ var _roll: float = 0.0
 var _roll_vel: float = 0.0
 var _noise := FastNoiseLite.new()
 var _shake_t: float = 0.0
+## Camera lag that hides a step-up/step-down pop: set to -dy on a step, decays to 0.
+var _step_offset: float = 0.0
+var _teleported: bool = false
 
 
 func _init() -> void:
@@ -61,11 +66,13 @@ func _init() -> void:
 	collision_layer = 1 << 1
 	collision_mask = 1 | (1 << 4)
 	floor_max_angle = deg_to_rad(48.0)
-	floor_snap_length = 0.35
+	floor_snap_length = STEP_HEIGHT + 0.05
 	floor_constant_speed = true
 	floor_block_on_wall = true
 	safe_margin = 0.02
-	_shape = CapsuleShape3D.new()
+	# Flat-bottomed cylinder, not a capsule: a capsule's round bottom meets a riser edge on its
+	# curve, so step-up lands it on the corner at a too-steep normal and it slides back off.
+	_shape = CylinderShape3D.new()
 	_shape.radius = RADIUS
 	_shape.height = HEIGHT
 	_col = CollisionShape3D.new()
@@ -171,23 +178,30 @@ func collision_mask_world(on: bool) -> void:
 	collision_mask = (1 | (1 << 4)) if on else 0
 
 
-## Step-up: if a small ledge blocks horizontal motion, lift over it.
+## Step-up: if a ledge up to `height` blocks horizontal motion, lift onto it. The camera height
+## is smoothed separately (see _physics_process), so stairs read as a glide, not a pop.
 func try_step_up(motion: Vector3, height: float) -> void:
+	# probe a little further than this tick's motion: pressed against a riser, the per-tick motion
+	# is millimetres (velocity was zeroed by the wall) and can sit inside the safe margin
+	var probe := motion.normalized() * maxf(motion.length(), 0.06)
 	var col := KinematicCollision3D.new()
-	if not test_move(global_transform, motion, col):
+	if not test_move(global_transform, probe, col):
 		return
 	if col.get_normal().dot(up_direction) > 0.7:
 		return  # it's a slope, move_and_slide handles it
 	var up := up_direction * height
-	if test_move(global_transform, up):
-		return
+	var head_hit := KinematicCollision3D.new()
+	if test_move(global_transform, up, head_hit):
+		up = head_hit.get_travel()  # low ceiling: try whatever headroom there is
 	var raised := global_transform.translated(up)
-	if test_move(raised, motion):
+	if test_move(raised, probe):
 		return
 	var down := KinematicCollision3D.new()
-	var lifted := raised.translated(motion)
-	if test_move(lifted, -up, down) and down.get_normal().dot(up_direction) > 0.7:
-		global_position = lifted.origin + down.get_travel()
+	if not test_move(raised.translated(probe), -up, down) or down.get_normal().dot(up_direction) < 0.7:
+		return
+	var climb := (up + down.get_travel()).dot(up_direction)
+	if climb > 0.005:
+		global_position += up_direction * climb + motion
 
 
 ## Jump clipping a ceiling edge: nudge sideways so the head slides past instead of bonking.
@@ -215,6 +229,8 @@ func teleport(xform: Transform3D) -> void:
 	head.rotation = Vector3(0, yaw, 0)
 	pitch_node.rotation = Vector3.ZERO
 	_was_on_floor = true
+	_teleported = true
+	_step_offset = 0.0
 
 
 ## Point the view at a world position (used by cinematics/tests).
@@ -251,9 +267,16 @@ func _physics_process(delta: float) -> void:
 	var d := delta * Game.player_time_scale
 	_align_to_gravity(d)
 	var pre_vel := velocity
+	var pre_pos := global_position
 	if mode:
 		mode.physics(d)
 	var on_floor := is_on_floor()
+	# a grounded vertical jump this tick is a step up/down (or floor snap): let the eye catch up
+	var dy := (global_position - pre_pos).dot(up_direction)
+	if on_floor and _was_on_floor and not _teleported and absf(dy) > 0.05 and absf(dy) <= STEP_HEIGHT + 0.1:
+		_step_offset = clampf(_step_offset - dy, -1.0, 1.0)  # room for 2-3 quick risers; a tighter clamp snaps the excess
+		head.position.y -= dy  # now, not next _process: no frame shows the body jump uncompensated
+	_teleported = false
 	if on_floor and not _was_on_floor:
 		var impact := maxf(-pre_vel.dot(up_direction), 0.0)
 		if impact > 1.5:
@@ -318,8 +341,9 @@ func _process(delta: float) -> void:
 	_dip_vel += (-_dip * 60.0 - _dip_vel * 11.0) * d
 	_dip += _dip_vel * d
 
+	_step_offset *= exp(-14.0 * d)
 	var bob := Save.motion("head_bob")
-	head.position.y = _eye + _dip
+	head.position.y = _eye + _dip + _step_offset
 	camera.position = Vector3(cos(_bob_phase) * 0.03, -absf(s) * 0.035 + 0.015, 0.0) * _bob_amount * bob
 	_look_lag = _look_lag.lerp(Vector2.ZERO, 1.0 - exp(-8.0 * d))
 
