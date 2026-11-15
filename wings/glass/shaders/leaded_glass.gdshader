@@ -3,8 +3,8 @@ shader_type spatial;
 // The glass is lit from *behind* (backlight): colour passes, lead stays black — the only true dark.
 render_mode diffuse_burley;
 
-uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D rough_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float scale = 0.33;
 uniform vec4 tint : source_color = vec4(1.0);
@@ -34,7 +34,7 @@ void fragment() {
 	NORMAL_MAP = nt;
 	NORMAL_MAP_DEPTH = 0.8;
 	ALBEDO = c * tint.rgb * mix(0.25, 0.7, glass);
-	ROUGHNESS = mix(0.85, 0.12, glass) * TRI(rough_tex, p, w).r + 0.05;
+	ROUGHNESS = mix(0.85, 0.12, glass) * (0.8 + 0.4 * nt.b) + 0.05;  // rough from the normal map's z: one fewer triplanar fetch
 	SPECULAR = 0.6;
 	float sh = 1.0 + shimmer * sin(TIME * 0.7 + wpos.x * 0.3 + wpos.z * 0.23);
 	EMISSION = c * tint.rgb * glass * backlight * sh * (1.0 - dark);

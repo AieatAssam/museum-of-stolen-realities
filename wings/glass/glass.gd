@@ -7,7 +7,7 @@ extends Wing
 ##   the abyss) → Choir → Crypt (a prism splits white; mirrors and a lens recombine it; colour-keyed
 ##   gates; three saints turned face-up) → glass passage → Tower stair → Roof (THE SKY IS ONE WINDOW,
 ##   and something leans in) → the Rose Widow's hall (set-piece) → north triforium → Choir lens →
-##   the East Window shatters (the wind never stops; the way home seals) → heist along dying beams.
+##   the east window shatters (the wind never stops; the way home seals) → heist along dying beams.
 ##
 ## The whole level is built in code from the coordinates below so the optics line up by
 ## construction (receptors are placed along the prism's actual output directions).
@@ -81,7 +81,7 @@ func objectives() -> Array[Dictionary]:
 		{"id": "east", "title": "Unglaze the Curator's window", "steps": [
 			{"id": "widow", "title": "Cross the Rose Widow's hall"},
 			{"id": "lens", "title": "Set her lantern in the choir lens"},
-			{"id": "shatter", "title": "Light the East Window with every saint at once"}],
+			{"id": "shatter", "title": "Light the east window with every saint at once"}],
 			"hint": "The roof is reached from the crypt passage. Ruby, Azure and Verdance together make white."},
 	]
 
@@ -95,7 +95,7 @@ func provenances() -> Array[Dictionary]:
 
 
 func fragment() -> Dictionary:
-	return {"name": "The Fourth Sun", "line": "A pane of the sky. Where it was, the onlooker's loupe has nothing left to look through but the hole."}
+	return {"name": "The fourth sun", "line": "A pane of the sky. Where it was, the onlooker's loupe has nothing left to look through but the hole."}
 
 
 func register_modes(player: Player) -> void:
@@ -118,7 +118,7 @@ func on_enter(first_time: bool) -> void:
 	_music_for(Game.player.global_position)
 	if first_time:
 		await Cinematics.play([
-			{"card": "For the Light Alone", "sub": "THE VITRINE KINGDOM  ·  ACQ. NO. 214", "t": 4.0, "style": "display"},
+			{"card": "For the light alone", "sub": "The Vitrine Kingdom. Acq. no. 214", "t": 4.0, "style": "display"},
 		])
 		toast("Lightwalking: coloured light here is solid. Turn the sun-dial to lay a beam across the gap.", "The Vitrine Kingdom")
 
@@ -146,6 +146,35 @@ func _ready() -> void:
 	_build_east_and_heist()
 	_build_provenances()
 	_build_checkpoints()
+	_merge_static()
+
+
+## ~1000 code-built boxes would be ~1000 draw calls. Bake the ones nothing refers to into one mesh per
+## material per 24 m cell (cells keep frustum culling useful). Colliders stay where they were.
+func _merge_static() -> void:
+	var keep := [_west_door, _reliquary_lid]
+	keep.append_array(_gates.values())
+	var groups := {}
+	for n: Node in geo.get_children():
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.mesh is BoxMesh or not mi.visible or mi in keep:
+			continue
+		var c := (mi.global_position / 24.0).floor()
+		var key := [mi.material_override, c]
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append(mi)
+	for key: Array in groups:
+		var st := SurfaceTool.new()
+		for mi: MeshInstance3D in groups[key]:
+			st.append_from(mi.mesh, 0, mi.global_transform)
+			for ch: Node in mi.get_children():
+				ch.reparent(geo)
+			mi.queue_free()
+		var out := MeshInstance3D.new()
+		out.mesh = st.commit()
+		out.material_override = key[0]
+		geo.add_child(out)
 
 
 func _build_environment() -> void:
@@ -167,7 +196,7 @@ func _build_environment() -> void:
 	env.glow_bloom = 0.12
 	env.glow_hdr_threshold = 1.1
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
-	env.ssao_enabled = true
+	env.ssao_enabled = false  # glass is lit from behind; SSAO cost ~13 ms at 1440p for no visible gain
 	env.volumetric_fog_enabled = true
 	env.volumetric_fog_density = 0.012
 	env.volumetric_fog_albedo = Color(0.55, 0.6, 0.95)
@@ -182,7 +211,8 @@ func _build_environment() -> void:
 	sun.light_color = Color("ffe2a8")
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_max_distance = 60.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.light_volumetric_fog_energy = 1.5
 	add_child(sun)
 	sun.look_at_from_position(Vector3.ZERO, Vector3(-0.35, -0.55, 0.76), Vector3.UP)
@@ -322,11 +352,12 @@ func _zone(a: Vector3, b: Vector3, cb: Callable, once: bool = true) -> TriggerZo
 	return tz
 
 
-func _placard(pos: Vector3, facing: Vector3, heading: String, title: String, cat: String, body: String) -> Placard:
+## Tombstone label: title; date; medium and acquisition number; one short paragraph.
+func _placard(pos: Vector3, facing: Vector3, title: String, date: String, medium: String, acq: String, body: String) -> Placard:
 	var p := Placard.new()
 	geo.add_child(p)
 	p.global_transform = Transform3D(Basis.looking_at(-facing, Vector3.UP), pos)
-	p.set_text(heading, title, cat, body, false)
+	p.set_text(title, date, "%s. Acq. no. %s" % [medium, acq], body, false)
 	return p
 
 
@@ -521,10 +552,10 @@ func _build_cloister() -> void:
 		xf.append(Transform3D(Basis.from_euler(Vector3(0, 0, 0)), Vector3(-15 + k * 1.3, 0, 16.6)))
 		xf.append(Transform3D(Basis.IDENTITY, Vector3(-15 + k * 1.3, 0, -12.2)))
 	_icons(xf, Color("8a3fd1"))
-	_placard(Vector3(-3.5, 1.5, 17.4), Vector3(0, 0, -1), "214", "For the Light Alone",
-		"The Vitrine Kingdom  ·  Acq. No. 214  ·  leaded glass, light",
+	_placard(Vector3(-3.5, 1.5, 17.4), Vector3(0, 0, -1), "For the light alone", "Undated, glazed continuously",
+		"Leaded glass, light", "214",
 		"A kingdom glazed entire. Its light is load-bearing. Visitors walk only on beams that are switched on. The museum accepts no liability for beams that have been switched off.")
-	_placard(Vector3(8, 1.5, 17.4), Vector3(0, 0, -1), "—", "Kneeling Congregation", "Glass, lead, in perpetuity",
+	_placard(Vector3(8, 1.5, 17.4), Vector3(0, 0, -1), "Kneeling congregation", "In perpetuity", "Glass, lead", "214.1",
 		"They kneel toward the east window. Their veils are violet: in the Kingdom the colour of mourning, in its schools the colour of knowledge. Conservators note these are the same colour.")
 
 
@@ -588,7 +619,7 @@ func _build_nave() -> void:
 	pts["p2_m2"] = Vector3(-1.2, 0, -62.0)
 	_zone(Vector3(-4, 0, -65), Vector3(4, 3, -59), func() -> void: complete_step(&"light", &"clockwork"))
 	_catch(Vector3(-15.5, -4, -80), Vector3(15.5, -3, -34))
-	_placard(Vector3(7, 1.5, -18.2), Vector3(0, 0, -1), "—", "Windows of the Nave", "Re-leaded under the present administration",
+	_placard(Vector3(7, 1.5, -18.2), Vector3(0, 0, -1), "Windows of the nave", "Re-leaded under the present administration", "Stained glass, lead", "214.2",
 		"Each saint has been lifted out of her own miracle and replaced by a pedestal. The miracles proceed regardless. The pedestals are empty. This is described as an improvement.")
 
 
@@ -746,7 +777,7 @@ func _build_crypt() -> void:
 	_reliquary_lid = _block(reliq + Vector3(-0.55, 0.25, -0.45), reliq + Vector3(0.55, 0.38, 0.45), "brass", false)
 	_prov_spots["veil"] = reliq + Vector3(0, 0.62, 0)
 	pts["reliquary"] = reliq + Vector3(0.9, -0.12, 0.8)
-	_placard(Vector3(-3, -6.5, -82.6), Vector3(0, 0, -1), "—", "Original Glazing, Face-Down", "Stored per conservation guidance",
+	_placard(Vector3(-3, -6.5, -82.6), Vector3(0, 0, -1), "Original glazing, face-down", "Removed during re-leading", "Stained glass, stored per conservation guidance", "214.3",
 		"Panes removed in the re-leading are kept face-down, which is how glass is stored and how saints are kept quiet. Light of a pane's own colour, applied from behind, will regrettably turn it over.")
 	pts["white_gate"] = Vector3(-14, -8, -84.8)
 
@@ -833,7 +864,7 @@ func _build_roof() -> void:
 	_dial("d3", Vector3(-21.9, 15.65, -95), [Vector3(-26, 40, -95), Vector3(-32.0, 13.93, -95)], GlassOptics.RED | GlassOptics.BLUE, "Turn the heliostat")
 	pts["d3_use"] = Vector3(-20.0, 16, -95)
 	pts["roof_end"] = Vector3(-21.0, 16, -95)
-	_placard(Vector3(-16.6, 17.2, -40), Vector3(-1, 0, 0), "—", "The Sky, Glazed", "Firmament, leaded, three suns",
+	_placard(Vector3(-16.6, 17.2, -40), Vector3(-1, 0, 0), "The sky, glazed", "Cleaned once", "Firmament, lead, three suns", "214.4",
 		"The heaven of the Vitrine Kingdom is a single window. It has been cleaned once. Whoever cleaned it is still looking in.")
 
 
@@ -927,7 +958,7 @@ func _build_rose() -> void:
 	_block(Vector3(-16.6, 9, -111.5), Vector3(-15.4, 12, -107.5), "glass_quarry", false)
 	pts["corridor_end"] = Vector3(-14.5, 9, -109.5)
 	pts["triforium_drop"] = Vector3(-10.5, 2.5, -106)
-	_placard(HALL + Vector3(27.6, 1.5, 2.6), Vector3(-1, 0, 0), "—", "The Rose Widow", "Rose window, six petals, in mourning",
+	_placard(HALL + Vector3(27.6, 1.5, 2.6), Vector3(-1, 0, 0), "The Rose Widow", "In mourning", "Rose window, six petals", "214.5",
 		"She grieves in six colours, slowly. Her floor exists only where her light falls. Cross while she breathes out. Do not take her lantern. Visitors take her lantern.")
 
 
@@ -958,7 +989,7 @@ func _lantern_mesh() -> Node3D:
 # --- EAST WINDOW & HEIST -------------------------------------------------------------------------
 
 func _build_east_and_heist() -> void:
-	# end wall with the East Window (x -9..9, y 6.3..24.3) and a sill outward
+	# end wall with the east window (x -9..9, y 6.3..24.3) and a sill outward
 	_block(Vector3(-16.5, -12, -122), Vector3(16.5, 6.3, -121), "glass_wall")
 	_block(Vector3(-16.5, 6.3, -122), Vector3(-9, 26, -121), "glass_wall")
 	_block(Vector3(9, 6.3, -122), Vector3(16.5, 26, -121), "glass_wall")
@@ -1031,7 +1062,7 @@ func _build_east_and_heist() -> void:
 			Audio.sfx(load(SND + "pane_restore.ogg"), null, 0.0)
 			finish())
 	_catch(Vector3(-20, -6, -190), Vector3(20, -5, -124))
-	_placard(Vector3(4.2, 4.0, -120.4), Vector3(0, 0, 1), "—", "The East Window", "The Curator's own glazing",
+	_placard(Vector3(4.2, 4.0, -120.4), Vector3(0, 0, 1), "The east window", "Recent", "Stained glass, the Curator's own glazing", "214.6",
 		"A procession around an empty pedestal. It admits only the light of every saint at once, which the Curator considered impossible to arrange.")
 
 
@@ -1269,7 +1300,7 @@ func _reveal_sky() -> void:
 	t.tween_method(func(v: float) -> void: sky_mat.set_shader_parameter(&"reveal", v), 0.0, 1.0, 5.0).set_trans(Tween.TRANS_SINE)
 	t.tween_callback(func() -> void:
 		Game.player.add_trauma(0.25)
-		toast("The sky is one window. Something on the other side of it is looking in.", "The Sky, Glazed"))
+		toast("The sky is one window. Something on the other side of it is looking in.", "The sky, glazed"))
 
 
 # --- the Rose Widow -------------------------------------------------------------------------------
@@ -1320,11 +1351,11 @@ func _cross_rose() -> void:
 func _place_lantern(instant: bool = false) -> void:
 	if not instant:
 		if not lantern_carried:
-			toast("The cradle is empty. It is shaped for a lantern.", "The Choir Lens")
+			toast("The cradle is empty. It is shaped for a lantern.", "The choir lens")
 			return
 		complete_step(&"east", &"lens")
 		Audio.sfx(load(SND + "gate_open.ogg"), LENS_POS, 0.0, 0.5, 0.8)
-		toast("The lantern sits in the lens. Turn the saints' mirrors toward it.", "The Choir Lens")
+		toast("The lantern sits in the lens. Turn the saints' mirrors toward it.", "The choir lens")
 	lantern_carried = false
 	store("lantern", false)
 	if _hand_lantern:
@@ -1357,7 +1388,7 @@ func _shatter(instant: bool = false) -> void:
 			_burst(Vector3(0, 15, -121.4))
 			Audio.sfx(load(SND + "shatter.ogg"), Vector3(0, 12, -118), 3.0, 0.7)
 			Game.player.add_trauma(0.6)
-			toast("The East Window is open. The wind through the hole will not stop. Behind you, the west door has sealed.", "Escalation"))
+			toast("The east window is open. The wind through the hole will not stop. Behind you, the west door has sealed.", "The east window"))
 	else:
 		_east_mesh.visible = false
 	_start_wind()
@@ -1462,7 +1493,7 @@ func _start_heist() -> void:
 	for i in 4:
 		(srcs["h%d" % i] as GlassOptics.Source).on = true
 	_music_now = &""
-	toast("Run. The suns are going out behind you, window by window.", "The Heist")
+	toast("Run. The suns are going out behind you, window by window.", "The heist")
 
 
 func _heist_tick(dt: float) -> void:

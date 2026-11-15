@@ -1,4 +1,5 @@
 shader_type sky;
+render_mode use_half_res_pass;
 // The sky of the Vitrine Kingdom is one window. A dome of leaded panes (Voronoi cells, black lead),
 // three suns glazed into it, and — once `reveal` rises — something museum-sized leaning in to look
 // through: a dark curved silhouette and a single round loupe, glinting, where a fourth sun should be.
@@ -55,6 +56,10 @@ float sun(vec3 d, vec3 s, float size) {
 }
 
 void sky() {
+	// the Voronoi dome is costly: draw it at half resolution, upsample on the full-res pass
+	if (!AT_HALF_RES_PASS && !AT_CUBEMAP_PASS) {
+		COLOR = HALF_RES_COLOR.rgb;
+	} else {
 	vec3 d = EYEDIR;
 	// dome projection: azimuth/elevation, cells grow toward the horizon like a real rose
 	float el = asin(clamp(d.y, -1.0, 1.0));
@@ -96,4 +101,5 @@ void sky() {
 	if (d.y < -0.02) col = mix(col, vec3(0.02, 0.025, 0.06), smoothstep(-0.02, -0.25, d.y));
 	col *= 1.0 - dark * 0.85;
 	COLOR = col;
+	}
 }
