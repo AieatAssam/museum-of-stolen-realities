@@ -161,7 +161,7 @@ def mirror_turn():
 
 
 def gate_open():
-    sec = 2.5
+    sec = 4.0
     tt = ga.t_axis(sec)
     f = 300 * (1 + tt / sec)
     x = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(tt / 0.3, 1) * np.exp(-tt * 1.2)

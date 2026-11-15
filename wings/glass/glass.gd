@@ -21,8 +21,8 @@ const MODELS := "res://wings/glass/models/"
 
 const HALL := Vector3(-60, 14, -95)
 const PRISM_O := Vector3(0, -7.88, -92)
-const LENS_POS := Vector3(0, 2.95, -100.7)
-const EAST_AIM := Vector3(0, 6.05, -120.8)
+const LENS_POS := Vector3(0, 2.75, -100.7)
+const EAST_AIM := Vector3(0, 6.22, -120.8)
 const HEIST_DEADLINES := [9.0, 15.0, 21.0, 27.0]
 
 var optics: GlassOptics
@@ -268,6 +268,8 @@ func _window(id: String, centre: Vector3, size: Vector2, facing: Vector3, tex: S
 	m.shader = load("res://wings/glass/shaders/window.gdshader")
 	m.set_shader_parameter(&"window_tex", load("res://wings/glass/textures/%s.png" % tex))
 	m.set_shader_parameter(&"edited", edited)
+	m.set_shader_parameter(&"dark", 0.0)
+	m.set_shader_parameter(&"crack", 0.0)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	geo.add_child(mi)
@@ -450,7 +452,7 @@ func _icons(xforms: Array, tint: Color) -> void:
 	rng.seed = 214
 	var pal := [Color("2b54c9"), Color("b22242"), Color("e8b54a"), Color("1a7a5e"), Color("8a3fd1")]
 	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
+		mm.set_instance_transform(i, (xforms[i] as Transform3D).translated(Vector3(0, 0.55, 0)))
 		mm.set_instance_color(i, (pal[rng.randi() % pal.size()] as Color).lerp(tint, 0.2))
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
@@ -460,8 +462,7 @@ func _icons(xforms: Array, tint: Color) -> void:
 	m.emission_energy_multiplier = 0.6
 	m.roughness = 0.25
 	m.metallic = 0.1
-	if mesh is PrismMesh:
-		mmi.material_override = m
+	mmi.material_override = m
 	geo.add_child(mmi)
 
 
@@ -509,7 +510,7 @@ func _build_cloister() -> void:
 	_light(Vector3(0, 3, -14), Color("b22242"), 1.4, 12.0)
 	_light(Vector3(-14, 3, 8), Color("1a7a5e"), 1.2, 10.0)
 	# the first dial sits in a notch at the gap's edge, its lens at walking height
-	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.25, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
+	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.07, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
 	pts["d1_use"] = Vector3(14.2, 0, 6.5)
 	pts["gap_south"] = Vector3(14.2, 0, 5.4)
 	pts["gap_north"] = Vector3(14.2, 0, -6.5)
@@ -571,18 +572,18 @@ func _build_nave() -> void:
 	_light(Vector3(0, 3, -62), Color("2b54c9"), 1.0, 8.0)
 	# Escalation 1½: a clockwork dial — light on a timetable. A: bridge to P1. B: onto mirror M1.
 	_dial("d2", Vector3(-4, -0.35, -34.3),
-		[Vector3(-6, -12, -42), Vector3(-1.5, -0.25, -43.0), Vector3(2, 0.12, -46.5)], GlassOptics.GOLD,
+		[Vector3(-6, -12, -42), Vector3(-1.5, -0.07, -43.0), Vector3(2, 0.12, -46.5)], GlassOptics.GOLD,
 		"Wind the clockwork dial", [[1, 7.0], [2, 9.0], [0, 2.5]])
 	pts["d2_use"] = Vector3(-4, 0, -32.3)
 	pts["lip"] = Vector3(-1.6, 0, -33.8)
 	# M1 on P1: north (rest) / P2 / south
 	_mirror("m1", Vector3(2, 0.12, -46.5), Vector3(-4, -0.07, -34.3),
-		[Vector3(-15, 0.1, -52), Vector3(2.5, -0.25, -59.0), Vector3(15, 0.1, -50)], 0)
+		[Vector3(-15, 0.1, -52), Vector3(2.5, -0.07, -59.0), Vector3(15, 0.1, -50)], 0)
 	pts["p1"] = Vector3(-1.5, 0, -45)
 	pts["p1_far"] = Vector3(2.3, 0, -47.6)
 	# M2 on P2 catches the gold window: abyss (rest) / choir / triforium (Provenance A)
 	_mirror("m2", Vector3(-2, 0.12, -63.8), Vector3(-15, 18, -58.5),
-		[Vector3(-2, -10, -75), Vector3(-1, 2.25, -80.0), Vector3(12, 8.75, -52)], 0)
+		[Vector3(-2, -10, -75), Vector3(-1, 2.34, -80.0), Vector3(12, 8.86, -52)], 0)
 	pts["p2"] = Vector3(2.5, 0, -60.5)
 	pts["p2_m2"] = Vector3(-1.2, 0, -62.0)
 	_zone(Vector3(-4, 0, -65), Vector3(4, 3, -59), func() -> void: complete_step(&"light", &"clockwork"))
@@ -600,7 +601,7 @@ func _build_choir() -> void:
 	_block(Vector3(-15.5, -12, -80.4), Vector3(15.5, 2.1, -80), "glass_crypt")   # choir front face
 	# crypt stair: one long ramp down the slot at the east end
 	_ramp(Vector3(14, 2.5, -112), Vector3(-12, -8, -112), 3.0, "glass_floor")
-	_block(Vector3(-3, 2.5, -103), Vector3(3, 2.8, -97), "glass_gold")       # lens dais
+	_block(Vector3(-3, 2.5, -103), Vector3(3, 2.6, -97), "glass_gold")       # lens dais
 	pts["choir"] = Vector3(0, 2.5, -84)
 	pts["ramp_top"] = Vector3(14.6, 2.5, -112)
 	pts["ramp_bottom"] = Vector3(-13.5, -8, -112)
@@ -612,9 +613,9 @@ func _build_choir() -> void:
 	_window("ruby", Vector3(15.45, 17, -92.5), Vector2(8, 8), Vector3(-1, 0, 0), "win_ruby", 1.0)
 	_window("azure", Vector3(-15.45, 17, -92.5), Vector2(8, 8), Vector3(1, 0, 0), "win_azure", 1.0)
 	_window("verdance", Vector3(15.45, 17, -105.5), Vector2(8, 8), Vector3(-1, 0, 0), "win_verdance", 1.0)
-	var sr := Vector3(10.5, 2.95, -92.5)
-	var sa := Vector3(-8.5, 2.95, -92.5)
-	var sv := Vector3(10.5, 2.95, -105.5)
+	var sr := Vector3(10.5, 2.75, -92.5)
+	var sa := Vector3(-8.5, 2.75, -92.5)
+	var sv := Vector3(10.5, 2.75, -105.5)
 	_source("ruby", Vector3(15.0, 16.5, -92.5), sr, GlassOptics.RED, false)
 	_source("azure", Vector3(-15.0, 16.5, -92.5), sa, GlassOptics.BLUE, false)
 	_source("verdance", Vector3(15.0, 16.5, -105.5), sv, GlassOptics.GOLD | GlassOptics.BLUE, false)
@@ -642,7 +643,7 @@ func _build_choir() -> void:
 	cradle.position = LENS_POS
 	geo.add_child(cradle)
 	_use("lens_holder", LENS_POS, Vector3(1.2, 1.4, 1.2), "Set the Widow's lantern in the lens", _place_lantern)
-	pts["lens"] = Vector3(0, 2.8, -99.0)
+	pts["lens"] = Vector3(0, 2.6, -99.0)
 	_light(Vector3(0, 6, -100), Color("fff1d2"), 1.2, 14.0)
 	_light(Vector3(0, 5, -88), Color("e8b54a"), 1.0, 12.0)
 
@@ -738,8 +739,8 @@ func _build_crypt() -> void:
 	lens_crypt.add_child(lv)
 	_mirror("m6", m6, PRISM_O, [Vector3(10, -7.88, m6.z - 1.0), lens_crypt.position, reliq], 0, 0.8)
 	pts["m6"] = m6 + Vector3(-1.0, -0.12, 0.6)
-	_receptor("verdance", Vector3(0, -7.88, -121.4), GlassOptics.GOLD | GlassOptics.BLUE, Vector3(1.6, 1.2, 0.6), func() -> void: _restore(&"verdance"))
-	_pane(Vector3(0, -7.88, -121.3), "win_verdance", true)
+	_receptor("verdance", Vector3(0, -7.88, -120.6), GlassOptics.GOLD | GlassOptics.BLUE, Vector3(1.6, 1.2, 0.6), func() -> void: _restore(&"verdance"))
+	_pane(Vector3(0, -7.88, -120.5), "win_verdance", true)
 	_receptor("reliquary", reliq, GlassOptics.RED | GlassOptics.BLUE, Vector3(1.3, 0.8, 1.3), _open_reliquary)
 	_block(reliq + Vector3(-0.5, -0.12, -0.4), reliq + Vector3(0.5, 0.25, 0.4), "glass_gold", true)
 	_reliquary_lid = _block(reliq + Vector3(-0.55, 0.25, -0.45), reliq + Vector3(0.55, 0.38, 0.45), "brass", false)
@@ -829,7 +830,7 @@ func _build_roof() -> void:
 	# THE REVEAL: crest the stair and the sky is one window, and something leans in to look.
 	_zone(Vector3(-21.5, 15.8, -34), Vector3(-16.5, 19, -31), _reveal_sky)
 	# heliostat to the Rose hall
-	_dial("d3", Vector3(-21.9, 15.65, -95), [Vector3(-26, 40, -95), Vector3(-32.0, 13.75, -95)], GlassOptics.RED | GlassOptics.BLUE, "Turn the heliostat")
+	_dial("d3", Vector3(-21.9, 15.65, -95), [Vector3(-26, 40, -95), Vector3(-32.0, 13.93, -95)], GlassOptics.RED | GlassOptics.BLUE, "Turn the heliostat")
 	pts["d3_use"] = Vector3(-20.0, 16, -95)
 	pts["roof_end"] = Vector3(-21.0, 16, -95)
 	_placard(Vector3(-16.6, 17.2, -40), Vector3(-1, 0, 0), "—", "The Sky, Glazed", "Firmament, leaded, three suns",
@@ -855,7 +856,7 @@ func _build_rose() -> void:
 		mi.global_transform = Transform3D(Basis(Vector3.UP, -a), c)
 	_block(HALL + Vector3(23.4, -0.4, -2), HALL + Vector3(28, 0, 2), "glass_floor")           # balcony
 	_block(HALL + Vector3(-22, -0.4, -4), HALL + Vector3(-13, 0, 4), "glass_floor")           # dais
-	_block(HALL + Vector3(20, -0.4, -18), HALL + Vector3(25.5, 0, -11), "glass_floor")        # exit landing
+	_block(HALL + Vector3(18.2, -0.4, -18), HALL + Vector3(25.5, -0.01, -12.2), "glass_floor")      # exit landing
 	var boss := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = 3.9
@@ -1012,7 +1013,7 @@ func _build_east_and_heist() -> void:
 		_block(p + Vector3(-2, -0.5, -2), p + Vector3(2, 0, 2), "glass_floor" if i < 3 else "glass_gold")
 		_block(p + Vector3(-0.5, -12, -0.5), p + Vector3(0.5, -0.5, 0.5), "glass_red", false)
 		var from := prev + Vector3(0, -0.07, -0.08)
-		var to := p + Vector3(0.3 * signf(prev.x - p.x), -0.25, 2.0)
+		var to := p + Vector3(0.3 * signf(prev.x - p.x), -0.07, 2.0)
 		_source("h%d" % i, from, to, GlassOptics.GOLD if i % 2 == 0 else GlassOptics.RED, false)
 		pts["h%d" % i] = p
 		prev = p + Vector3(0, 0, -2.0)

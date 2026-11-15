@@ -6,7 +6,7 @@ extends Node3D
 ## Filters tint (light AND glass), Prisms split light into its colours, Lenses add colours together
 ## (one tick late), and Receptors (saints' panes, gates, reliquaries, the east window) record the
 ## exact colour that reaches them. Every traced segment becomes a SOLID, walkable slab of light
-## (AnimatableBody3D on the wing_solid layer, wider than it looks: generous edge forgiveness).
+## (StaticBody3D on the wing_solid layer — a re-aimed beam never flings you, wider than it looks: generous edge forgiveness).
 ## Light steeper than WALK_SLOPE cannot be stood on; it is a shaft, not a bridge.
 ##
 ## Colours are 3-bit masks: RED | GOLD | BLUE. GOLD|BLUE = green, RED|BLUE = violet, all = white.
@@ -20,9 +20,9 @@ const BEAM_LAYER := 1 << 4
 const RAY_MASK := 1 | OPTICS_LAYER
 const MAX_LEN := 95.0
 const MAX_DEPTH := 10
-const WALK_SLOPE := 55.0
+const WALK_SLOPE := 47.0
 const BEAM_W := 1.35        # collider width (visual is ~0.5 m): edge forgiveness
-const BEAM_T := 0.3
+const BEAM_T := 0.45
 const BEAM_LIFT := 0.06     # walk surface sits just above the light's axis
 
 const COLORS := {
@@ -172,8 +172,9 @@ class Segment extends Node3D:
 	var a: Vector3
 	var b: Vector3
 	var mask: int = 0
-	var body: AnimatableBody3D
-	var shape: BoxShape3D
+	var body: StaticBody3D
+	var shape: ConvexPolygonShape3D
+	var _shape_l := -1.0
 	var col: CollisionShape3D
 	var vis: MeshInstance3D
 	var flare: OmniLight3D
@@ -188,14 +189,13 @@ class Segment extends Node3D:
 		pivot.name = "Vis"
 		add_child(pivot)
 		pivot.add_child(vis)
-		body = AnimatableBody3D.new()
-		body.sync_to_physics = false
+		body = StaticBody3D.new()
 		body.collision_layer = GlassOptics.BEAM_LAYER
 		body.collision_mask = 0
 		body.set_meta(&"beam", true)
 		body.set_meta(&"surface", "glass")
 		col = CollisionShape3D.new()
-		shape = BoxShape3D.new()
+		shape = ConvexPolygonShape3D.new()
 		col.shape = shape
 		body.add_child(col)
 		add_child(body)
@@ -235,12 +235,27 @@ class Segment extends Node3D:
 		if solid:
 			# trim the ends a little so the slab never pokes into the mirror/source it leaves
 			var l := maxf(length - 0.3, 0.1)
-			if changed_shape or not shape.size.is_equal_approx(Vector3(GlassOptics.BEAM_W, GlassOptics.BEAM_T, l)):
-				shape.size = Vector3(GlassOptics.BEAM_W, GlassOptics.BEAM_T, l)
+			if changed_shape or absf(_shape_l - l) > 0.001:
+				_set_shape(l)
 			body.transform = Transform3D(Basis.IDENTITY, Vector3(0, GlassOptics.BEAM_LIFT - GlassOptics.BEAM_T * 0.5, 0))
 		body.set_meta(&"beam_a", a)
 		body.set_meta(&"beam_b", b)
 		body.set_meta(&"beam_mask", mask)
+
+	## A flat walking top on a wider foot: all four sides slope at ~28 degrees, so a beam lying across
+	## a floor can be walked onto from the side instead of being a 16 cm kerb the step-up won't take.
+	func _set_shape(l: float) -> void:
+		_shape_l = l
+		var hw := GlassOptics.BEAM_W * 0.5
+		var ht := GlassOptics.BEAM_T * 0.5
+		var foot := hw + GlassOptics.BEAM_T / tan(deg_to_rad(28.0))
+		var pts := PackedVector3Array()
+		var run := foot - hw
+		for sz: float in [-1.0, 1.0]:
+			var zt := sz * l * 0.5
+			var zb := sz * (l * 0.5 + run)
+			pts.append_array([Vector3(-hw, ht, zt), Vector3(hw, ht, zt), Vector3(-foot, -ht, zb), Vector3(foot, -ht, zb)])
+		shape.points = pts
 
 	func hide_seg() -> void:
 		if not _shown:
