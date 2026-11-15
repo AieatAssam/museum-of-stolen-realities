@@ -14,6 +14,7 @@ ALL=(
   "cypress:cypress" "hedge:hedge" "reeds:reeds"
   "house_a:house_a" "house_b:house_b" "house_c:house_c" "church:church"
   "hill_a:hill_a" "hill_b:hill_b" "hill_c:hill_c" "bank:bank"
+  "torn_mass:torn_mass" "stretcher_deck:stretcher_deck"
 )
 want=" $* "
 fail=0

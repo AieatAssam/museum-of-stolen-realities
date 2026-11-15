@@ -393,12 +393,33 @@ def bank(P):
             z = -0.4 + 0.75 * (y + 0.5) / 3.5 + 0.03 * math.sin(5.0 * x + 2.0 * y) * (1 - 0.5 * t)
             row.append(Vector((x, y, z)) + P.jit(0.015))
         grid.append(row)
-    # knife-laid surface: broad patches (grid quads, normals up by construction: x and y both increase)
-    cols = ["p_leaf", "p_leaf", "p_yellow", "p_leaf", "p_stone", "p_leaf_light"]
+    # one leaf-green top (grid quads, normals up by construction: x and y both increase)
     for j in range(NY - 1):
         for i in range(NX - 1):
-            patch = (i // 5 + 2 * (j // 3)) % len(cols)
-            P.add(cols[patch], [grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]], [(0, 1, 2, 3)])
+            P.add("p_leaf", [grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]], [(0, 1, 2, 3)])
+
+    # long brush strokes laid over the top, running along X, each kept between edge(x)+0.3 and back(x)-0.2
+    def surf(x, y):
+        t = (y - edge(x)) / (back(x) - edge(x))
+        return -0.4 + 0.75 * (y + 0.5) / 3.5 + 0.03 * math.sin(5.0 * x + 2.0 * y) * (1 - 0.5 * t)
+
+    rng = P.rng
+    for _ in range(rng.randint(7, 10)):
+        L = rng.uniform(4.0, 9.0)
+        x0 = rng.uniform(-9.5, 9.5 - L)
+        n = rng.randint(5, 7)
+        xs = [x0 + L * k / (n - 1) for k in range(n)]
+        ws = taper(rng.uniform(0.4, 1.1), n)
+        xm = x0 + L / 2
+        yc = edge(xm) + 0.3 + rng.uniform(0.0, 1.0) * (back(xm) - 0.2 - edge(xm) - 0.3)
+        wob, ph = rng.uniform(0.04, 0.12), rng.uniform(0, TAU)
+        pts = []
+        for k, (x, w) in enumerate(zip(xs, ws)):
+            y = yc + wob * math.sin(TAU * k / (n - 1) + ph)
+            y = min(max(y, edge(x) + 0.3 + w / 2), back(x) - 0.2 - w / 2)
+            pts.append(Vector((x, y, surf(x, y) + 0.03)))
+        mat = rng.choices(["p_leaf_light", "p_yellow", "p_stone"], weights=[0.7, 0.2, 0.1])[0]
+        stroke(P, mat, pts, ws, sides=6, thick=0.12, ref=Z, jit=0.01)
     # skirt down to z = -0.8 around the edge, and a bottom, so the strip is a solid lip
     loop = (grid[0] + [grid[j][-1] for j in range(1, NY)] + [grid[-1][i] for i in range(NX - 2, -1, -1)]
             + [grid[j][0] for j in range(NY - 2, 0, -1)])
@@ -415,6 +436,162 @@ def bank(P):
     if (bottom[1] - bottom[0]).cross(bottom[2] - bottom[0]).z > 0:
         bottom = bottom[::-1]
     P.add("p_stone", bottom, [tuple(range(n))])
+
+
+# --- torn canvas and stretcher (1 m unit models, centred on the origin) -------------------------
+
+def torn_mass(P):
+    """A mass of torn, paint-soaked canvas: rippled top, ragged plan outline, sagging underside, tatters."""
+    rng = P.rng
+    K, M, T = 48, 12, 3
+    p0, p1, p2, ph = (rng.uniform(0, TAU) for _ in range(4))
+    k_r = rng.randint(5, 8)
+    ths = [TAU * k / K for k in range(K)]
+
+    def outline(th):  # plan radius: squarish blob, ragged, kept within 0.43..0.53 of the centre
+        c, s = math.cos(th), math.sin(th)
+        r = 0.5 / max(abs(c), abs(s)) ** 0.15
+        r *= 1 + 0.04 * math.sin(3 * th + p0) + 0.03 * math.sin(7 * th + p1) + 0.02 * math.sin(13 * th + p2)
+        return min(0.53, max(0.43, r + rng.uniform(-0.01, 0.01)))
+
+    R = [outline(th) for th in ths]
+    streak = [rng.uniform(-0.02, 0.02) for _ in ths]
+
+    def ridge(y):  # knife-laid ridges running along X
+        return 1 - abs(math.sin(math.pi * k_r * y + ph))
+
+    def top_z(x, y, f):
+        return 0.47 - 0.05 * f * f + 0.04 * ridge(y)
+
+    def bot_z(f, th):  # underside sags in the middle
+        return -0.40 - 0.08 * (1 - f * f) + 0.03 * math.sin(2 * th + p1)
+
+    cos, faces = [], []
+
+    def vert(p):
+        cos.append(p)
+        return len(cos) - 1
+
+    def disc(zf):  # centre vertex + M polar rings of K vertices each
+        c = vert(Vector((0.0, 0.0, zf(0.0, 0.0, 0.0, 0))))
+        rings = []
+        for j in range(1, M + 1):
+            f = j / M
+            row = []
+            for k in range(K):
+                x, y = f * R[k] * math.cos(ths[k]), f * R[k] * math.sin(ths[k])
+                row.append(vert(Vector((x, y, zf(x, y, f, k))) + P.jit(0.008, False)))
+            rings.append(row)
+        return c, rings
+
+    def fan(c, rings):
+        for k in range(K):
+            faces.append((c, rings[0][k], rings[0][(k + 1) % K]))
+        for j in range(M - 1):
+            for k in range(K):
+                k1 = (k + 1) % K
+                faces.append((rings[j][k], rings[j + 1][k], rings[j + 1][k1], rings[j][k1]))
+
+    tc, tr = disc(lambda x, y, f, k: top_z(x, y, f))
+    bc, br = disc(lambda x, y, f, k: bot_z(f, ths[k]))
+    fan(tc, tr)
+    fan(bc, br)
+
+    # ragged wall from the top outline down to the sagging bottom outline, with vertical streaks
+    rows = [tr[-1]]
+    for t in range(1, T):
+        row = []
+        for k in range(K):
+            rr = R[k] * (1 + streak[k] * (1 - t / T))
+            x, y = rr * math.cos(ths[k]), rr * math.sin(ths[k])
+            zt, zb = top_z(x, y, 1.0), bot_z(1.0, ths[k])
+            z = zt + (zb - zt) * t / T + 0.015 * math.sin(9 * ths[k] + 3 * t)
+            row.append(vert(Vector((x, y, z))))
+        rows.append(row)
+    rows.append(br[-1])
+    for a, b in zip(rows, rows[1:]):
+        for k in range(K):
+            k1 = (k + 1) % K
+            faces.append((a[k], a[k1], b[k1], b[k]))
+
+    # 8-14 tatters: cone-like tongues hanging from the underside edge
+    for k in rng.sample(range(K), rng.randint(8, 14)):
+        th = ths[k]
+        cx, cy = 0.9 * R[k] * math.cos(th), 0.9 * R[k] * math.sin(th)
+        z0 = bot_z(1.0, th) + 0.02
+        r0, L, bend = rng.uniform(0.04, 0.07), rng.uniform(0.1, 0.25), rng.uniform(-0.03, 0.03)
+        tx, ty = -math.sin(th) * bend, math.cos(th) * bend
+        c0 = vert(Vector((cx, cy, z0)))
+        ang = [TAU * i / 6 for i in range(6)]
+        r_top = [vert(Vector((cx + r0 * math.cos(a), cy + r0 * math.sin(a), z0))) for a in ang]
+        r_mid = [vert(Vector((cx + tx * 0.5 + 0.6 * r0 * math.cos(a), cy + ty * 0.5 + 0.6 * r0 * math.sin(a),
+                              z0 - 0.55 * L))) for a in ang]
+        tip = vert(Vector((cx + tx, cy + ty, z0 - L)))
+        for i in range(6):
+            i1 = (i + 1) % 6
+            faces.append((c0, r_top[i1], r_top[i]))
+            faces.append((r_top[i], r_top[i1], r_mid[i1], r_mid[i]))
+            faces.append((r_mid[i], r_mid[i1], tip))
+    P.add("p_canvas", cos, faces)
+
+
+def brace(P, mat, a, b, w, z0, z1, amp=0.01):
+    """A square bar of width w from plan point a to b, z0..z1, lightly jittered (box() is axis-aligned only)."""
+    d = Vector((b[0] - a[0], b[1] - a[1], 0.0)).normalized()
+    p = Vector((-d.y, d.x, 0.0)) * (w / 2)
+    A, B = Vector((a[0], a[1], 0.0)), Vector((b[0], b[1], 0.0))
+    lo = [A - p, A + p, B + p, B - p]
+    cos = [q + Vector((0.0, 0.0, z0)) + P.jit(amp) for q in lo] + [q + Vector((0.0, 0.0, z1)) + P.jit(amp) for q in lo]
+    P.add(mat, cos, [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)])
+
+
+def stretcher_deck(P):
+    """A painter's stretcher frame carrying a canvas: a 1 m floating platform. Four wood bars, a diagonal and a
+    middle brace underneath; a lumpy canvas over the top, wrapped down the sides, one corner torn and curling."""
+    wood, cv = "p_wood", "p_canvas"
+    for lo, hi in (((-0.5, -0.5), (0.5, -0.38)), ((-0.5, 0.38), (0.5, 0.5)),
+                   ((-0.5, -0.38), (-0.38, 0.38)), ((0.38, -0.38), (0.5, 0.38))):
+        box(P, wood, Vector((lo[0], lo[1], -0.5)), Vector((hi[0], hi[1], 0.3)), n=2, amp=0.012)
+    brace(P, wood, (-0.46, -0.46), (0.46, 0.46), 0.1, -0.5, -0.38)
+    box(P, wood, Vector((-0.46, -0.05, -0.46)), Vector((0.46, 0.05, -0.38)), n=1, amp=0.01)
+
+    # canvas: a closed shell. Top grid (lumpy, z ~0.5), skirt wrapping the outer edge down to z 0.2,
+    # underside grid (z 0.3 inside, 0.2 at the edge, under the bars).
+    N = 12
+
+    def ztop(x, y):
+        return 0.5 + 0.012 * math.sin(7 * x + 1) * math.cos(5 * y) + 0.008 * math.sin(11 * y + 2 * x + 0.3)
+
+    def zbot(x, y):
+        return 0.2 + 0.1 * min(1.0, max(0.0, 0.5 - max(abs(x), abs(y))) / 0.1)
+
+    cos, faces = [], []
+    T = [[0] * (N + 1) for _ in range(N + 1)]
+    B = [[0] * (N + 1) for _ in range(N + 1)]
+    for i in range(N + 1):
+        for j in range(N + 1):
+            x, y = -0.5 + i / N, -0.5 + j / N
+            on = i in (0, N) or j in (0, N)
+            cos.append(Vector((x, y, ztop(x, y))) + (Vector((0.0, 0.0, 0.0)) if on else P.jit(0.006)))
+            T[i][j] = len(cos) - 1
+            s = 1.01 if on else 1.0
+            cos.append(Vector((x * s, y * s, zbot(x, y))) + (Vector((0.0, 0.0, 0.0)) if on else P.jit(0.006)))
+            B[i][j] = len(cos) - 1
+    for i in range(N):
+        for j in range(N):
+            faces.append((T[i][j], T[i + 1][j], T[i + 1][j + 1], T[i][j + 1]))
+            faces.append((B[i][j], B[i][j + 1], B[i + 1][j + 1], B[i + 1][j]))
+    loop = ([(0, j) for j in range(N)] + [(i, N) for i in range(N)]
+            + [(N, j) for j in range(N, 0, -1)] + [(i, 0) for i in range(N, 0, -1)])
+    for k in range(len(loop)):
+        (i0, j0), (i1, j1) = loop[k], loop[(k + 1) % len(loop)]
+        faces.append((T[i0][j0], T[i1][j1], B[i1][j1], B[i0][j0]))
+    P.add(cv, cos, faces)
+
+    # one torn corner, lifting off the top and curling down the outside
+    pts = [Vector(p) for p in ((0.27, 0.27, 0.53), (0.39, 0.39, 0.53), (0.46, 0.46, 0.50),
+                               (0.49, 0.49, 0.42), (0.505, 0.505, 0.32), (0.51, 0.51, 0.24))]
+    stroke(P, cv, pts, [0.1] * 6, sides=4, thick=0.2, jit=0.006)
 
 
 # --- dispatch -----------------------------------------------------------------------------------
@@ -436,6 +613,8 @@ MODELS = {
     "hill_b": ("hill_b", 709, lambda P: hill_mass(P, 86.0, 30.0, 18.0, True), True),
     "hill_c": ("hill_c", 717, lambda P: hill_mass(P, 136.0, 44.0, 33.0, False), True),
     "bank": ("bank", 727, bank, False),
+    "torn_mass": ("torn_mass", 811, torn_mass, True),
+    "stretcher_deck": ("stretcher_deck", 821, stretcher_deck, True),
 }
 
 

@@ -219,6 +219,15 @@ func _mat(key: String) -> Material:
 	return Art.mat("g_" + ("goal" if key == "interact" else key))
 
 
+## Blocks that would read as boxes in the open, and the painted form each one wears instead.
+const FORMS := {
+	"Shade": "torn_mass", "CaveRoof": "torn_mass", "CaveWallN": "torn_mass", "CaveWallS": "torn_mass",
+	"CaveWallS2": "torn_mass", "NicheBack": "torn_mass", "NicheN": "torn_mass", "NicheS": "torn_mass",
+	"NicheRoof": "torn_mass", "LookoutEast": "stretcher_deck", "LookoutWest": "stretcher_deck",
+	"LookoutNorth": "stretcher_deck", "View": "stretcher_deck",
+}
+
+
 ## A named block: <name>/Visual (mesh) + <name>/Collision (static body), corners a and b.
 func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "primed", solid: bool = true) -> Node3D:
 	var root := Node3D.new()
@@ -227,14 +236,23 @@ func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "p
 	var hi := a.max(b)
 	root.position = (lo + hi) * 0.5
 	var size := hi - lo
-	var mi := MeshInstance3D.new()
-	mi.name = "Visual"
-	if mat == "weave":   # unpainted canvas: a torn, irregular outline, never a box
-		mi.mesh = Art.slab_mesh(size, root.position, 3.0, clampf(maxf(size.x, size.z) * 0.03, 0.16, 1.8), 0.5)
+	if FORMS.has(name):   # a painted form stretched over the box: torn canvas, or a stretcher deck
+		var fm := Art.model(FORMS[name])
+		fm.name = "Visual"
+		fm.scale = size
+		if FORMS[name] == "torn_mass":
+			for g: MeshInstance3D in fm.find_children("*", "MeshInstance3D", true, false):
+				g.material_override = _mat(mat)
+		root.add_child(fm)
 	else:
-		mi.mesh = Art.slab_mesh(size, root.position)
-	mi.material_override = _mat(mat)
-	root.add_child(mi)
+		var mi := MeshInstance3D.new()
+		mi.name = "Visual"
+		if mat == "weave":   # unpainted canvas: a torn, irregular outline, never a box
+			mi.mesh = Art.slab_mesh(size, root.position, 3.0, clampf(maxf(size.x, size.z) * 0.03, 0.16, 1.8), 0.5)
+		else:
+			mi.mesh = Art.slab_mesh(size, root.position)
+		mi.material_override = _mat(mat)
+		root.add_child(mi)
 	if solid:
 		var sb := StaticBody3D.new()
 		sb.name = "Collision"
@@ -251,7 +269,10 @@ func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "p
 
 ## Ground slab whose TOP is at y (thickness 1 m).
 func _ground(area: String, name: String, x0: float, z0: float, x1: float, z1: float, y: float = 0.0, mat: String = "primed") -> Node3D:
-	return _block(area, name, Vector3(x0, y - 1.0, z0), Vector3(x1, y, z1), mat)
+	var g := _block(area, name, Vector3(x0, y - 1.0, z0), Vector3(x1, y, z1), mat)
+	# a ground slab's only shadow would fall 30 m down on the bare weave, as a hard box
+	(g.get_node("Visual") as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return g
 
 
 func _stroke(area: String, id: String, p: Array, c: String, w: float = 2.0, extra: Dictionary = {}) -> Node3D:
@@ -721,6 +742,11 @@ func _build_river() -> void:
 	_block(A, "CaveWallN", Vector3(82, 0, -204), Vector3(142, 6, -206), "weave")
 	_block(A, "CaveWallS", Vector3(82, 0, -250), Vector3(130, 6, -252), "weave")
 	_block(A, "CaveWallS2", Vector3(134, 0, -250), Vector3(142, 6, -252), "weave")   # the outflow's mouth
+	# painted rock heaped along the cave's river face and brow, so it reads as an outcrop (visual only)
+	for i in 8:
+		var x := 86.0 + i * 7.5
+		_model(A, "rock_a" if i % 2 == 0 else "rock_b", Vector3(x, 2.5 + 1.0 * float(i % 3), -204.0 + 0.8 * float(i % 2)),
+			float(i) * 1.7, 9.0 + 2.5 * float((i * 5) % 3), 260.0)
 	_stroke(A, "cave_pencil", [Vector3(100, 0, -228), Vector3(125, 0, -228)], "pencil", 2.0, {"k": "pencil"})
 	_ground(A, "Source", 125, -214, 140, -242, 0.0, "goal")
 	_zone(A, Vector3(125, -1, -214), Vector3(140, 4, -242), _reach_source)
@@ -1010,6 +1036,10 @@ func _build_edge() -> void:
 	_block(M, "WallSouth", Vector3(-262, -94, -180), Vector3(-264, 80, -400), "museum_wall")
 	_block(M, "WallBelow", Vector3(-262, -94, -177.4), Vector3(-264, 21.6, -180), "museum_wall")
 	_block(M, "WallAbove", Vector3(-262, 24.2, -177.4), Vector3(-264, 80, -180), "museum_wall")
+	# from inside the picture the wall is painted out: it carries the sky, so the edge reads only as
+	# the gilt frame (collision unchanged)
+	for w in ["WallNorth", "WallSouth", "WallBelow", "WallAbove"]:
+		(_area(M).get_node(w + "/Visual") as MeshInstance3D).material_override = look.backdrop
 	# from inside the picture the museum wall is the back of its own gilt frame: one moulding around
 	# the whole wall (visual only, on its face, nowhere near the passage)
 	var gf := _model(M, "frame", Vector3(-261.6, -7, -200), PI * 0.5)
@@ -1085,6 +1115,10 @@ func _build_gallery(area: String) -> void:
 		_model(area, "stanchion", Vector3(FAR_X + 30, -94, z), 0.0, GS)
 		if i < 5:
 			_model(area, "rope", Vector3(FAR_X + 30, -94 + 0.9 * GS, z), PI * 0.5, GS)
+	# her own picture's lamp, at a visitor's scale, reaching out over the frame beside her: the gag
+	_model(area, "picture_light", Vector3(-264.5, 23.5, -102), PI * 0.5, GS).name = "OwnPictureLamp"
+	var ceil := _block(area, "Ceiling", Vector3(-262, 90, 22), Vector3(FAR_X, 92, -422), "gallery", false)
+	(ceil.get_node("Visual") as MeshInstance3D).material_override = Art.mat("r_plaster")
 	_build_frames(area)
 
 
@@ -1104,13 +1138,14 @@ func _build_frames(area: String) -> void:
 		var lamp := SpotLight3D.new()
 		lamp.name = "PictureLight_%d" % i
 		lamp.light_color = Color(1.0, 0.86, 0.66)
-		lamp.light_energy = 60.0
-		lamp.spot_range = 70.0
-		lamp.spot_angle = 32.0
+		lamp.light_energy = 220.0   # a pool on the wall round each picture, falling off before the next
+		lamp.spot_range = 80.0
+		lamp.spot_angle = 36.0
+		lamp.spot_angle_attenuation = 2.2
 		lamp.shadow_enabled = false
-		lamp.position = Vector3(FAR_X + 14.0, c.y + 18.0, z)
+		lamp.position = Vector3(FAR_X + 22.0, c.y + 24.0, z)
 		_area(area).add_child(lamp)
-		lamp.look_at(c - Vector3(0, 4, 0), Vector3.UP)
+		lamp.look_at(c + Vector3(0, 2, 0), Vector3.UP)
 		var pic := "res://wings/paint/textures/gallery_%s.jpg" % ("" if mine else String(ex[i].id))
 		var pane := MeshInstance3D.new()
 		pane.name = "Canvas_%d" % i
@@ -1252,7 +1287,7 @@ const TREES := [   # area, x, y, z, variant, scale
 	["PrimedShore", -11.0, 0.0, 22.0, "a", 1.0], ["PrimedShore", 10.5, 0.0, 24.0, "b", 1.1], ["PrimedShore", -12.0, 0.0, -5.0, "c", 0.9],
 	["PrimedShore", 12.0, 0.0, 7.0, "a", 0.85],
 	["Orchard", -12.0, 0.0, -40.0, "b", 1.0], ["Orchard", 12.5, 0.0, -44.0, "c", 1.1], ["Orchard", -13.0, 0.0, -55.0, "a", 1.2],
-	["Orchard", 13.0, 0.0, -58.0, "b", 0.95], ["Orchard", -6.5, 0.0, -59.5, "c", 0.8],
+	["Orchard", 14.0, 0.0, -57.0, "a", 0.9], ["Orchard", -6.5, 0.0, -59.5, "c", 0.8],
 	["Windfall", 20.5, 0.5, -161.0, "a", 1.0], ["Windfall", 22.0, 0.5, -172.0, "c", 0.9],
 	["River", -27.0, 0.0, -215.0, "b", 1.0], ["River", 22.0, 0.0, -249.0, "a", 1.1], ["River", -10.0, 0.0, -250.5, "c", 0.9],
 	["River", 97.0, 0.0, -246.0, "b", 0.8],
@@ -1340,6 +1375,36 @@ func _orchard_tree(area: String, pos: Vector3, v: String, sc: float, yaw: float)
 		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
+var _hill_mats := {}
+var _far_shader := load("res://wings/paint/shaders/paint_far.gdshader") as Shader
+
+
+## Far hills: broad world-space strokes, fields and terraces, value swing, and their own aerial
+## colour instead of the scene fog (which flattened them to one beige).
+func _paint_hill(n: Node3D) -> void:
+	for mi: MeshInstance3D in n.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var src := mi.get_active_material(i) as ShaderMaterial
+			if src == null:
+				continue
+			if not _hill_mats.has(src):
+				var m := src.duplicate() as ShaderMaterial
+				m.shader = _far_shader
+				m.set_shader_parameter(&"object_space", false)
+				m.set_shader_parameter(&"tiles_per_m", 0.045)
+				m.set_shader_parameter(&"normal_strength", 1.6)
+				m.set_shader_parameter(&"tex_value", 1.0)
+				m.set_shader_parameter(&"mix_amount", 0.8)
+				m.set_shader_parameter(&"gloss", 0.0)
+				m.set_shader_parameter(&"simplify_near", 900.0)
+				m.set_shader_parameter(&"simplify_far", 2000.0)
+				m.set_shader_parameter(&"patch_amount", 0.45)
+				m.set_shader_parameter(&"terraces", 1.0)
+				m.set_shader_parameter(&"aerial", 1.0)
+				_hill_mats[src] = m
+			mi.set_surface_override_material(i, _hill_mats[src])
+
+
 func _dress() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1891
@@ -1350,6 +1415,8 @@ func _dress() -> void:
 	for c: Array in COUNTRY:
 		var far: bool = c[3].begins_with("hill")
 		var n := _model("Scenery", c[3], Vector3(c[0], c[1], c[2]), c[5], c[4], 0.0 if far else 450.0)
+		if far:
+			_paint_hill(n)
 		if far or c[3] == "hedge":
 			for gi in n.find_children("*", "GeometryInstance3D", true, false):
 				(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1367,6 +1434,7 @@ func _dress() -> void:
 		mi.name = "Field_%d" % i
 		mi.mesh = Art.slab_mesh(Vector3(d[3], 4.0, d[4]), c, 1.6, 0.8, 0.25)
 		mi.material_override = field
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.position = c
 		_area("Scenery").add_child(mi)
 		for j in int(d[5]):
@@ -1407,7 +1475,7 @@ func _dress() -> void:
 func _build_marks() -> void:
 	_mark("01_shore", Vector3(4, 2.2, 10), Vector3(0, 0.5, -30))
 	_mark("02_bough", Vector3(5, 3, -14), Vector3(0, 0, -40))
-	_mark("03_chain", Vector3(8, 4, -60), Vector3(0, -2, -125))
+	_mark("03_chain", Vector3(4, 4, -61), Vector3(0, -2, -125))
 	_mark("04_crown", Vector3(-8, 4, -128), Vector3(0, 0.5, -146))
 	_mark("05_unpainted", Vector3(-12, 3, -172), Vector3(-50, 0, -170))
 	_mark("06_river", Vector3(-10, 4, -184), Vector3(10, -0.3, -204))
@@ -1416,7 +1484,7 @@ func _build_marks() -> void:
 	_mark("09_corrections", Vector3(-25, 4, -276), Vector3(0, 2, -305))
 	_mark("10_pentimento", Vector3(0, 6, -347), PENT_C + Vector3(0, 8, 0))
 	_mark("11_horizon", Vector3(0, 27, -160), Vector3(-120, 22, -171.5))
-	_mark("12_museum_wall", Vector3(-267, 26.5, -91), Vector3(-415, -58, -205))
+	_mark("12_museum_wall", Vector3(-267, 26.5, -91), Vector3(-400, -40, -215))
 
 
 # --- per-tick, falls, progress ----------------------------------------------------------------------
