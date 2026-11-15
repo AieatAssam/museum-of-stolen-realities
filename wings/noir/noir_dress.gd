@@ -19,7 +19,7 @@ extends Node3D
 const MODELS := "res://wings/noir/models/"
 const MATS := "res://wings/noir/materials/"
 ## Tonemap exposure per area, set from the current camera (tuned against shot_check.py).
-const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 2.4, "cinema": 2.4, "booth": 3.4}
+const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 2.4, "cinema": 2.4, "booth": 3.9}
 ## Volumetric fog density per area: thick outdoors for the cones, thinner in rooms so they keep contrast.
 const FOG := {"alley": 0.03, "street": 0.03, "roofs": 0.025, "plaza": 0.03, "precinct": 0.006, "cinema": 0.016, "booth": 0.018}
 
@@ -680,7 +680,7 @@ func _sound() -> void:
 	var radio := Node3D.new()
 	radio.position = Vector3(5.5, 1.6, -36.0)
 	add_child(radio)
-	Audio.emitter(load("res://wings/noir/audio/jazz_bed.ogg"), radio, -6.0, 6.0)
+	Audio.emitter(load("res://wings/noir/audio/jazz_bed.ogg"), radio, -6.0, 6.0).max_distance = 25.0
 	var city := Node3D.new()
 	city.position = Vector3(0, 6.0, -50.0)
 	add_child(city)
@@ -695,7 +695,7 @@ func _booth() -> void:
 	mm("film_shelf", [xf(Vector3(-4.0, 0, -94.5), 90.0), xf(Vector3(4.0, 0, -95.5), -90.0)])
 	model(self, "hanging_lamp", Vector3(0, 4.0, -94.0))
 	omni(Vector3(0, 3.0, -94.0), Color(1.0, 0.92, 0.78), 0.6, 5.0)
-	spot(Vector3(0, 3.7, -94.0), Vector3(0, 0, -94.6), Color(1.0, 0.92, 0.78), 22.0, 38.0, 6.0)  # a hard pool under the lamp
+	spot(Vector3(0, 3.7, -95.0), Vector3(0, 0.8, -97.6), Color(1.0, 0.92, 0.78), 24.0, 24.0, 6.0, false)  # a tight pool on the desk and the frame
 	# the beams: from each lens out through the port toward the screen's back
 	for x in [-2.4, 2.4]:
 		spot(Vector3(x, 1.95, -96.6), Vector3(x * 0.8, 2.2, -88.0), Color(1, 0.97, 0.9), 14.0, 9.0, 9.0, false).light_volumetric_fog_energy = 0.7
