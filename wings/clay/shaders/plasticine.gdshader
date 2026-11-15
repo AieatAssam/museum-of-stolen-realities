@@ -18,6 +18,7 @@ uniform float rough_lo = 0.38;
 uniform float rough_hi = 0.62;
 uniform float sss = 0.35;
 uniform float emission_gain = 0.0;   // lit windows, lamp bulbs
+uniform float boil = 1.0;            // stop-motion boil, 0 with Reduced Motion (set by clay.gd)
 
 varying vec3 v_p;
 varying vec3 v_n;
@@ -26,6 +27,10 @@ void vertex() {
 	vec3 s = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
 	v_p = VERTEX * s;
 	v_n = NORMAL;
+	// boil: every 12 fps frame the clay settles a hair differently, as if re-touched between exposures
+	float f = floor(TIME * 12.0);
+	VERTEX += NORMAL * (tri_vnoise(v_p * 3.1 + f * 1.37) - 0.5) * 0.006 * boil / max(s.x, 1e-3);
+	v_p += vec3(fract(f * 0.618), fract(f * 0.382), fract(f * 0.271)) * 0.012 * boil;
 }
 
 void fragment() {

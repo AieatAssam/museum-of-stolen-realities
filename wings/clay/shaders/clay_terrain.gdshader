@@ -25,6 +25,7 @@ uniform float detail_contrast = 1.8;
 uniform float whorl_span = 0.22;
 uniform vec4 bench_rect = vec4(-6.0, -46.0, 6.0, -36.0);  // x0, z0, x1, z1
 uniform float bench_top = 2.2;
+uniform float boil = 1.0;  // stop-motion boil of the detail, 0 with Reduced Motion
 
 varying float v_mark;
 varying vec3 v_world;
@@ -64,14 +65,16 @@ void vertex() {
 void fragment() {
 	vec3 n = normalize(v_wn);
 	vec3 w = tri_weights(n);
+	float bf = floor(TIME * 12.0);
+	vec3 jit = vec3(fract(bf * 0.618), 0.0, fract(bf * 0.382)) * 0.01 * boil;
 	float macro = tri_vnoise(v_world * 0.16) * 0.6 + tri_vnoise(v_world * 0.63) * 0.4;
 
 	// moss: two scales of the same pressed-plasticine detail so the tiling never lines up
-	vec3 pm = v_world * moss_tiles;
+	vec3 pm = (v_world + jit) * moss_tiles;
 	float dm = detail(tri_sample(moss_tex, pm, w).rgb, 0.293) * 0.65
 		+ detail(tri_sample(moss_tex, pm * 0.37 + 0.31, w).rgb, 0.293) * 0.35;
 	vec3 moss = mix(moss_col, moss_col2, smoothstep(0.35, 0.75, macro)) * dm;
-	vec3 pc = v_world * clay_tiles;
+	vec3 pc = (v_world + jit) * clay_tiles;
 	float dc = detail(tri_sample(clay_tex, pc, w).rgb, 0.209);
 	vec3 clay = clay_col * dc * (0.9 + 0.2 * macro);
 
@@ -92,8 +95,8 @@ void fragment() {
 
 	// the workbench top is wood
 	vec2 bx = step(bench_rect.xy, v_world.xz) * step(v_world.xz, bench_rect.zw);
-	float bench = bx.x * bx.y * smoothstep(bench_top - 0.05, bench_top + 0.05, v_world.y) * (1.0 - steep);
-	bench *= 1.0 - smoothstep(0.3, 0.7, v_mark);
+	// inside the rect the plateau is the flat top (base noise can sink it below bench_top, so be generous)
+	float bench = bx.x * bx.y * smoothstep(bench_top - 0.8, bench_top - 0.4, v_world.y);
 	vec2 wuv = v_world.xz * vec2(0.08, 0.16);
 	vec3 wood = texture(wood_tex, wuv).rgb;
 
