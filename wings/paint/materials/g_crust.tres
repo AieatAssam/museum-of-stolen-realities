@@ -19,3 +19,5 @@ shader_parameter/rough = 0.6
 shader_parameter/gloss = 0.1
 shader_parameter/emission_gain = 0.0
 shader_parameter/object_space = false
+shader_parameter/patch_amount = 0.35
+shader_parameter/side_linen = 0.6

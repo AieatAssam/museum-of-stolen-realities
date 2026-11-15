@@ -8,7 +8,9 @@ uniform vec3 mid : source_color = vec3(0.10, 0.25, 0.78);
 uniform vec3 crest : source_color = vec3(0.70, 0.82, 1.0);
 uniform sampler2D stroke_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D stroke_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform float speed = 0.25;
+uniform float speed = 0.6;
+uniform vec3 sky_warm : source_color = vec3(1.0, 0.76, 0.56);   // the sky, broken into strokes on it
+uniform vec3 sky_cool : source_color = vec3(0.62, 0.78, 1.0);
 
 varying vec3 v_w;
 void vertex() { v_w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
@@ -29,7 +31,14 @@ void fragment() {
 	float band = vnoise(vec2(p.x * 0.05, p.y * 0.7) + warp);
 	vec3 col = mix(deep, mid, smoothstep(0.25, 0.7, band + (t - 0.5)));
 	col = mix(col, crest, smoothstep(0.72, 0.92, t + band * 0.25) * 0.8);
+	// reflections broken into horizontal dabs: warm sky, cool sky, a few pure whites
+	float r1 = vnoise(vec2(p.x * 0.09 + TIME * speed * 0.15, p.y * 1.4));
+	float r2 = vnoise(vec2(p.x * 0.05 - 3.0, p.y * 0.9 + 5.0));
+	col = mix(col, sky_warm, smoothstep(0.74, 0.9, r1 + t * 0.25) * 0.75);
+	col = mix(col, sky_cool, smoothstep(0.7, 0.85, r2 + t * 0.2) * 0.55);
+	col = mix(col, vec3(1.0), smoothstep(0.93, 0.99, t + r1 * 0.2) * 0.9);
 	ALBEDO = col;
+	EMISSION = col * 0.08;
 	vec3 n1 = texture(stroke_normal, uv1).rgb;
 	vec3 n2 = texture(stroke_normal, uv2).rgb;
 	NORMAL_MAP = normalize(n1 + n2 - 1.0) * 0.5 + 0.5;

@@ -13,9 +13,18 @@ uniform float through = 1.2;         // transmitted (emissive) light
 uniform float rim = 0.6;
 uniform float rough = 0.15;
 uniform float pulse = 0.0;           // fungus breathe (0 off)
+uniform float patch = 0.0;           // 0..1: large-scale pools of light and dark (lit comb vs dead comb)
 
 varying vec3 wpos;
 varying vec3 wnrm;
+
+float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float vnoise3(vec3 p) {
+	vec3 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
+		mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -37,5 +46,10 @@ void fragment() {
 	ROUGHNESS = rough;
 	SPECULAR = 0.6;
 	float b = 1.0 + pulse * sin(TIME * 1.3 + wpos.x * 0.7 + wpos.z * 0.4);
+	if (patch > 0.0) {
+		float pool = smoothstep(0.35, 0.7, vnoise3(wpos * 0.09) * 0.75 + vnoise3(wpos * 0.6) * 0.25);
+		b *= mix(1.0, 0.04 + 1.6 * pool, patch);
+		ALBEDO *= mix(1.0, 0.35 + 0.65 * pool, patch);
+	}
 	EMISSION = core.rgb * t * through * b * (0.35 + 0.65 * ndv) + core.rgb * rim * pow(1.0 - ndv, 3.0) * b;
 }

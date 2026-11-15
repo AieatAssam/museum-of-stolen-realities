@@ -89,23 +89,11 @@ func build(wing: Node) -> void:
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.5
 	sun.directional_shadow_max_distance = 110.0
-	sun.light_angular_distance = 1.2
 	wing.add_child(sun)
 	grade = PostGrade.new()
 	grade.contrast = 1.04
 	grade.grain = 0.015
 	grade.vignette = 0.28
-	# the picture is always a picture: a faint weave over the view
-	var cl := CanvasLayer.new()
-	cl.name = "CanvasWeave"
-	var cr := ColorRect.new()
-	cr.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var wm := ShaderMaterial.new()
-	wm.shader = load("res://wings/paint/shaders/canvas_weave.gdshader")
-	cr.material = wm
-	cl.add_child(cr)
-	wing.add_child(cl)
 
 
 static func area_at(p: Vector3) -> String:
@@ -158,3 +146,5 @@ func update(cam_pos: Vector3, mood: float, delta: float) -> void:
 	sky_mat.set_shader_parameter(&"storm_amount", clampf(float(r[11]) + (0.55 - m) * 1.6, 0.0, 1.0))
 	grade.saturation = float(r[12]) * lerpf(0.9, 1.18, m)
 	env.adjustment_saturation = 1.3 * float(r[12]) / 1.12   # the museum, outside the paint, is greyer
+	# screen-space reflections only where something is glossy and large: the river and the parquet
+	env.ssr_enabled = area == "river" or area == "museum"

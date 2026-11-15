@@ -63,6 +63,9 @@ void fragment() {
 	float crack = (1.0 - smoothstep(0.02, 0.07, c.y)) * smoothstep(0.45, 0.9, dry);
 	col = mix(col, dry_colour * (0.85 + 0.3 * t), smoothstep(0.0, 1.0, dry));
 	col *= 1.0 - crack * 0.7;
+	// wet paint is the most saturated thing in the picture
+	float g = dot(col, vec3(0.333));
+	col = mix(col, max(vec3(0.0), g + (col - g) * 1.35), 1.0 - dry);
 	ALBEDO = col;
 	ROUGHNESS = mix(0.07 + (1.0 - t) * 0.15, 0.85, dry);
 	SPECULAR = 0.65;
@@ -72,5 +75,6 @@ void fragment() {
 	ANISOTROPY_FLOW = vec2(1.0, 0.0);
 	NORMAL_MAP = normalize(vec3(tn.xy * normal_strength * (1.0 + crack * 2.0), 1.0)) * 0.5 + 0.5;
 	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	EMISSION = colour * (rim * f * (1.0 - dry) + glow * (0.6 + 0.4 * t));
+	// a little of its own light so a rail reads at 30 m against the ground, and a bright rim
+	EMISSION = colour * ((0.22 + rim * f * 1.6) * (1.0 - dry) + glow * (0.6 + 0.4 * t)) + hi * smoothstep(0.75, 0.95, streak) * 0.25 * (1.0 - dry);
 }
