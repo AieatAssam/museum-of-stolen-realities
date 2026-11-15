@@ -8,7 +8,13 @@ uniform sampler2D window_tex : source_color, filter_linear_mipmap_anisotropic;
 uniform float edited = 0.0;
 uniform float dark = 0.0;
 uniform float crack = 0.0;
-uniform float energy = 1.6;
+uniform float energy = 2.6;
+// The Rose Widow: her petals of panes light and go dark with the same f(angle, t) as her floor.
+uniform bool rose = false;
+uniform float rose_t = 0.0;
+uniform float omega = 0.11;
+uniform float petals = 6.0;
+uniform float half_width = 0.31;
 uniform vec2 figure_c = vec2(0.5, 0.42);   // where the saint stands, in UV
 uniform vec2 figure_r = vec2(0.2, 0.34);
 
@@ -55,6 +61,18 @@ void fragment() {
 	}
 	float lum = dot(c, vec3(0.3, 0.59, 0.11));
 	float glass = smoothstep(0.06, 0.14, lum);
-	ALBEDO = c * energy * mix(1.0, 0.06, dark) * glass;
+	float e = energy;
+	if (rose) {
+		vec2 k = (uv - 0.5) * 2.0;
+		float r = length(k);
+		float seg = 6.2831853 / petals;
+		float a = atan(-k.y, k.x) - omega * rose_t;
+		a = mod(a + seg * 0.5, seg) - seg * 0.5;
+		float on = smoothstep(half_width * 1.25, half_width * 0.6, abs(a));
+		// the centre (her face) always burns; the petals breathe; the rim glows faintly
+		float lit = r < 0.4 ? 1.0 : mix(0.12, 1.15, on);
+		e *= lit;
+	}
+	ALBEDO = c * e * mix(1.0, 0.02, dark) * glass;
 	// never fully black panes except the lead
 }
