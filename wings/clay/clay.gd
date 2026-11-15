@@ -311,7 +311,9 @@ func _build_village() -> void:
 	# Villagers in wire, all in one MultiMesh, praying to the workbench.
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = _first_mesh(_model("villager.glb"))
+	var villager := _model("villager.glb")
+	mm.mesh = _first_mesh(villager)
+	villager.free()  # only its mesh is used; the orphan node leaked at exit
 	var spots := [Vector3(-16, 0, -23), Vector3(-12, 0, -26), Vector3(-7, 0, -23), Vector3(-3, 0, -26),
 		Vector3(3, 0, -23), Vector3(7, 0, -26), Vector3(11, 0, -23), Vector3(-19, 0, -27), Vector3(-9, 0, -20), Vector3(5, 0, -19)]
 	mm.instance_count = spots.size()
