@@ -31,6 +31,8 @@ func run() -> void:
 		check(Quest.has_provenance(&"chitin", id), "provenance held at the end: %s" % id)
 	for q: Dictionary in w.objectives():
 		check(Quest.is_done(StringName(q["id"])), "objective done: %s" % q["id"])
+	# let the wing's exit to the hub finish and her footsteps stop: quitting mid-step leaks the stream
+	await seconds(5.0)
 
 
 func _section(name_: String, fn: Callable) -> void:
