@@ -30,12 +30,22 @@ const FENCE_W := 4.0
 const RAMP_Z := -34.5
 const MODEL_DIR := "res://wings/clay/models/"
 const AUDIO_DIR := "res://wings/clay/audio/"
+## Ground the set dressing keeps off: [centre, radius] or [Rect2(x, z, w, d)].
+const KEEP_OUT := [
+	[Vector2(-16, 22), 4.4], [Vector2(6, 22), 3.4], [Rect2(-14.5, 9.5, 11, 7)], [Rect2(-40, -7.4, 80, 5.8)],
+	[Rect2(-7, -2, 14, 6)], [Vector2(0, 34), 4.0], [Vector2(-4, 30), 1.5], [Vector2(-12, 27), 1.5], [Vector2(-4, 1.4), 1.5],
+	[Vector2(21, -20), 1.5], [Vector2(-22, -17), 1.5], [Vector2(23.6, -11), 1.5], [Vector2(14, 27), 1.6], [Vector2(-12, -25), 1.6],
+	[Vector2(12, -20), 3.0], [Vector2(28.5, -11), 5.0], [Rect2(18, -14, 8, 6)], [Rect2(-23, -29.8, 37, 13)],
+	[Rect2(-40, -30.2, 80, 2.4)], [Rect2(-7.5, -47.5, 15, 15.5)], [Vector2(0, 1), 2.0], [Vector2(-4, -19), 2.0],
+	[Vector2(-29, -18), 3.0], [Vector2(-33.5, -24.5), 3.0], [Vector2(-26.5, -24), 3.0], [Vector2(25, -25), 3.0], [Vector2(31, -21), 3.0],
+]
 
 signal beat(dt: float)
 
 var world_fps: float = WORLD_FPS
 var pouch: float = POUCH_START
 var terrain: ClayTerrain
+var look: ClayLook
 var _beat_acc: float = 0.0
 var _tick: int = 0
 var _saved: Dictionary = {}
@@ -60,6 +70,7 @@ var _bench_nag: float = -10.0
 var _villagers: MultiMeshInstance3D
 var _crumbs: GPUParticles3D
 var _chase_started: bool = false
+var _dressing: ClayDressing
 
 
 func objectives() -> Array[Dictionary]:
@@ -126,6 +137,10 @@ func load_state(state: Dictionary) -> void:
 
 
 func _ready() -> void:
+	look = ClayLook.new()
+	look.name = "Look"
+	add_child(look)
+	look.build(self)
 	beat.connect(_on_beat)
 	terrain = ClayTerrain.new()
 	terrain.name = "Ground"
@@ -145,20 +160,35 @@ func _ready() -> void:
 	_build_fence()
 	_build_burrow()
 	_build_start_note()
+	_build_scenery()
+	_build_shot_marks()
 	_crumbs = _make_crumbs()
 	add_child(_crumbs)
 	if _saved.is_empty():
 		terrain.flush()
 	else:
 		_apply_saved()
+	_dressing = ClayDressing.new()
+	_dressing.name = "Dressing"
+	add_child(_dressing)
+	_dressing.build(terrain, KEEP_OUT)
 
 
 func on_enter(first_time: bool) -> void:
+	# MSAA 2x costs several ms at 1440p on this set; SMAA keeps wire and fence edges clean for less.
+	var vp := get_tree().root
+	if vp.msaa_3d != Viewport.MSAA_DISABLED:
+		vp.msaa_3d = Viewport.MSAA_DISABLED
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
 	if first_time:
 		await Cinematics.play([
-			{"card": "Handmade.", "sub": "The Pinched Forest  ·  Acquisition No. 088", "t": 3.0, "style": "display"},
+			{"card": "Handmade.", "sub": "The Pinched Forest\nAcquisition No. 088", "t": 3.0, "style": "display"},
 		])
 	toast("You are in the Pinched Forest. The clay is still soft, and so is everything else.")
+
+
+func on_exit() -> void:
+	get_tree().root.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED  # the next wing's Quality.apply restores MSAA
 
 
 func _process(delta: float) -> void:
@@ -246,7 +276,11 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	add_child(pl)
 	pl.position = _ground_at(at) + Vector3(0, 1.1, 0)
 	pl.rotation.y = yaw
-	pl.set_text(heading, title, catalog, body, false)
+	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)
+	var stand := _model("stand.glb")
+	stand.position = _ground_at(at)
+	stand.rotation.y = yaw
+	add_child(stand)
 
 
 func _build_checkpoints() -> void:
@@ -273,12 +307,12 @@ func _build_meadow() -> void:
 	ledge.triggered.connect(func(_p: Player) -> void: complete_step(&"raise", &"ledge"))
 	add_child(ledge)
 	# Pit: aim at it and hold primary to scoop clay back into the pouch.
-	_placard("PitNote", Vector3(-12, 0, 27), PI, "I", "The Pit", "Acquisition No. 088  ·  Source material",
+	_placard("PitNote", Vector3(-12, 0, 27), PI, "I", "The Pit", "Acquisition No. 088\nSource material",
 		"The clay was dug from here, and it was dug again. It is the only part of the forest that is still empty.")
 
 
 func _build_start_note() -> void:
-	_placard("StartNote", Vector3(-4, 0, 30), 0.0, "0", "The Pinched Forest", "Acquisition No. 088  ·  Handmade",
+	_placard("StartNote", Vector3(-4, 0, 30), 0.0, "0", "The Pinched Forest", "Acquisition No. 088\nHandmade",
 		"Everything here was made by hand and then made again. The ground is the first exhibit. Please do not sit on it, though it will not object.")
 
 
@@ -291,10 +325,10 @@ func _build_river() -> void:
 	_boulder.position = _ground_at(Vector3(0.0, 0.0, 3.0)) + Vector3(0, 1.6, 0)
 	_boulder.flattened.connect(func() -> void: complete_step(&"cross", &"boulder"))
 	# Cling-film river: a sheet laid over the trench.
-	var sheet := _model("river.glb")
+	var sheet := _model("river.glb")  # 80 m of film, the trench's whole width
 	sheet.position = Vector3(0, -0.2, -4.5)
 	add_child(sheet)
-	_placard("RiverNote", Vector3(-4, 0, 1.4), 0.0, "II", "The River", "Acquisition No. 088  ·  Cling film",
+	_placard("RiverNote", Vector3(-4, 0, 1.4), 0.0, "II", "The River", "Acquisition No. 088\nCling film",
 		"The river is cling film over a trench. The Curator has not decided whether it is water. A stone is the recommended crossing, and the clay does the rest.")
 
 
@@ -303,7 +337,7 @@ func _build_hill() -> void:
 	top.position = _ground_at(HILL) + Vector3(0, 2.6, 0)
 	top.triggered.connect(func(_p: Player) -> void: complete_objective(&"lookout"))
 	add_child(top)
-	_placard("HillNote", Vector3(HILL.x + 9.0, 0, HILL.z), -PI / 2.0, "III", "The Hill", "Acquisition No. 088  ·  Thumbed",
+	_placard("HillNote", Vector3(HILL.x + 9.0, 0, HILL.z), -PI / 2.0, "III", "The Hill", "Acquisition No. 088\nThumbed",
 		"The hill was pushed up by a thumb, from the inside. Its door is kept shut with a plug of the same clay. The door is not locked. Nothing here is locked.")
 
 
@@ -311,7 +345,9 @@ func _build_village() -> void:
 	# Villagers in wire, all in one MultiMesh, praying to the workbench.
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = _first_mesh(_model("villager.glb"))
+	var villager := _model("villager.glb")
+	villager.free()
+	mm.mesh = ClayDressing.mesh_of("villager.glb")  # surface materials baked in: MultiMesh ignores overrides
 	var spots := [Vector3(-16, 0, -23), Vector3(-12, 0, -26), Vector3(-7, 0, -23), Vector3(-3, 0, -26),
 		Vector3(3, 0, -23), Vector3(7, 0, -26), Vector3(11, 0, -23), Vector3(-19, 0, -27), Vector3(-9, 0, -20), Vector3(5, 0, -19)]
 	mm.instance_count = spots.size()
@@ -340,20 +376,28 @@ func _build_village() -> void:
 			_chase_started = true
 			_chaser.start_chase())
 	add_child(entrance)
-	_placard("VillageNote", Vector3(-22, 0, -17), PI / 2.0, "IV", "The Armature Village", "Acquisition No. 088  ·  Wire and hope",
+	_placard("VillageNote", Vector3(-22, 0, -17), PI / 2.0, "IV", "The Armature Village", "Acquisition No. 088\nWire and hope",
 		"The figures were never covered. Their wire shows, and their hands are open. They face the workbench. They have been praying for the workbench for some time.")
 
 
 func _build_table() -> void:
+	# The workbench is the plateau itself, seen from the set: a wooden apron round its edge, and on top the
+	# things a model-maker leaves out at night, at their size (we are the size of the figures).
+	var apron := _model("apron.glb")
+	apron.position = Vector3(0.0, 0.0, TABLE.z)
+	add_child(apron)
 	var bench := _model("bench.glb")
 	bench.position = Vector3(0.0, TABLE_TOP, TABLE.z)
 	add_child(bench)
-	var lamp := OmniLight3D.new()
-	lamp.light_color = Color("ffd59a")
-	lamp.omni_range = 7.0
-	lamp.light_energy = 2.2
-	lamp.position = Vector3(0, TABLE_TOP + 2.2, TABLE.z + 1.5)
+	# The anglepoise stands at the back left; its head hangs over the turntable and is the night key.
+	var turntable := Vector3(-0.6, TABLE_TOP, TABLE.z - 0.4)
+	var reach := Vector3(3.8, 0.0, -1.2)  # base to head in the model, on the ground plane
+	var toward := Vector3(0.68, 0.0, 0.73).normalized()
+	var lamp := _model("lamp.glb")
+	lamp.rotation.y = reach.signed_angle_to(toward, Vector3.UP)
+	lamp.position = turntable - toward * reach.length()
 	add_child(lamp)
+	look.lamp.look_at_from_position(turntable + Vector3(0, 9.0, 0), turntable, Vector3.FORWARD)
 	# The fragment on the bench top appears once the reveal is done.
 	_fragment = Pickup.new()
 	_fragment.kind = &"fragment"
@@ -377,7 +421,7 @@ func _build_table() -> void:
 	top.position = Vector3(0, TABLE_TOP + 1.2, TABLE.z)
 	top.triggered.connect(_on_bench_top)
 	add_child(top)
-	_placard("BenchNote", Vector3(3.2, TABLE_TOP, TABLE.z + 1.6), PI / 2.0 + PI, "V", "The Workbench", "Acquisition No. 088  ·  Tools",
+	_placard("BenchNote", Vector3(3.2, TABLE_TOP, TABLE.z + 1.6), PI / 2.0 + PI, "V", "The Workbench", "Acquisition No. 088\nTools",
 		"The workbench is the exhibit's most charming feature. The scissors are open. The jar of eyes has not been closed. The figures below have been waiting for it to be finished.")
 
 
@@ -403,7 +447,7 @@ func _build_fence() -> void:
 
 func _build_burrow() -> void:
 	# The chamber behind a plug in the hill's west face. The film is inside.
-	var room := _model("burrow.glb")
+	var room := _model("burrow.glb")  # a mound with a doorway west and a thumb-hole skylight
 	room.position = Vector3(28.5, 0.0, -11.0)
 	add_child(room)
 	_provenance(&"film", _model("film.glb"), Vector3(30.2, 0.2, -11.0))
@@ -422,8 +466,62 @@ func _build_burrow() -> void:
 		_plug.add_child(cs)
 		_plug.position = Vector3(26.1, 0.0, -11.0)
 		add_child(_plug)
-	_placard("BurrowNote", Vector3(23.6, 0, -11.0), -PI / 2.0, "VI", "The Chamber", "Acquisition No. 088  ·  Closed",
+	_placard("BurrowNote", Vector3(23.6, 0, -11.0), -PI / 2.0, "VI", "The Chamber", "Acquisition No. 088\nClosed",
 		"A chamber in the hill, closed with a plug. The plug has a thumbprint on it the size of a door. The Curator would like it noted that the door was never locked.")
+
+
+## The set beyond the play area: hills to close the horizon, clay clouds hung on wires, the village houses.
+func _build_scenery() -> void:
+	var hills := _model("backhills.glb")
+	hills.name = "BackHills"
+	add_child(hills)
+	for c: Array in [["cloud_a", Vector3(-22, 15, 18), 0.4, 1.1], ["cloud_b", Vector3(16, 17.5, 26), -0.3, 1.0],
+			["cloud_a", Vector3(26, 16, -2), 1.2, 0.9], ["cloud_b", Vector3(-30, 18, -6), 0.9, 1.2],
+			["cloud_a", Vector3(-6, 19, -24), 0.1, 1.0], ["cloud_b", Vector3(30, 18, -30), 2.0, 0.8]]:
+		var cl := _model(c[0] + ".glb")
+		cl.position = c[1]
+		cl.rotation.y = c[2]
+		cl.scale = Vector3.ONE * float(c[3])
+		for mi: MeshInstance3D in cl.find_children("*", "MeshInstance3D", true, false):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(cl)
+	# cottages round the village square, lit from inside at dusk
+	for h: Array in [["cottage_a", Vector2(-29, -18), 1.3], ["cottage_b", Vector2(-33.5, -24.5), 1.0], ["cottage_a", Vector2(-26.5, -24), 1.7],
+			["cottage_b", Vector2(25, -25), -1.2], ["cottage_a", Vector2(31, -21), -1.6]]:
+		var ho := _model(h[0] + ".glb")
+		var at: Vector2 = h[1]
+		ho.position = _ground_at(Vector3(at.x, 0, at.y)) - Vector3(0, 0.1, 0)
+		ho.rotation.y = h[2]
+		add_child(ho)
+	var win := MaterialLib.lookup("window", ["res://wings/clay/materials"]) as ShaderMaterial
+	if win:
+		look.window_mats.append(win)
+
+
+## Beauty-shot marks for tests/shots.tscn (--wing=clay): [name, eye xz + height above ground, look-at].
+func _build_shot_marks() -> void:
+	var root := Node3D.new()
+	root.name = "ShotMarks"
+	add_child(root)
+	for m: Array in [
+			["01_meadow", Vector3(0.0, 1.7, 36.0), Vector3(-2.0, 1.0, 12.0)],
+			["02_pit", Vector3(-11.0, 2.4, 29.0), Vector3(-16.5, -0.5, 21.5)],
+			["03_knoll", Vector3(-2.0, 1.7, 19.0), Vector3(-9.0, 1.2, 13.0)],
+			["04_river", Vector3(5.0, 1.7, 8.0), Vector3(-1.0, -0.4, -4.5)],
+			["05_hill", Vector3(20.0, 1.7, 0.0), Vector3(12.0, 2.5, -20.0)],
+			["06_plug", Vector3(20.5, 1.7, -8.5), Vector3(26.1, 1.2, -11.0)],
+			["07_burrow", Vector3(26.9, 1.6, -10.2), Vector3(31.0, 1.4, -12.2)],
+			["08_village", Vector3(-3.0, 1.9, -16.5), Vector3(-9.0, 1.0, -25.0)],
+			["09_fence", Vector3(8.5, 1.7, -21.0), Vector3(-2.0, 1.2, -29.0)],
+			["10_workbench", Vector3(5.5, 3.4, -31.0), Vector3(-0.6, 2.8, -41.0)],
+			["11_bench_top", Vector3(2.5, 1.7, -37.0), Vector3(-0.6, 0.8, -41.5)]]:
+		var eye: Vector3 = m[1]
+		var at: Vector3 = m[2]
+		var mk := Marker3D.new()
+		mk.name = m[0]
+		root.add_child(mk)
+		mk.look_at_from_position(Vector3(eye.x, terrain.height_at(eye.x, eye.z) + eye.y, eye.z),
+			Vector3(at.x, terrain.height_at(at.x, at.z) + at.y, at.z), Vector3.UP)
 
 
 func _make_crumbs() -> GPUParticles3D:
@@ -442,13 +540,7 @@ func _make_crumbs() -> GPUParticles3D:
 	pm.scale_min = 0.03
 	pm.scale_max = 0.06
 	g.process_material = pm
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.5
-	mesh.height = 1.0
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.56, 0.34, 0.20)
-	mesh.material = mat
-	g.draw_pass_1 = mesh
+	g.draw_pass_1 = ClayDressing.mesh_of("crumb.glb")
 	return g
 
 
@@ -474,16 +566,6 @@ func _provenance(id: StringName, model: Node3D, at: Vector3) -> void:
 	cs.shape = sph
 	pick.add_child(cs)
 	marker.add_child(pick)
-
-
-func _first_mesh(n: Node) -> Mesh:
-	if n is MeshInstance3D:
-		return (n as MeshInstance3D).mesh
-	for c in n.get_children():
-		var m := _first_mesh(c)
-		if m:
-			return m
-	return null
 
 
 # --- restoring saved state -------------------------------------------------------------------
@@ -566,7 +648,10 @@ func _on_beat(_dt: float) -> void:
 	_crumbs.emitting = working and _aim_kind == &"terrain"
 	if _crumbs.emitting:
 		_crumbs.global_position = _aim
+	var reshaped := terrain.dirty
 	terrain.flush()
+	if reshaped and _dressing:
+		_dressing.terrain_changed()
 	if _chase_started and _choice == &"":
 		_chaser.beat(p.global_position)
 		_check_choice_proximity(p.global_position)

@@ -110,8 +110,8 @@ func load_state(state: Dictionary) -> void:
 
 
 func on_enter(first_time: bool) -> void:
-	$Placard.set_text("No. 501", "The Long Shadow", "Acquisition No. 501, untitled (City at Night)",
-		"Light is a room you can stand in only once. Keep to the dark. Anything lit will put you back where you last hid.", false)
+	$Placard.set_label(Placard.fields("The Long Shadow", "", "Untitled (City at Night)", "Acquisition No. 501",
+		"Light is a room you can stand in only once. Keep to the dark. Anything lit will put you back where you last hid."), false)
 	if first_time:
 		await Cinematics.play([
 			{"card": "Keep to the dark.", "sub": "Untitled (City at Night)", "t": 3.0, "style": "display"},
@@ -260,12 +260,12 @@ func _prov_name(id: String) -> String:
 	return id
 
 
-func _plaque(parent: Node, at: Vector3, yaw: float, heading: String, title: String, catalog: String, body: String) -> void:
+func _plaque(parent: Node, at: Vector3, yaw: float, medium: String, title: String, acq: String, body: String) -> void:
 	var p := Placard.new()
 	parent.add_child(p)
 	p.position = at
 	p.rotation_degrees.y = yaw
-	p.set_text(heading, title, catalog, body, false)
+	p.set_label(Placard.fields(title, "", medium, acq, body), false)
 
 
 func _checkpoint_at(id: String, at: Vector3) -> void:

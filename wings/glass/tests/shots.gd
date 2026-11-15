@@ -19,12 +19,12 @@ const MARKS := [
 	["08_tower", Vector3(-17.2, 9.6, -19.0), Vector3(-26.0, 14.0, -26.0), ""],
 	["09_roof_reveal", Vector3(-19.0, 17.7, -33.0), Vector3(-30.0, 26.0, -60.0), "sky"],
 	["10_buttresses", Vector3(-17.0, 17.6, -55.0), Vector3(-24.3, 18.0, -68.0), "sky"],
-	["11_rose_phase1", H + Vector3(25.5, 1.7, 0.0), H + Vector3(-27.0, 10.0, 0.0), "rose1"],
+	["11_rose_phase1", H + Vector3(9.0, 1.7, 0.0), H + Vector3(-27.0, 9.0, 0.0), "rose1"],
 	["12_rose_dark", H + Vector3(-15.0, 1.7, 0.0), H + Vector3(5.0, -0.5, -4.0), "rose2"],
 	["13_east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0), "lens"],
 	["14_shattered", Vector3(0.0, 4.0, -104.0), Vector3(0.0, 8.0, -122.0), "shatter"],
 	["14b_fourth_sun", Vector3(1.3, 8.1, -121.6), Vector3(0.0, 7.75, -123.3), ""],
-	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 4.0, -150.0), "heist"],
+	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 13.0, -150.0), "heist"],
 ]
 
 var _cam: Camera3D
@@ -72,7 +72,9 @@ func _state(s: String) -> void:
 			_w.prism.set_index(3, true)
 			_w.mirrors["m6"].set_index(1, true)
 		"sky":
-			_w._reveal_sky()
+			if not _w.recall("sky", false):
+				_w._reveal_sky()
+				await secs(11.0)
 		"rose1":
 			_w.rose.set_active(true)
 			_w.rose.t = 2.0
@@ -91,6 +93,13 @@ func _state(s: String) -> void:
 			await secs(2.5)
 		"heist":
 			_w._start_heist()
+
+
+## Beauty shots: no HUD line, no toast cards.
+func _hide_ui() -> void:
+	Placards.visible = false
+	for c: Node in Game.find_children("*", "CanvasLayer", true, false):
+		(c as CanvasLayer).visible = false
 
 
 func _until(cond: Callable, timeout: float) -> void:
@@ -182,6 +191,8 @@ func _run() -> void:
 	await _until(func() -> bool: return not Cinematics.playing and not Transitions.busy, 15.0)
 	Game.player.input_enabled = false
 	Game.player.visible = false
+	Game.player.process_mode = Node.PROCESS_MODE_DISABLED
+	_hide_ui()
 	DisplayServer.window_move_to_foreground()
 	if OS.has_environment("GLASS_PERF_DIAG"):
 		await _perf_diag()
@@ -189,6 +200,9 @@ func _run() -> void:
 		return
 	var only := OS.get_environment("GLASS_SHOTS")  # e.g. "03_nave,04" to re-shoot a few
 	for m: Array in MARKS:
+		# the wing's zone logic (Rose activation, lantern glow) follows the player: park it under the lens
+		Game.player.global_position = (m[1] as Vector3) - Vector3(0, 1.6, 0)
+		await get_tree().physics_frame
 		await _state(m[3])
 		if only != "" and not Array(only.split(",")).any(func(o: String) -> bool: return (m[0] as String).begins_with(o)):
 			continue
@@ -198,13 +212,21 @@ func _run() -> void:
 			_cam.far = 800.0
 			get_tree().current_scene.add_child(_cam)
 		_cam.global_position = m[1]
-		_cam.look_at(m[2], Vector3.UP)
+		var aim: Vector3 = m[2]
+		if (m[0] as String).begins_with("09"):  # frame the onlooker wherever it has drifted, rooftops below
+			aim = (m[1] as Vector3) + (_w._eye_dir + Vector3(0, -0.12, 0)) * 30.0
+		_cam.look_at(aim, Vector3.UP)
 		_cam.make_current()
+		# the carried lantern rides with the shot camera, as it would with the player's
+		var hl: Node3D = _w._hand_lantern
+		if hl and hl.visible and hl.get_parent() != _cam:
+			hl.reparent(_cam, false)
 		await secs(1.2)
+		_hide_ui()  # the wing re-shows the HUD on state changes
 		await RenderingServer.frame_post_draw
 		var img := get_viewport().get_texture().get_image()
 		var path := ProjectSettings.globalize_path("%s/%s.png" % [OUT, m[0]])
 		img.save_png(path)
 		print("[shots] ", path, "  ", img.get_size())
-		await measure(m[0], 2.0)
+		await measure(m[0], 3.0)
 	get_tree().quit()

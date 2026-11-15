@@ -1,18 +1,18 @@
 # Clay wing credits
 
-No third-party audio is used in this wing. Every sound file below is synthesised by
-`audio/src/gen_clay_audio.py` (numpy/scipy, seeded, encoded with oggenc), so there is no
-external author, title or licence to credit. No third-party models, textures or fonts are used
-either: the models are built by `models/src/props.py` and the materials are authored in `materials/`.
+Audio is CC0 from freesound.org, fetched with `tools/fetch_cc.sh` (HQ previews) and then trimmed
+and loudness-matched with ffmpeg; the beds and the meadow loop are crossfaded tail-into-head so they loop clean. No third-party models, textures or fonts: the models are
+built by `models/src/props.py`, the textures by `tools/gen_images.sh` and the materials by
+`tools/make_materials.py`.
 
-| File | Title | Author | Source | Licence |
-|------|-------|--------|--------|---------|
-| `audio/bed_0.ogg` | Clay bed, layer 0 | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/bed_1.ogg` | Clay bed, layer 1 | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/amb_wind.ogg` | Meadow wind | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/pull.ogg` | Clay pull | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/press.ogg` | Clay press | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/reveal.ogg` | Frame-rate reveal | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/step_clay_1.ogg` | Clay footstep 1 | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/step_clay_2.ogg` | Clay footstep 2 | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
-| `audio/step_clay_3.ogg` | Clay footstep 3 | Synthesised in this project | `audio/src/gen_clay_audio.py` | Project licence |
+| Path | Title | Author | Source | Licence |
+|---|---|---|---|---|
+| wings/clay/audio/step_clay_1.ogg | Mud squelches from child walking along woodland path (single step excerpt) | chris_dagorne | https://freesound.org/people/chris_dagorne/sounds/563155/ | CC0-1.0 |
+| wings/clay/audio/step_clay_2.ogg | Mud squelches from child walking along woodland path (single step excerpt) | chris_dagorne | https://freesound.org/people/chris_dagorne/sounds/563155/ | CC0-1.0 |
+| wings/clay/audio/step_clay_3.ogg | Mud squelches from child walking along woodland path (single step excerpt) | chris_dagorne | https://freesound.org/people/chris_dagorne/sounds/563155/ | CC0-1.0 |
+| wings/clay/audio/press.ogg | Mud Splat | Breviceps | https://freesound.org/people/Breviceps/sounds/445109/ | CC0-1.0 |
+| wings/clay/audio/pull.ogg | So slimy! (excerpt) | Breviceps | https://freesound.org/people/Breviceps/sounds/445968/ | CC0-1.0 |
+| wings/clay/audio/reveal.ogg | Treasure Chest Reveal | Qvantor | https://freesound.org/people/Qvantor/sounds/878615/ | CC0-1.0 |
+| wings/clay/audio/amb_wind.ogg | Springtime birdsong with soft wind ambiance (loop excerpt) | rubindaniel | https://freesound.org/people/rubindaniel/sounds/847380/ | CC0-1.0 |
+| wings/clay/audio/bed_0.ogg | Music Box - J. Brahms - Opus 39 - Waltz no 3 | Flying_Deer_Fx | https://freesound.org/people/Flying_Deer_Fx/sounds/369405/ | CC0-1.0 |
+| wings/clay/audio/bed_1.ogg | Music Box - J. Brahms - Opus 39 - Waltz no 3 (low-passed, echoed layer of the same take, in sync with bed_0) | Flying_Deer_Fx | https://freesound.org/people/Flying_Deer_Fx/sounds/369405/ | CC0-1.0 |

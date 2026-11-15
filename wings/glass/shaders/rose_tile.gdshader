@@ -10,7 +10,7 @@ uniform vec3 lantern_pos = vec3(1e6);  // hall-local
 uniform float lantern_r = 4.0;
 uniform float petals = 6.0;
 uniform float half_width = 0.31;
-uniform float edge = 0.035;
+uniform float edge = 0.08;
 uniform float omega = 0.11;
 uniform float r_in = 4.0;
 uniform float r_out = 20.0;
@@ -19,6 +19,7 @@ varying vec3 tile_c;
 varying flat float kind;
 varying flat float rnd;
 varying vec2 local_xz;
+varying vec3 wp;
 
 const vec3 PAL[6] = vec3[](vec3(0.70, 0.13, 0.26), vec3(0.91, 0.71, 0.29), vec3(0.17, 0.33, 0.79),
 	vec3(0.10, 0.48, 0.37), vec3(0.54, 0.25, 0.82), vec3(0.91, 0.71, 0.29));
@@ -28,36 +29,40 @@ void vertex() {
 	kind = INSTANCE_CUSTOM.r;
 	rnd = INSTANCE_CUSTOM.g;
 	local_xz = VERTEX.xz;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
-float lit(vec3 p, out float idx) {
+float lit(vec3 p, float e, out float idx) {
 	float r = length(p.xz);
 	float seg = 6.2831853 / petals;
 	float a = atan(p.z, p.x) - omega * rose_t;
 	idx = mod(round(a / seg), petals);
 	if (r < r_in) return 1.0;
 	a = mod(a + seg * 0.5, seg) - seg * 0.5;
-	float ang = smoothstep(half_width + edge, half_width - edge, abs(a));
-	float rad = smoothstep(r_out + 0.6, r_out - 0.6, r);
+	float ang = smoothstep(half_width + e, half_width - e, abs(a));
+	float rad = smoothstep(r_out + 0.6 + e * 20.0, r_out - 0.6 - e * 20.0, r);
 	return ang * rad;
 }
 
 void fragment() {
 	vec3 lp = tile_c - centre;
 	float idx;
-	float l = lit(lp, idx);
-	vec3 col = PAL[int(idx)];
+	float l = lit(lp, edge, idx);
+	vec3 col = PAL[int(idx)] * PAL[int(idx)] * 1.6;  // deeper, so exposure keeps them jewel-coloured
 	if (length(lp.xz) < r_in) col = vec3(0.6, 0.35, 0.85);
 	float on = 0.0;
 	float glow = 0.0;
 	if (phase == 1) {
-		on = step(0.5, l);
-		glow = l;
+		float ip;
+		glow = lit(wp - centre, 0.12, ip);  // per pixel, a soft falloff: cast light, not painted squares
+		on = glow;
+		if (length((wp - centre).xz) >= r_in) col = PAL[int(ip)] * PAL[int(ip)] * 1.6;
 	} else if (phase == 2) {
 		float d = length(lp.xz - lantern_pos.xz);
+		float dp = length((wp - centre).xz - lantern_pos.xz);  // per pixel: a warm pool that falls off
 		on = step(0.5, kind) * step(kind, 1.5) * step(d, lantern_r);
-		glow = on * (1.0 - smoothstep(lantern_r * 0.6, lantern_r, d)) + step(0.5, kind) * step(kind, 1.5) * 0.04;
-		col = vec3(1.0, 0.78, 0.45);
+		glow = on * pow(1.0 - smoothstep(0.0, lantern_r, dp), 1.6) + step(0.5, kind) * step(kind, 1.5) * 0.04;
+		col = vec3(1.0, 0.5, 0.18);
 	} else {
 		on = step(0.5, kind);
 		glow = on * 0.55;
@@ -68,7 +73,7 @@ void fragment() {
 	float border = smoothstep(0.86, 0.9, max(q.x, q.y));
 	float diamond = smoothstep(0.03, 0.0, abs(q.x + q.y - 0.95)) * 0.6;
 	float lead = max(border, diamond);
-	vec3 c = col * (0.35 + 1.9 * glow) * (0.85 + 0.3 * rnd);
-	ALBEDO = mix(c, vec3(0.0), lead) * max(on, 0.05);
+	vec3 c = col * (0.18 + (phase == 1 ? 0.35 : 0.3) * glow) * (0.85 + 0.3 * rnd);
+	ALBEDO = mix(c, vec3(0.0), lead * (0.4 + 0.6 * (1.0 - glow))) * max(on, 0.05);
 	ALPHA = 1.0;
 }
