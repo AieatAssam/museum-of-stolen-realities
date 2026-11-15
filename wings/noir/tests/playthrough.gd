@@ -121,6 +121,12 @@ func _in_noir() -> bool:
 	return Game.wing != null and Game.wing.wing_id == &"noir"
 
 
+## x of the elevated train, read from the wing (0 when the wing is not loaded)
+func _train_x() -> float:
+	var t: Node3D = Game.wing.get("_train") if Game.wing else null
+	return t.position.x if t else 0.0
+
+
 func _run() -> void:
 	print("[noir] new game, real input to the Gallery of Stolen Realities")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
@@ -149,6 +155,8 @@ func _run() -> void:
 	check(Quest.provenances.size() == 3, "noir declares 3 provenances")
 	check(Quest.objectives.size() == 3, "noir declares 3 objectives")
 	check(Game.player.mode_name() == &"shadowstep", "player starts in shadowstep")
+	var placards := w.find_children("*", "Placard", true, false)
+	check(placards.size() <= 12, "placards: %d (limit 12)" % placards.size())
 
 	print("[noir] alley: walk into the shade, latch onto the dark wall")
 	await _walk_to(Vector3(0, 0.05, -7), 15.0)
@@ -169,11 +177,42 @@ func _run() -> void:
 	await _until(func() -> bool: return Quest.has_provenance(&"noir", &"pawn"), 4.0)
 	check(Quest.has_provenance(&"noir", &"pawn"), "the pawn ticket is recorded")
 
-	print("[noir] the lit street")
-	# the lit street: the centre is lit by three lamps; the east edge past the passage is in shade
+	print("[noir] diner window: the silhouette shows where the shade will be")
 	await _walk_to(Vector3(3.2, 0.05, -15.0), 15.0)
+	await _walk_to(Vector3(3.2, 0.05, -30.0), 15.0)
+	await frames(4)
+	var sil: MeshInstance3D = w.get("_silhouette")
+	var caster: DelayedCaster = w.get("_caster")
+	var agreed := true
+	for i in 30:
+		await frames(2)
+		if absf(sil.position.z - caster.position.z) > 0.05:
+			agreed = false
+	check(agreed, "the window silhouette tracks the caster's position eleven seconds ahead")
+
+	print("[noir] the roof: ramp up, latch across the gap between trains")
+	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
+	await _walk_to(Vector3(-12.0, 4.0, -29.0), 15.0)
+	await _walk_to(Vector3(-18.0, 5.05, -29.0), 15.0)
+	# the train's lamp cuts the shadow path while it is over the gap; wait until it is well west of the gap
+	await _until(func() -> bool: return _train_x() < -40.0 or _train_x() > -2.0, 14.0)
+	await _tp(Vector3(-19.0, 5.05, -29.0), Vector3(-22.5, 5.55, -29.0))
+	await frames(10)
+	_tap(&"secondary")
+	await frames(8)
+	check(Quest.is_step_done(&"cross_lit", &"latch_gap"), "latching across the rooftop gap completes latch_gap")
+	_tap(&"secondary")
+	await frames(4)
+	await _walk_to(Vector3(-13.0, 4.0, -29.0), 15.0)
+	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
+	await _walk_to(Vector3(3.2, 0.05, -28.5), 15.0)
+	print("  at ", Game.player.global_position)
+
+	print("[noir] the lit street")
 	await _walk_to(Vector3(3.2, 0.05, -24.0), 15.0)
+	print("  at ", Game.player.global_position)
 	await _walk_to(Vector3(3.5, 0.05, -51.0), 45.0)
+	print("  at ", Game.player.global_position)
 	await frames(10)
 	check(Quest.is_step_done(&"cross_lit", &"cross_street"), "crossing the street completes cross_street")
 
@@ -191,20 +230,30 @@ func _run() -> void:
 	await _until(func() -> bool: return Quest.has_provenance(&"noir", &"matchbook"), 4.0)
 	check(Quest.has_provenance(&"noir", &"matchbook"), "the matchbook is recorded")
 
-	print("[noir] the precinct locker opens the cinema gate")
-	await _tp(Vector3(3.0, 0.05, -55.0), Vector3(4.3, 0.8, -55.0))
+	print("[noir] precinct: desk lamp off, swing lamp away, locker")
+	await _tp(Vector3(3.2, 0.05, -57.8), Vector3(4.8, 1.2, -57.8))
+	await frames(4)
+	_tap(&"interact")
+	await frames(6)
+	check(Quest.is_step_done(&"heist", &"dim_lamp"), "switching off the desk lamp completes dim_lamp")
+	await _tp(Vector3(7.2, 0.05, -59.6), Vector3(6.4, 1.2, -60.2))
+	await frames(4)
+	_tap(&"interact")
+	await frames(6)
+	await _tp(Vector3(7.2, 0.05, -61.5), Vector3(6.5, 0.8, -63.0))
 	await frames(4)
 	await _hold_on(&"interact", 1.4)
 	await _until(func() -> bool: return Quest.is_step_done(&"heist", &"get_key"), 4.0)
 	check(Quest.is_step_done(&"heist", &"get_key"), "holding interact at the locker completes get_key")
 
 	print("[noir] the cinema and the reel")
+	await _walk_to(Vector3(4.5, 0.05, -57.0), 15.0)
 	await _walk_to(Vector3(3.5, 0.05, -64.5), 15.0)
 	await _walk_to(Vector3(3.5, 0.05, -68.0), 15.0)
 	await frames(6)
 	check(Quest.is_step_done(&"heist", &"enter_cinema"), "entering the cinema completes enter_cinema")
-	# the searchlights sweep the room; a beam that catches Vesper sends her back, so each take
-	# retries from the puzzle position until the beam is off it
+	# the searchlights sweep the room; a beam that catches the player sends her back, so each take
+	# retries from the puzzle position until the beam is off her
 	await _cinema_try(Vector3(1.5, 0.05, -86.0), Vector3(0, 0.6, -86.0), 2.0,
 		func() -> bool: return Quest.is_step_done(&"heist", &"steal_reel"))
 	check(Quest.is_step_done(&"heist", &"steal_reel"), "holding interact takes the reel")
