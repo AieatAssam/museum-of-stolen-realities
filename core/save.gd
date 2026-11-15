@@ -46,6 +46,7 @@ static func fresh() -> Dictionary:
 		"version": VERSION,
 		"fragments": [],          # wing ids whose Fragment of Exhibit 0 is recovered
 		"provenances": {},        # wing id -> [provenance ids]
+		"provenance_info": {},    # wing id -> {provenance id: {"name", "line"}} (the hub's vitrine labels)
 		"wings": {},              # wing id -> {"objectives": {obj_id: {"done": bool, "steps": [step ids]}}, "state": {}}
 		"hub": {"seen_intro": false, "flags": {}},
 		"checkpoint": {"scene": "", "id": ""},

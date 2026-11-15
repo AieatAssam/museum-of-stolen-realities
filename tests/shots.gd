@@ -53,11 +53,18 @@ func _process(delta: float) -> void:
 
 func _run() -> void:
 	var id := StringName(_args["wing"])
-	var dir := "%s/%s" % [OUT, id]
+	var dir := "%s/%s%s" % [OUT, id, ("_f" + String(_args["fragments"])) if _args.has("fragments") else ""]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
 	FileAccess.open(OUT + "/.gdignore", FileAccess.WRITE)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
+	if id == &"atrium" and _args.has("fragments"):  # --fragments=N: the hall after N wings came home
+		Save.data["hub"]["seen_intro"] = true
+		var placed: Array = []
+		for w: WingInfo in Game.registry.exhibits().slice(0, int(_args["fragments"])):
+			Game.debug_complete_wing(w.id)
+			placed.append(String(w.id))
+		Save.data["hub"]["flags"]["placed"] = placed
 	var ok: bool = await Game.debug_goto(Game.HUB_ID if id == &"atrium" else id)
 	if not ok:
 		push_error("shots: could not enter %s" % id)
@@ -68,7 +75,8 @@ func _run() -> void:
 	if not _args.has("ui"):
 		for n: String in ["/root/Placards", "/root/Cinematics"]:
 			(get_node(n) as CanvasLayer).visible = false
-		if Game._hud:
+		if Game._hud:  # the HUD re-shows itself every frame while playing: stop it, then hide
+			Game._hud.process_mode = Node.PROCESS_MODE_DISABLED
 			Game._hud.visible = false
 	await _measure_at("player_view", dir, null)
 	var cam := Camera3D.new()

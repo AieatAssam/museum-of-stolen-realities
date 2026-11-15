@@ -1,23 +1,38 @@
-[gd_resource type="Theme" load_steps=13 format=3]
+[gd_resource type="Theme" load_steps=14 format=3]
 ; Fonts are NOT referenced here: the project theme loads at editor/engine startup, before a fresh
 ; checkout has imported its .ttf files, which produced import errors. Style.apply_theme() (called
 ; from the Game autoload) installs them at runtime.
 
 [sub_resource type="StyleBoxEmpty" id="empty"]
-content_margin_left = 6.0
-content_margin_top = 4.0
-content_margin_right = 6.0
-content_margin_bottom = 4.0
+content_margin_left = 18.0
+content_margin_top = 6.0
+content_margin_right = 18.0
+content_margin_bottom = 6.0
 
-[sub_resource type="StyleBoxLine" id="btn_hover"]
-color = Color(0.784, 0.639, 0.353, 0.55)
-grow_begin = -8.0
-grow_end = -8.0
-thickness = 1
-content_margin_left = 6.0
-content_margin_top = 4.0
-content_margin_right = 6.0
-content_margin_bottom = 4.0
+[sub_resource type="StyleBoxFlat" id="btn_hover"]
+content_margin_left = 18.0
+content_margin_top = 6.0
+content_margin_right = 18.0
+content_margin_bottom = 6.0
+bg_color = Color(0.913, 0.89, 0.827, 0.06)
+
+; Focus is an overlay drawn over the button: a gold-tinted plate, a full gold border and a solid
+; bar down the left edge, so the focused choice reads as selected (not as a rule or divider).
+[sub_resource type="StyleBoxFlat" id="btn_focus"]
+content_margin_left = 18.0
+content_margin_top = 6.0
+content_margin_right = 18.0
+content_margin_bottom = 6.0
+bg_color = Color(0.784, 0.639, 0.353, 0.16)
+border_width_left = 5
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.784, 0.639, 0.353, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [sub_resource type="StyleBoxFlat" id="panel"]
 content_margin_left = 40.0
@@ -95,7 +110,7 @@ corner_radius_bottom_left = 2
 [resource]
 default_font_size = 24
 Button/colors/font_color = Color(0.913, 0.89, 0.827, 0.72)
-Button/colors/font_focus_color = Color(0.784, 0.639, 0.353, 1)
+Button/colors/font_focus_color = Color(0.913, 0.89, 0.827, 1)
 Button/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
 Button/colors/font_hover_pressed_color = Color(0.913, 0.89, 0.827, 1)
 Button/colors/font_pressed_color = Color(0.913, 0.89, 0.827, 1)
@@ -104,14 +119,14 @@ Button/font_sizes/font_size = 22
 Button/styles/normal = SubResource("empty")
 Button/styles/hover = SubResource("btn_hover")
 Button/styles/pressed = SubResource("btn_hover")
-Button/styles/focus = SubResource("btn_hover")
+Button/styles/focus = SubResource("btn_focus")
 Button/styles/disabled = SubResource("empty")
 CheckButton/colors/font_color = Color(0.913, 0.89, 0.827, 0.85)
 CheckButton/colors/font_hover_color = Color(0.784, 0.639, 0.353, 1)
 CheckButton/styles/normal = SubResource("empty")
 CheckButton/styles/hover = SubResource("empty")
 CheckButton/styles/pressed = SubResource("empty")
-CheckButton/styles/focus = SubResource("btn_hover")
+CheckButton/styles/focus = SubResource("btn_focus")
 HSlider/styles/slider = SubResource("slider")
 HSlider/styles/grabber_area = SubResource("slider_fill")
 HSlider/styles/grabber_area_highlight = SubResource("grabber_area")
