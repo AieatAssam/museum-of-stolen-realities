@@ -267,7 +267,7 @@ func set_dry(v: float) -> void:
 
 
 func surfable() -> bool:
-	return enabled and wet and dry < 1.0 and kind != "pencil" and kind != "seal"
+	return enabled and wet and dry < 1.0 and kind != "pencil" and kind != "seal" and kind != "well" and colour != "green"
 
 
 # --- geometry queries (global space) -----------------------------------------------------------

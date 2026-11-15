@@ -41,6 +41,7 @@ var connect_at: Callable
 var on_event: Callable
 var metres: float = 0.0     # surfed in total (tests and weather read it)
 var kicked: bool = false
+var board_s: float = 0.0    # where she got on (falls respawn her here)
 
 
 func _init() -> void:
@@ -63,6 +64,7 @@ func attach() -> bool:
 	stroke = pending[0]
 	s = float(pending[1])
 	pending = []
+	board_s = s
 	var p := player
 	var t: Vector3 = stroke.tangent(s)
 	var hv := p.velocity - p.up_direction * p.velocity.dot(p.up_direction)

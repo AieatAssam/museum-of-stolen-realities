@@ -141,6 +141,7 @@ func find_rail(feet: Vector3, r: float) -> Array:
 ## The stroke that continues from `st`'s end (start if at_start): [next, s, dir] or [].
 func connect_at(st: Node3D, at_start: bool, look: Vector3) -> Array:
 	var end: Vector3 = st.end_point(at_start)
+	var travel: Vector3 = st.tangent(0.0) * -1.0 if at_start else st.tangent(st.length)
 	var best: Array = []
 	var score := -INF
 	var flat := Vector3(look.x, 0, look.z).normalized()
@@ -487,7 +488,7 @@ func _refresh() -> void:
 func _update_light() -> void:
 	var lamps: Array = []
 	for st: Node3D in strokes.values():
-		if st.enabled and st.is_light(st.colour) and st.kind != "pencil":
+		if st.enabled and st.is_light(st.colour) and not st.kind in ["pencil", "well"]:
 			for i in range(0, st.pts.size(), 2):
 				lamps.append(st.global_transform * st.pts[i])
 			lamps.append(st.sample(st.length))
