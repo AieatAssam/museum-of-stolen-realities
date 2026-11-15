@@ -2,18 +2,14 @@ shader_type sky;
 render_mode use_half_res_pass;
 // The sky of the Vitrine Kingdom is ONE window: a colossal leaded dome lit from outside. Panes are laid
 // in rings like a real rose (fewer, larger panes toward the crown), held by black lead and a heavy iron
-// armature of meridians and rings. Three suns are glazed into it. Once `reveal` rises, something
-// museum-sized leans over it: a head and a raised hand with a loupe (the `onlooker` silhouette),
-// throwing the glass behind it into shadow, its edge rimmed by the outside light.
+// armature of meridians and rings. Three suns are glazed into it. (The onlooker that leans over it
+// after the reveal is a far quad, shaders/onlooker.gdshader, placed by glass.gd.)
 // `haze` (1 = the interior haze that hides the leading) clears on the rooftops.
 
 uniform vec3 sun_a = vec3(0.35, 0.55, -0.76);
 uniform vec3 sun_b = vec3(-0.62, 0.42, -0.66);
 uniform vec3 sun_c = vec3(0.1, 0.78, 0.62);
-uniform vec3 eye_dir = vec3(-0.75, 0.45, -0.48);
 uniform sampler2D dome : source_color, filter_linear_mipmap;
-uniform sampler2D onlooker : hint_default_white, filter_linear_mipmap;
-uniform vec2 onlooker_ext = vec2(1.6, 1.2);   // radians across, up
 uniform float haze : hint_range(0.0, 1.0) = 1.0;
 uniform float reveal : hint_range(0.0, 1.0) = 0.0;
 uniform float dark : hint_range(0.0, 1.0) = 0.0;
@@ -60,26 +56,6 @@ void sky() {
 	vec3 col = glass * energy * (0.55 + corona * 2.2 + 0.25 * e01);
 	col = mix(col, vec3(0.004, 0.004, 0.006), max(lead, iron) * (1.0 - suns));
 	col += vec3(1.0, 0.86, 0.55) * suns * 7.0;
-
-	// the onlooker
-	if (reveal > 0.001) {
-		vec3 f = normalize(eye_dir);
-		vec3 rgt = normalize(cross(f, vec3(0.0, 1.0, 0.0)));
-		vec3 up = cross(rgt, f);
-		float fz = dot(d, f);
-		if (fz > 0.0) {
-			vec2 ang = vec2(atan(dot(d, rgt), fz), atan(dot(d, up), fz));
-			vec2 uv = vec2(0.5 + ang.x / onlooker_ext.x, 0.5 - ang.y / onlooker_ext.y);
-			if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
-				float m = 1.0 - textureLod(onlooker, uv, 2.5).r;
-				float soft = 1.0 - textureLod(onlooker, uv, 3.5).r;
-				float rim = clamp(soft - m, 0.0, 1.0);
-				vec3 shadowed = min(col * 0.01, vec3(0.02)) + vec3(0.004, 0.005, 0.012);
-				col = mix(col, shadowed, clamp(max(m, soft * 0.6), 0.0, 1.0) * reveal);
-				col += vec3(1.0, 0.78, 0.5) * rim * rim * 1.2 * reveal * (1.0 - m);
-			}
-		}
-	}
 
 	vec3 fogc = mix(vec3(0.02, 0.03, 0.08), vec3(0.08, 0.1, 0.22), smoothstep(-0.2, 0.6, d.y));
 	col = mix(col, fogc + vec3(1.0, 0.86, 0.55) * suns * 2.0, haze * 0.85);

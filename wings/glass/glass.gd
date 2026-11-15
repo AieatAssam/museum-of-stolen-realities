@@ -65,9 +65,12 @@ var _sun: DirectionalLight3D
 var _rose_pane_mat: ShaderMaterial
 var _lantern_glow: OmniLight3D
 var _heist_dark: float = 0.0
+var _onlooker: MeshInstance3D
+var _eye_dir := Vector3(-0.39, 0.8, -0.92).normalized()
+var _onlooker_mat: ShaderMaterial
 var _reveal_t0: float = 0.0
 
-const AMBIENT := 0.1
+const AMBIENT := 0.42
 
 
 # =============================================================================================
@@ -121,6 +124,7 @@ func save_state() -> Dictionary:
 
 func on_exit() -> void:
 	get_tree().root.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED  # the next wing's Quality.apply restores MSAA
+	RenderingServer.gi_set_use_half_resolution(false)
 
 
 func on_enter(first_time: bool) -> void:
@@ -129,6 +133,10 @@ func on_enter(first_time: bool) -> void:
 	if vp.msaa_3d != Viewport.MSAA_DISABLED:
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
+	# SDFGI budget: half-res GI, fewer rays, light re-lit over more frames (the light here is static)
+	RenderingServer.gi_set_use_half_resolution(true)
+	RenderingServer.environment_set_sdfgi_ray_count(RenderingServer.ENV_SDFGI_RAY_COUNT_16)
+	RenderingServer.environment_set_sdfgi_frames_to_update_light(RenderingServer.ENV_SDFGI_UPDATE_LIGHT_IN_8_FRAMES)
 	_apply_progress()
 	_last_pos = Game.player.global_position
 	_music_for(Game.player.global_position)
@@ -149,9 +157,10 @@ func _ready() -> void:
 	optics = GlassOptics.new()
 	optics.name = "Optics"
 	add_child(optics)
-	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister"]:
+	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister", "glazed_tower"]:
 		M[n] = load(MATS + n + ".tres")
 	_build_environment()
+	_build_shot_marks()
 	_build_cloister()
 	_build_nave()
 	_build_choir()
@@ -211,8 +220,18 @@ func _build_environment() -> void:
 	var sky := Sky.new()
 	sky_mat = ShaderMaterial.new()
 	sky_mat.shader = load("res://wings/glass/shaders/sky_window.gdshader")
-	sky_mat.set_shader_parameter(&"onlooker", load("res://wings/glass/textures/onlooker.png"))
 	sky_mat.set_shader_parameter(&"dome", load("res://wings/glass/textures/sky_rose.png"))
+	_onlooker = MeshInstance3D.new()
+	var oq := QuadMesh.new()
+	oq.size = Vector2(1.32, 1.0) * 200.0  # ~a third of the sky at 300 m
+	_onlooker.mesh = oq
+	_onlooker_mat = ShaderMaterial.new()
+	_onlooker_mat.shader = load("res://wings/glass/shaders/onlooker.gdshader")
+	_onlooker_mat.set_shader_parameter(&"shape", load("res://wings/glass/textures/onlooker.png"))
+	_onlooker.material_override = _onlooker_mat
+	_onlooker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_onlooker.visible = false
+	add_child(_onlooker)
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
@@ -224,16 +243,16 @@ func _build_environment() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_white = 10.0
-	env.tonemap_exposure = 1.5
+	env.tonemap_exposure = 2.1
 	# window emission and the colour it throws fill the rooms (bounce); lead stays black
 	env.sdfgi_enabled = true
-	env.sdfgi_cascades = 4
-	env.sdfgi_min_cell_size = 0.4
+	env.sdfgi_cascades = 3
+	env.sdfgi_min_cell_size = 0.6
 	env.sdfgi_use_occlusion = false
 	env.sdfgi_energy = 1.4
 	env.sdfgi_read_sky_light = false
 	env.ssr_enabled = true
-	env.ssr_max_steps = 48
+	env.ssr_max_steps = 32
 	env.ssr_fade_in = 0.1
 	env.ssr_fade_out = 2.0
 	env.glow_enabled = true
@@ -259,7 +278,7 @@ func _build_environment() -> void:
 	grade = PostGrade.new()
 	grade.tint = Color(1.0, 0.99, 1.02)
 	grade.lift = Color(0.004, 0.005, 0.014)
-	grade.saturation = 1.1
+	grade.saturation = 1.3
 	grade.contrast = 1.08
 	grade.aberration = 0.0
 	grade.vignette = 0.55
@@ -278,6 +297,27 @@ func _build_environment() -> void:
 	_sun.light_volumetric_fog_energy = 0.6
 	add_child(_sun)
 	_sun.look_at_from_position(Vector3.ZERO, Vector3(-0.35, -0.55, 0.76), Vector3.UP)
+
+
+## Beauty-shot marks for tests/shots.tscn (--wing=glass). Stateful views (sky reveal, Rose phases,
+## heist) are shot by wings/glass/tests/shots.tscn, which sets those states first.
+func _build_shot_marks() -> void:
+	var root := Node3D.new()
+	root.name = "ShotMarks"
+	add_child(root)
+	for m: Array in [
+			["cloister", Vector3(1.0, 1.7, 15.5), Vector3(14.2, 0.4, 0.0)],
+			["nave", Vector3(0.0, 1.7, -21.0), Vector3(0.0, 4.0, -70.0)],
+			["choir", Vector3(0.0, 4.2, -84.0), Vector3(0.0, 8.0, -110.0)],
+			["crypt", Vector3(-6.0, -6.2, -86.0), Vector3(2.0, -7.6, -100.0)],
+			["tower", Vector3(-17.2, 9.6, -19.0), Vector3(-26.0, 14.0, -26.0)],
+			["rooftops", Vector3(-17.0, 17.6, -55.0), Vector3(-24.3, 18.0, -68.0)],
+			["rose_hall", HALL + Vector3(25.5, 1.7, 0.0), HALL + Vector3(-27.0, 10.0, 0.0)],
+			["east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0)]]:
+		var mk := Marker3D.new()
+		mk.name = m[0]
+		root.add_child(mk)
+		mk.look_at_from_position(m[1], m[2], Vector3.UP)
 
 
 # --- primitives --------------------------------------------------------------------------------
@@ -389,6 +429,10 @@ func _window(id: String, centre: Vector3, size: Vector2, facing: Vector3, tex: S
 	mi.global_transform = Transform3D(Basis.looking_at(-facing, Vector3.UP if absf(facing.y) < 0.9 else Vector3.FORWARD).scaled_local(sc), centre)
 	windows[id] = m
 	return mi
+
+
+func _model_mat(name: String) -> ShaderMaterial:
+	return load("res://wings/glass/materials/%s.tres" % name)
 
 
 func _model(name: String) -> Node3D:
@@ -634,7 +678,7 @@ func _build_cloister() -> void:
 	_block(Vector3(11, 7.2, -11), Vector3(17.5, 7.5, 11), "glass_quarry", false)
 	_block(Vector3(-17.5, 7.2, -11), Vector3(-11, 7.5, 11), "glass_quarry", false)
 	# the garth is a light-well: a column of white falls into it forever
-	var well := _spot(Vector3(0, 40, 0), Vector3(0, -20, 0), Color("fff1d2"), 8.0, 12.0, 70.0)
+	var well := _spot(Vector3(0, 40, 0), Vector3(0, -20, 0), Color("fff1d2"), 16.0, 16.0, 70.0)
 	well.light_volumetric_fog_energy = 4.0
 	# four lancets in the outer walls tell the Kingdom's ordinary days and light the walks
 	_lancet("c1", Vector3(17.45, 4.6, 8.5), 1.9, Vector3(-1, 0, 0), "cloister_1", 0.0, Vector3(13.5, 0, 6.0), 5.0)
@@ -920,11 +964,11 @@ func _build_passage_and_tower() -> void:
 		_light(Vector3(-17.5, -5.8, -80 + k * 8.0), Color("2b54c9") if k % 2 else Color("1a7a5e"), 0.9, 6.0)
 	# tower: x -28..-16, z -30..-18; ten switchback legs, -8 → 16
 	_block(Vector3(-28, -9, -30), Vector3(-16, -8, -18), "glass_floor")
-	_block(Vector3(-28.5, -8, -18), Vector3(-15.5, 19, -17.5), "glass_wall")
-	_block(Vector3(-28.5, -8, -30), Vector3(-28, 19, -18), "glass_wall")
-	_block(Vector3(-16, -8, -29.6), Vector3(-15.5, 19, -18), "glass_wall")
-	_block(Vector3(-28.5, -5, -30.5), Vector3(-16, 16, -30), "glass_wall")
-	_block(Vector3(-28.5, -8, -30.5), Vector3(-19.4, -5, -30), "glass_wall")
+	_block(Vector3(-28.5, -8, -18), Vector3(-15.5, 19, -17.5), "glazed_tower")
+	_block(Vector3(-28.5, -8, -30), Vector3(-28, 19, -18), "glazed_tower")
+	_block(Vector3(-16, -8, -29.6), Vector3(-15.5, 19, -18), "glazed_tower")
+	_block(Vector3(-28.5, -5, -30.5), Vector3(-16, 16, -30), "glazed_tower")
+	_block(Vector3(-28.5, -8, -30.5), Vector3(-19.4, -5, -30), "glazed_tower")
 	_block(Vector3(-28.5, 19, -30.5), Vector3(-15.5, 19.4, -17.5), "glass_quarry", false)
 	_block(Vector3(-28.5, 16, -30.5), Vector3(-21.5, 19, -30), "glass_wall")
 	var y := -8.0
@@ -1320,7 +1364,7 @@ func _apply_progress() -> void:
 	lantern_carried = bool(recall("lantern", false)) and not Quest.is_step_done(&"east", &"lens")
 	if recall("sky", false):
 		sky_mat.set_shader_parameter(&"haze", 0.0)
-		sky_mat.set_shader_parameter(&"reveal", 1.0)
+		_onlooker_mat.set_shader_parameter(&"reveal", 1.0)
 	if Quest.is_step_done(&"east", &"widow"):
 		rose.set_phase(3)
 		_rose_dark(true)
@@ -1411,7 +1455,7 @@ func _reveal_sky() -> void:
 	var t := create_tween()
 	t.tween_interval(2.0)
 	t.tween_method(func(v: float) -> void: sky_mat.set_shader_parameter(&"haze", v), 1.0, 0.0, 3.5).set_trans(Tween.TRANS_SINE)
-	t.tween_method(func(v: float) -> void: sky_mat.set_shader_parameter(&"reveal", v), 0.0, 1.0, 5.0).set_trans(Tween.TRANS_SINE)
+	t.tween_method(func(v: float) -> void: _onlooker_mat.set_shader_parameter(&"reveal", v), 0.0, 1.0, 5.0).set_trans(Tween.TRANS_SINE)
 	t.tween_callback(func() -> void:
 		Game.player.add_trauma(0.25)
 		toast("The sky is one window. Something on the other side of it is looking in.", "The sky, glazed"))
@@ -1680,14 +1724,17 @@ func _look_for(cam: Camera3D) -> void:
 	env.ambient_light_energy = 0.0 if black else AMBIENT
 	env.volumetric_fog_density = 0.004 if black else 0.009
 	sky_mat.set_shader_parameter(&"dark", 0.97 if black else _heist_dark)
+	(_model_mat("glass_wall_uv")).set_shader_parameter(&"dark", 1.0 if black else 0.0)
 	if _rose_pane_mat:
 		_rose_pane_mat.set_shader_parameter(&"rose_t", rose.t)
 	if bool(recall("sky", false)):
 		# it leans over the roof walk, then drifts across the suns and back (period 50 s)
 		var t := Time.get_ticks_msec() / 1000.0 - _reveal_t0
 		var sway := 0.5 - 0.5 * cos(t * TAU / 50.0)
-		var e := Vector3(-0.39, 0.42 + 0.06 * sin(t * TAU / 23.0), -0.92).rotated(Vector3.UP, -0.78 * sway).normalized()
-		sky_mat.set_shader_parameter(&"eye_dir", e)
+		var e := Vector3(-0.39, 0.8 + 0.06 * sin(t * TAU / 23.0), -0.92).rotated(Vector3.UP, -0.78 * sway).normalized()
+		_eye_dir = e
+		_onlooker.visible = not black
+		_onlooker.global_transform = Transform3D(Basis.looking_at(e), c + e * 300.0)
 		# its shadow: when the head passes before the sun, the whole Kingdom dims
 		var sun_dir := _sun.global_basis.z
 		var cover := smoothstep(0.82, 0.97, e.dot(sun_dir.normalized()))

@@ -6,9 +6,8 @@ import os
 D = os.path.join(os.path.dirname(__file__), "..", "materials")
 # name: tint, pane, facet, rough, glow, vary, proj, stagger
 MATS = {
-    "glass_wall":    ("0.05, 0.08, 0.2", "0.9, 1.4", 0.25, 0.08, 0.9, 0.35, 0, 0.5),
-    "glass_floor":   ("0.02, 0.025, 0.05", "1.5, 1.5", 0.06, 0.1, 0.2, 0.25, 0, 0.0),
-    "glass_crypt":   ("0.03, 0.07, 0.08", "1.0, 1.0", 0.2, 0.08, 0.8, 0.4, 0, 0.0),
+    "glass_wall":    ("0.05, 0.08, 0.2", "0.9, 1.4", 0.25, 0.08, 1.15, 0.35, 0, 0.5),
+    "glass_floor":   ("0.03, 0.04, 0.08", "1.5, 1.5", 0.06, 0.1, 0.4, 0.25, 0, 0.0),
     "glass_red":     ("0.3, 0.02, 0.05", "0.6, 0.9", 0.3, 0.06, 0.6, 0.4, 0, 0.5),
     "glass_gold":    ("0.4, 0.2, 0.04", "0.6, 0.9", 0.3, 0.06, 0.6, 0.4, 0, 0.5),
     "glass_quarry":  ("0.06, 0.08, 0.1", "0.55, 0.8", 0.3, 0.08, 0.6, 0.3, 0, 0.5),
@@ -37,10 +36,13 @@ print("wrote", len(MATS))
 # Glazed walls (glazed_wall.gdshader): name: proj, bay, bay_off, lw, tier_a, tier_b
 GLAZED = {
     "glazed_nave":     (0, 5.5, -24.75, 3.2, "0.5, 9.0", "15.6, 9.6"),
-    "glazed_cloister": (0, 3.0, 0.0, 1.6, "0.8, 5.8", "0, 0"),
+    "glazed_cloister": (0, 3.0, 0.0, 2.2, "0.6, 7.4", "0, 0"),
+    "glass_crypt":     (0, 2.6, 0.0, 1.9, "-7.6, 5.2", "0, 0", "0.03, 0.08, 0.09"),
+    "glazed_tower":    (0, 4.0, -24.0, 2.4, "-6.5, 9.5", "5.5, 11.5"),
     "glass_wall_uv":   (1, 4.8, 0.0, 3.0, "0.8, 8.0", "10.8, 11.0"),
 }
-for name, (proj, bay, off, lw, ta, tb) in GLAZED.items():
+ENERGY = {"glazed_cloister": 3.4}  # the cloister has no clerestory: its lancets carry the room
+for name, (proj, bay, off, lw, ta, tb, *tint) in GLAZED.items():
     with open(os.path.join(D, name + ".tres"), "w") as f:
         f.write(f"""[gd_resource type="ShaderMaterial" load_steps=3 format=3]
 
@@ -56,5 +58,6 @@ shader_parameter/bay_off = {off}
 shader_parameter/lw = {lw}
 shader_parameter/tier_a = Vector2({ta})
 shader_parameter/tier_b = Vector2({tb})
-""")
+""" + (f"shader_parameter/tint = Color({tint[0]}, 1)\n" if tint else "")
+            + (f"shader_parameter/energy = {ENERGY[name]}\n" if name in ENERGY else ""))
 print("wrote", len(GLAZED), "glazed")

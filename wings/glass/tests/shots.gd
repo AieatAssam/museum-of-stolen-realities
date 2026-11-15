@@ -24,7 +24,7 @@ const MARKS := [
 	["13_east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0), "lens"],
 	["14_shattered", Vector3(0.0, 4.0, -104.0), Vector3(0.0, 8.0, -122.0), "shatter"],
 	["14b_fourth_sun", Vector3(1.3, 8.1, -121.6), Vector3(0.0, 7.75, -123.3), ""],
-	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 4.0, -150.0), "heist"],
+	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 13.0, -150.0), "heist"],
 ]
 
 var _cam: Camera3D
@@ -214,9 +214,7 @@ func _run() -> void:
 		_cam.global_position = m[1]
 		var aim: Vector3 = m[2]
 		if (m[0] as String).begins_with("09"):  # frame the onlooker wherever it has drifted, rooftops below
-			var e: Vector3 = _w.sky_mat.get_shader_parameter(&"eye_dir")
-			aim = (m[1] as Vector3) + (e.normalized() + Vector3(0, -0.25, 0)) * 30.0
-			print("[shots] onlooker eye=", e, " reveal=", _w.sky_mat.get_shader_parameter(&"reveal"), " haze=", _w.sky_mat.get_shader_parameter(&"haze"))
+			aim = (m[1] as Vector3) + (_w._eye_dir + Vector3(0, -0.12, 0)) * 30.0
 		_cam.look_at(aim, Vector3.UP)
 		_cam.make_current()
 		# the carried lantern rides with the shot camera, as it would with the player's

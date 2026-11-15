@@ -40,7 +40,7 @@ float lancet(vec2 p, float w, float h) {
 
 void fragment() {
 	vec3 an = abs(wnrm);
-	vec2 uv = proj == 1 ? UV : (an.x > an.z ? wpos.zy : wpos.xy);
+	vec2 uv = proj == 1 ? vec2(UV.x, 1.0 - UV.y) : (an.x > an.z ? wpos.zy : wpos.xy);  // glTF flips V
 	vec3 c = tint.rgb * (0.8 + 0.4 * h1(floor(uv / vec2(0.9, 1.4))));
 	vec3 em = c * glow;
 	float rough = 0.08;
@@ -67,7 +67,7 @@ void fragment() {
 				vec2 luv = vec2(q.x / lw + 0.5, 1.0 - q.y / tier.y);
 				vec3 art = texture(atlas, vec2((idx + clamp(luv.x, 0.01, 0.99)) / cols, clamp(luv.y, 0.0, 1.0))).rgb;
 				c = art * 0.1;
-				em = art * energy * (1.0 - dark * 0.9);
+				em = art * energy;
 				rough = 0.1;
 				metal = 0.0;
 			}
@@ -77,5 +77,5 @@ void fragment() {
 	ROUGHNESS = rough;
 	METALLIC = metal;
 	SPECULAR = 0.6;
-	EMISSION = em;
+	EMISSION = em * (1.0 - dark);  // dark = 1: blind glass, lit only by what reaches it
 }

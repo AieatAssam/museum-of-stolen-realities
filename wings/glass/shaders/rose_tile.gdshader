@@ -48,7 +48,7 @@ void fragment() {
 	vec3 lp = tile_c - centre;
 	float idx;
 	float l = lit(lp, idx);
-	vec3 col = PAL[int(idx)];
+	vec3 col = PAL[int(idx)] * PAL[int(idx)] * 1.6;  // deeper, so exposure keeps them jewel-coloured
 	if (length(lp.xz) < r_in) col = vec3(0.6, 0.35, 0.85);
 	float on = 0.0;
 	float glow = 0.0;
@@ -61,7 +61,7 @@ void fragment() {
 		float dp = length((wp - centre).xz - lantern_pos.xz);  // per pixel: a warm pool that falls off
 		on = step(0.5, kind) * step(kind, 1.5) * step(d, lantern_r);
 		glow = on * pow(1.0 - smoothstep(0.0, lantern_r, dp), 1.6) + step(0.5, kind) * step(kind, 1.5) * 0.04;
-		col = vec3(1.0, 0.78, 0.45);
+		col = vec3(1.0, 0.5, 0.18);
 	} else {
 		on = step(0.5, kind);
 		glow = on * 0.55;
@@ -72,7 +72,7 @@ void fragment() {
 	float border = smoothstep(0.86, 0.9, max(q.x, q.y));
 	float diamond = smoothstep(0.03, 0.0, abs(q.x + q.y - 0.95)) * 0.6;
 	float lead = max(border, diamond);
-	vec3 c = col * (0.18 + (phase == 1 ? 1.5 : 1.2) * glow) * (0.85 + 0.3 * rnd);
+	vec3 c = col * (0.18 + (phase == 1 ? 0.35 : 0.3) * glow) * (0.85 + 0.3 * rnd);
 	ALBEDO = mix(c, vec3(0.0), lead) * max(on, 0.05);
 	ALPHA = 1.0;
 }

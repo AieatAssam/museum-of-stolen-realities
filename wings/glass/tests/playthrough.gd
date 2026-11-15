@@ -245,6 +245,7 @@ func _run() -> void:
 	await _secs(1.0)
 	await walk(Vector3(12.6, 9, -52.2))
 	await walk(Vector3(-1.3, 0, -63.2), 12.0)
+	await walk(Vector3(0.6, 0, -64.6), 3.0)  # core's step-up can leave us on the beam's low end: step off its south side
 	check(pos().y > -0.5 and pos().y < 1.0, "walked back down the beam to P2")
 	await use("m2")
 	await use("m2")
