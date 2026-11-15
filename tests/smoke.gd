@@ -183,8 +183,10 @@ func _hardening() -> void:
 		var n := Engine.get_physics_frames() - tick
 		if n == 0:
 			continue
-		# per simulated second (physics ticks), so frame pacing on a loaded machine doesn't skew it
-		var rate := absf(cam.global_position.y - last) * Engine.physics_ticks_per_second / n
+		# over the longer of the frame's real time and its simulated ticks: a slow frame may move
+		# the eye further (its smoothing step is longer), which is not a snap
+		var dt := maxf(get_process_delta_time(), float(n) / Engine.physics_ticks_per_second)
+		var rate := absf(cam.global_position.y - last) / dt
 		worst = maxf(worst, rate)
 		last = cam.global_position.y
 		tick += n

@@ -274,7 +274,7 @@ func _physics_process(delta: float) -> void:
 	# a grounded vertical jump this tick is a step up/down (or floor snap): let the eye catch up
 	var dy := (global_position - pre_pos).dot(up_direction)
 	if on_floor and _was_on_floor and not _teleported and absf(dy) > 0.05 and absf(dy) <= STEP_HEIGHT + 0.1:
-		_step_offset = clampf(_step_offset - dy, -0.5, 0.5)
+		_step_offset = clampf(_step_offset - dy, -1.0, 1.0)  # room for 2-3 quick risers; a tighter clamp snaps the excess
 		head.position.y -= dy  # now, not next _process: no frame shows the body jump uncompensated
 	_teleported = false
 	if on_floor and not _was_on_floor:
