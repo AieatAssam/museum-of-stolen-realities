@@ -33,30 +33,76 @@ func toast(body: String, heading: String = "Addendum to the catalogue") -> void:
 		_next()
 
 
+## Layout limits (in the 1920x1080 canvas; stretch mode scales it to any resolution).
+const TOAST_MAX_W := 880.0     ## body text width cap
+const TOAST_TOP_FRAC := 0.64   ## a card's top never rises above this fraction of the screen
+const TOAST_BOTTOM := 72.0     ## gap to the screen bottom (more while letterbox bars are down)
+const BODY_PX := 27
+
+
 func _next() -> void:
 	if _queue.is_empty():
 		_busy = false
 		return
 	_busy = true
 	var item: Dictionary = _queue.pop_front()
-	_card_head.text = String(item["heading"]).to_upper()
-	_card_body.text = item["body"]
+	while is_reading():  # one card at a time: wait for the reader to close
+		await get_tree().process_frame
+	_layout_card(String(item["heading"]), String(item["body"]))
 	toast_shown.emit(item["body"])
 	Audio.sfx(Audio.stream("placard"), null, -8.0)
 	_card.visible = true
 	_card.modulate.a = 0.0
-	await get_tree().process_frame
-	var rest_y := get_viewport().get_visible_rect().size.y - _card.size.y - 72.0
-	_card.position = Vector2((get_viewport().get_visible_rect().size.x - _card.size.x) * 0.5, rest_y + 24.0)
-	var hold := clampf(2.5 + String(item["body"]).split(" ").size() * 0.32, 4.5, 11.0)
+	await get_tree().process_frame  # let the container settle its size
+	var vs := get_viewport().get_visible_rect().size
+	var rest_y := vs.y - _card.size.y - maxf(TOAST_BOTTOM, Cinematics._bars[0].offset_bottom + 24.0)
+	_card.position = Vector2((vs.x - _card.size.x) * 0.5, rest_y + 24.0)
 	var t := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	t.tween_property(_card, "modulate:a", 1.0, 0.9)
 	t.parallel().tween_property(_card, "position:y", rest_y, 1.2)
-	t.tween_interval(hold)
+	await t.finished
+	# hold; time spent with the reader open doesn't count, and the card hides under it
+	var hold := clampf(2.5 + String(item["body"]).split(" ").size() * 0.32, 4.5, 11.0)
+	if _queue.size() > 1:
+		hold *= 0.7  # a backlog drains faster
+	while hold > 0.0:
+		await get_tree().process_frame
+		_card.visible = not is_reading()
+		if _card.visible:
+			hold -= get_process_delta_time()
+	t = create_tween()
 	t.tween_property(_card, "modulate:a", 0.0, 1.2)
 	await t.finished
 	_card.visible = false
 	_next()
+
+
+## Size the card to its text: one line for short text, wider (to TOAST_MAX_W) for long text, and
+## a smaller face if it would still rise past TOAST_TOP_FRAC.
+func _layout_card(heading: String, body: String) -> void:
+	_card_head.text = heading.to_upper()
+	_card_body.text = body
+	var vs := get_viewport().get_visible_rect().size
+	var max_h := vs.y * (1.0 - TOAST_TOP_FRAC) - TOAST_BOTTOM
+	for px: int in [BODY_PX, 24, 21, 18]:
+		var one_line := Style.ITALIC.get_string_size(body, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+		var lines := ceili(one_line / TOAST_MAX_W)
+		var w := clampf(one_line / lines + px * 2.0, 420.0, TOAST_MAX_W + px * 2.0)
+		_card_body.add_theme_font_size_override(&"font_size", px)
+		_card_body.custom_minimum_size.x = w
+		var est_h := (lines + 1) * px * 1.3 + 15 * 1.4 + 19 + 16 + 48  # body (+1 slack line), head, rule, gaps, margins
+		if est_h <= max_h:
+			break
+	_card.reset_size()
+
+
+## True while a toast card is on screen (tests).
+func toast_visible() -> bool:
+	return _card.visible and _card.modulate.a > 0.01
+
+
+func toast_rect() -> Rect2:
+	return _card.get_rect()
 
 
 func clear() -> void:
@@ -145,6 +191,13 @@ func _input(event: InputEvent) -> void:
 		or (event is InputEventJoypadButton and event.pressed)
 	if close:
 		get_viewport().set_input_as_handled()
-		_reader.visible = false
-		get_tree().paused = false
+		close_reader()
 		Audio.ui(&"back")
+
+
+## Close the reading view (Transitions calls this before a scene change).
+func close_reader() -> void:
+	if not _reader.visible:
+		return
+	_reader.visible = false
+	get_tree().paused = false

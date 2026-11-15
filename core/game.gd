@@ -30,6 +30,8 @@ var _menu: CanvasLayer
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Style.apply_theme()
+	get_tree().auto_accept_quit = false  # window close goes through quit() (clean audio shutdown)
 	get_tree().node_added.connect(_on_node_added)
 	Quest.fragment_collected.connect(func(_w: StringName) -> void: Save.save_game())
 
@@ -48,22 +50,26 @@ func set_state(s: State) -> void:
 
 # --- flow ----------------------------------------------------------------------------
 
-func new_game() -> void:
+## All scene flow below returns true once the player stands in the destination, false if it could
+## not get there (missing/broken scene). Calls made during a transition wait for it to finish and
+## then run (a repeat request for the scene that transition just reached returns true at once).
+func new_game() -> bool:
+	await _idle()
 	Save.new_game()
 	arrival = &""
-	await _go(HUB_SCENE, MUSEUM_PALETTE, MUSEUM_MEDIUM)
+	return await _go(HUB_SCENE, MUSEUM_PALETTE, MUSEUM_MEDIUM)
 
 
-func continue_game() -> void:
+func continue_game() -> bool:
+	await _idle()
 	if not Save.load_game():
-		await new_game()
-		return
+		return await new_game()
 	var cp: Dictionary = Save.data["checkpoint"]
 	var path := String(cp.get("scene", ""))
 	if path == "" or not ResourceLoader.exists(path):
 		path = HUB_SCENE
 	var info := _info_for_scene(path)
-	await _go(path, info.palette if info else MUSEUM_PALETTE, info.portal_medium if info else MUSEUM_MEDIUM)
+	return await _go(path, info.palette if info else MUSEUM_PALETTE, info.portal_medium if info else MUSEUM_MEDIUM)
 
 
 func enter_wing(id: StringName) -> bool:
@@ -71,20 +77,36 @@ func enter_wing(id: StringName) -> bool:
 	if info == null or not info.scene_exists():
 		Placards.toast("This gallery is under restoration. The Curator asks for your patience; it has a great deal of it.", "Gallery closed")
 		return false
+	if await _idle() and _at(info.scene_path):
+		return true
 	arrival = id
 	Save.data["checkpoint"] = {"scene": info.scene_path, "id": ""}
-	await _go(info.scene_path, info.palette, info.portal_medium)
-	return true
+	return await _go(info.scene_path, info.palette, info.portal_medium)
 
 
-func return_to_hub() -> void:
+func return_to_hub() -> bool:
+	if await _idle() and _at(HUB_SCENE):
+		return true  # dedupe: e.g. the exit door firing during finish()'s own return to the hub
 	if wing:
 		arrival = wing.wing_id
 	Save.data["checkpoint"] = {"scene": HUB_SCENE, "id": ""}
-	await _go(HUB_SCENE, MUSEUM_PALETTE, MUSEUM_MEDIUM)
+	return await _go(HUB_SCENE, MUSEUM_PALETTE, MUSEUM_MEDIUM)
+
+
+## Wait out a running transition. Returns true if it had to wait.
+func _idle() -> bool:
+	var waited := Transitions.busy
+	while Transitions.busy:
+		await get_tree().process_frame
+	return waited
+
+
+func _at(path: String) -> bool:
+	return wing != null and wing.scene_file_path == path
 
 
 func quit_to_title() -> void:
+	await _idle()
 	_save_wing_state()
 	Save.save_game()
 	_close_menu()
@@ -96,24 +118,37 @@ func quit_to_title() -> void:
 	set_state(State.TITLE)
 
 
-func _go(path: String, palette: PackedColorArray, medium: int) -> void:
-	if Transitions.busy:
-		return
+func _go(path: String, palette: PackedColorArray, medium: int) -> bool:
+	await _idle()
+	if not ResourceLoader.exists(path):
+		push_error("Game: no scene at %s" % path)
+		return false
 	_close_menu()
+	var old_wing := wing
+	var old_player := player
 	if wing:
 		_save_wing_state()
 		wing.on_exit()
 		wing_left.emit(wing.wing_id)
 	Save.save_game()
+	var old_state := state
 	set_state(State.TRANSITION)
 	if player:
 		player.input_enabled = false
 	player = null
 	wing = null
-	await Transitions.change_scene(path, palette, medium)
+	if not await Transitions.change_scene(path, palette, medium):
+		# broken scene (parse error etc.): stay where we were
+		wing = old_wing
+		player = old_player
+		if is_instance_valid(player):
+			player.input_enabled = true
+		set_state(old_state)
+		return false
 	# register_wing runs (deferred) as the scene enters the tree; wait for it.
-	while wing == null and is_inside_tree():
+	while wing == null and get_tree().current_scene is Wing:
 		await get_tree().process_frame
+	return wing != null and wing.scene_file_path == path
 
 
 func _info_for_scene(path: String) -> WingInfo:
@@ -194,17 +229,23 @@ func respawn() -> void:
 	if _respawning or wing == null or player == null:
 		return
 	_respawning = true
-	player.input_enabled = false
+	var w := wing
+	var p := player
+	p.input_enabled = false
 	await Post.fade_to(1.0, 0.5)
-	var cp := wing.find_checkpoint(checkpoint_id)
+	if wing != w or player != p or not is_instance_valid(p):
+		_respawning = false  # the scene changed under us; Transitions resets the fade
+		return
+	var cp := w.find_checkpoint(checkpoint_id)
 	if cp == null:
-		cp = wing.find_checkpoint(wing.spawn_checkpoint)
-	player.set_mode(wing.start_mode)
-	player.teleport(cp.global_transform if cp else Transform3D.IDENTITY)
-	player.gravity_vector = wing.gravity
+		cp = w.find_checkpoint(w.spawn_checkpoint)
+	p.set_mode(w.start_mode)
+	p.teleport(cp.global_transform if cp else Transform3D.IDENTITY)
+	p.gravity_vector = w.gravity
 	await get_tree().create_timer(0.25).timeout
-	player.input_enabled = true
-	await Post.fade_to(0.0, 0.8)
+	if player == p and is_instance_valid(p):
+		p.input_enabled = true
+		await Post.fade_to(0.0, 0.8)
 	_respawning = false
 
 
@@ -281,15 +322,32 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and state == State.PLAYING and OS.has_feature("release"):
 		open_menu(&"pause")
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit()
+
+
+## Quit cleanly. Use this instead of get_tree().quit(): stopping every audio player and letting
+## the mixer drop its playbacks first is what avoids "ObjectDB instances leaked" /
+## "resources still in use" (AudioStreamPlayback*, OggPacketSequence*) at exit.
+func quit(exit_code: int = 0) -> void:
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n is AudioStreamPlayer or n is AudioStreamPlayer3D or n is AudioStreamPlayer2D:
+			n.stop()
+	await get_tree().create_timer(0.15, true, false, true).timeout
+	get_tree().quit(exit_code)
 
 
 # --- debug API (tests, console) -------------------------------------------------------------
 
-func debug_goto(id: StringName) -> void:
+## Go to a wing (or &"atrium"). Waits out a running transition instead of dropping the request;
+## returns true when the player is standing in `id`.
+func debug_goto(id: StringName) -> bool:
+	var ok: bool
 	if id == HUB_ID:
-		await return_to_hub()
+		ok = await return_to_hub()
 	else:
-		await enter_wing(id)
+		ok = await enter_wing(id)
+	return ok and wing != null and wing.wing_id == id
 
 
 func debug_complete_objective(wing_id: StringName, objective_id: StringName) -> void:

@@ -18,6 +18,18 @@ static var ITALIC: FontFile = preload("res://assets/fonts/CrimsonPro-Italic.ttf"
 static var CATALOG: FontFile = preload("res://assets/fonts/ArsenalSC-Regular.ttf")
 
 
+## Install the fonts into the project theme (ui/theme.tres holds colours/boxes only; see its header).
+static func apply_theme() -> void:
+	var th := ThemeDB.get_project_theme()
+	if th == null:
+		return
+	th.default_font = BODY
+	for type: StringName in [&"Label", &"CheckButton", &"OptionButton", &"PopupMenu"]:
+		th.set_font(&"font", type, BODY)
+	th.set_font(&"normal_font", &"RichTextLabel", BODY)
+	th.set_font(&"font", &"Button", spaced(CATALOG, 3))
+
+
 ## A letter-spaced catalogue font variation (small caps labels).
 static func spaced(base: Font, spacing: int) -> FontVariation:
 	var v := FontVariation.new()

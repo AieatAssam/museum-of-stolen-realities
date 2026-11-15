@@ -57,6 +57,7 @@ func on_enter(first_time: bool) -> void:
 	_build_float_zone()
 	_build_exit()
 	_build_fragment()
+	_build_stairs()
 	$Placard.set_text("—", "The Conservation Studio", "Staff only  ·  Acq. No. 000-T",
 		"Every rule of a gallery, in miniature. Light the lamps, cross the gap, wind the clock. Visits recorded: %d." % int(recall("visits", 1)), false)
 	if first_time:
@@ -158,6 +159,26 @@ func _build_float_zone() -> void:
 		if p.mode_name() == &"float":
 			p.set_mode(&"walk"))
 	add_child(zone)
+
+
+## Ordinary stairs, no ramp needed: four 0.18 m risers, a half landing, three 0.35 m risers
+## (0.3 m treads), top landing. The player's step-up climbs risers up to Player.STEP_HEIGHT.
+func _build_stairs() -> void:
+	var stairs := Node3D.new()
+	stairs.name = "Stairs"
+	add_child(stairs)
+	var z := 1.0
+	var y := 0.0
+	for rise_depth: Vector2 in [Vector2(0.18, 0.3), Vector2(0.18, 0.3), Vector2(0.18, 0.3), Vector2(0.18, 0.8),
+			Vector2(0.35, 0.3), Vector2(0.35, 0.3), Vector2(0.35, 1.6)]:
+		y += rise_depth.x
+		var b := CSGBox3D.new()
+		b.use_collision = true
+		b.size = Vector3(2.0, y, rise_depth.y)
+		b.position = Vector3(2.5, y * 0.5, z - rise_depth.y * 0.5)
+		b.material = $Geometry/FloorA.material
+		stairs.add_child(b)
+		z -= rise_depth.y
 
 
 func _build_exit() -> void:

@@ -28,8 +28,16 @@ func _ready() -> void:
 	add_child(_rect)
 
 
-func change_scene(path: String, palette: PackedColorArray, medium: int, on_swapped: Callable = Callable()) -> void:
+## Returns false (and stays in the current scene) if `path` fails to load. A call made while
+## another transition runs waits for it rather than being dropped.
+## Teardown of the outgoing scene's presentation (cinematic, placard reader, 3D fade) happens here,
+## before the swap: the incoming wing's on_enter may start its own straight away.
+func change_scene(path: String, palette: PackedColorArray, medium: int, on_swapped: Callable = Callable()) -> bool:
+	while busy:
+		await get_tree().process_frame
 	busy = true
+	Cinematics.abort()
+	Placards.close_reader()
 	var snap := _snapshot()
 	var vs := get_viewport().get_visible_rect().size
 	_mat.set_shader_parameter("aspect", Vector2(vs.x / vs.y, 1.0))
@@ -41,6 +49,10 @@ func change_scene(path: String, palette: PackedColorArray, medium: int, on_swapp
 	_mat.set_shader_parameter("progress", 0.0)
 	_rect.visible = true
 	Audio.sfx(Audio.stream("transition"), null, -3.0)
+	# Engine-side: any off-main-thread load in 4.7.2 leaves 2-3 ResourceLoader LoadTokens alive at
+	# exit (shown as "Leaked instance: RefCounted ... Reference count: 0"; a main-thread load() does
+	# not). Kept, because a frozen frame while a big wing loads is worse. run_smoke.sh tolerates
+	# exactly that signature and nothing else.
 	ResourceLoader.load_threaded_request(path, "PackedScene", true)
 	var t := create_tween()
 	t.tween_method(func(v: float) -> void: _mat.set_shader_parameter("progress", v), 0.0, 1.0, BLEED_TIME).set_trans(Tween.TRANS_SINE)
@@ -52,8 +64,9 @@ func change_scene(path: String, palette: PackedColorArray, medium: int, on_swapp
 		push_error("Transitions: failed to load %s" % path)
 		_rect.visible = false
 		busy = false
-		return
+		return false
 	get_tree().paused = false
+	Post.fade_to(0.0, 0.0)  # an aborted intro may have left the view inked; the new scene starts clear
 	get_tree().change_scene_to_packed(packed)
 	await get_tree().scene_changed
 	if on_swapped.is_valid():
@@ -68,6 +81,7 @@ func change_scene(path: String, palette: PackedColorArray, medium: int, on_swapp
 	await r.finished
 	_rect.visible = false
 	busy = false
+	return true
 
 
 func _snapshot() -> Texture2D:

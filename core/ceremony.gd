@@ -26,6 +26,7 @@ static func provenance(node: Node3D, id: StringName) -> void:
 		if StringName(p["id"]) == id:
 			entry = p
 	var short := _total_provenances() >= 3
+	Quest.find_provenance(id)  # record first: if `node` is freed mid-animation its tween never finishes
 	Audio.duck(-12.0, 0.2)
 	Audio.sfx(Audio.stream("provenance"), node.global_position, 0.0, 0.6)
 	var p := Game.player
@@ -41,13 +42,13 @@ static func provenance(node: Node3D, id: StringName) -> void:
 		t.tween_interval(0.4 if short else 1.0)
 		t.tween_property(node, "scale", Vector3.ONE * 0.001, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 		await t.finished
-	Quest.find_provenance(id)
 	if not entry.is_empty():
 		Placards.toast(String(entry["line"]), String(entry["name"]))
 
 
 static func fragment(node: Node3D) -> void:
 	var p := Game.player
+	Quest.collect_fragment()  # record first (see provenance)
 	if p:
 		p.input_enabled = false
 	Audio.reveal(Audio.stream("fragment"), 2.0)  # runs alongside; its 2 s silence ends as the rise peaks
@@ -61,10 +62,9 @@ static func fragment(node: Node3D) -> void:
 		t.tween_property(node, "position:y", node.position.y + 0.6, 2.0).set_trans(Tween.TRANS_SINE)
 		t.parallel().tween_property(light, "light_energy", 6.0, 2.0)
 		t.tween_callback(func() -> void:
-			if p:
+			if is_instance_valid(p):
 				p.add_trauma(0.25))
 		t.tween_property(node, "scale", Vector3.ONE * 0.001, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 		await t.finished
-	Quest.collect_fragment()
-	if p and is_instance_valid(p):
+	if is_instance_valid(p):
 		p.input_enabled = true

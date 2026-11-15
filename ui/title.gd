@@ -125,7 +125,7 @@ func _build_menu() -> void:
 		first = _btn("Continue", func() -> void: Game.continue_game())
 	var ng := _btn("New Game", func() -> void: Game.new_game())
 	_btn("Settings", _show_settings)
-	_btn("Quit", func() -> void: get_tree().quit())
+	_btn("Quit", func() -> void: Game.quit())
 	(first if first else ng).grab_focus.call_deferred()
 
 

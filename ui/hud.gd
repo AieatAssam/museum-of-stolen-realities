@@ -36,8 +36,9 @@ func _ready() -> void:
 	_dot = Control.new()
 	_dot.set_anchors_preset(Control.PRESET_CENTER)
 	_dot.draw.connect(func() -> void:
-		var a := 0.9 if Interaction.target else 0.35
-		var r := 3.2 if Interaction.target else 1.8
+		var on := is_instance_valid(Interaction.target)
+		var a := 0.9 if on else 0.35
+		var r := 3.2 if on else 1.8
 		_dot.draw_circle(Vector2.ZERO, r, Color(Style.IVORY, a), true, -1.0, true)
 		if Interaction.hold_progress > 0.0:
 			_dot.draw_arc(Vector2.ZERO, 16, -PI / 2, -PI / 2 + TAU * Interaction.hold_progress, 48, Style.GOLD, 2.0, true))
@@ -97,12 +98,12 @@ func _refresh(wake: bool) -> void:
 
 
 func _process(delta: float) -> void:
-	var playing := Game.state == Game.State.PLAYING and not Cinematics.playing
+	var playing := Game.state == Game.State.PLAYING and not Cinematics.playing and not Placards.is_reading()
 	visible = Game.state != Game.State.TITLE
 	_idle += delta
 	var show_obj := playing and (_idle < 9.0 or Input.is_action_pressed(&"journal")) and _obj_title.text != ""
 	_obj_box.modulate.a = lerpf(_obj_box.modulate.a, 1.0 if show_obj else 0.0, 1.0 - exp(-3.0 * delta))
-	var t := Interaction.target
+	var t := Interaction.target if is_instance_valid(Interaction.target) else null
 	if t:
 		_prompt_text.text = t.prompt.to_upper() + ("  (HOLD)" if t.hold_time > 0.0 else "")
 	_prompt.modulate.a = lerpf(_prompt.modulate.a, 1.0 if (t and playing) else 0.0, 1.0 - exp(-10.0 * delta))

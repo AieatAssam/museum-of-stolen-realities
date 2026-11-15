@@ -7,6 +7,12 @@ extends CanvasLayer
 ##   {"call": Callable, "always": true} always = still runs when skipped (state setup)
 ## Hold jump/interact/pause for 1.2 s to skip. Letterbox bars slide in for the duration.
 ## Camera transforms can come from Marker3D nodes: `Cinematics.marks([$A, $B])`.
+##
+## Lifetime: a cinematic belongs to the scene that started it. Any scene change (Transitions, or
+## the scene leaving the tree) calls `abort()`: remaining steps are dropped (even "always" ones),
+## a `call` step that is still awaiting is abandoned, tweens are killed, the cinematic camera is
+## dropped, the previous camera restored, bars and skip label cleared, and `play()` returns true.
+## A second `play()` while one runs waits for it to end (and returns at once if its scene is gone).
 
 signal finished(skipped: bool)
 
@@ -14,6 +20,10 @@ const SKIP_HOLD := 1.2
 
 var playing: bool = false
 var skipped: bool = false
+var _aborted: bool = false
+var _scene: Node
+var _bar_tween: Tween
+var _card_tween: Tween
 var _skip_t: float = 0.0
 var _bars: Array[ColorRect] = []
 var _card_box: VBoxContainer
@@ -78,8 +88,21 @@ func _set_bars(frac: float) -> void:
 	_bars[1].offset_top = -h
 
 
+## Slide the bars in/out. One tween at a time: a fast on->off must not let the "on" finish last.
 func letterbox(on: bool, seconds: float = 1.2) -> void:
-	create_tween().tween_method(_set_bars, _bars[0].offset_bottom / 1080.0, 0.11 if on else 0.0, seconds).set_trans(Tween.TRANS_SINE)
+	if _bar_tween:
+		_bar_tween.kill()
+	_bar_tween = null
+	if seconds <= 0.0:
+		_set_bars(0.11 if on else 0.0)
+		return
+	_bar_tween = create_tween()
+	_bar_tween.tween_method(_set_bars, _bars[0].offset_bottom / 1080.0, 0.11 if on else 0.0, seconds).set_trans(Tween.TRANS_SINE)
+
+
+## True while any letterbox bar or the skip label is visible (tests assert this clears).
+func overlay_visible() -> bool:
+	return _bars[0].offset_bottom > 0.5 or _skip_label.modulate.a > 0.01 or _card_box.modulate.a > 0.01
 
 
 static func marks(nodes: Array) -> Array[Transform3D]:
@@ -90,14 +113,26 @@ static func marks(nodes: Array) -> Array[Transform3D]:
 
 
 func play(steps: Array) -> bool:
+	var scene := get_tree().current_scene
+	while playing:
+		await finished
+	if get_tree().current_scene != scene or not is_instance_valid(scene):
+		return true  # queued behind a cinematic whose scene was torn down; ours is gone too
 	playing = true
 	skipped = false
+	_aborted = false
 	_skip_t = 0.0
+	_scene = scene
+	if _scene and not _scene.tree_exiting.is_connected(abort):
+		_scene.tree_exiting.connect(abort, CONNECT_ONE_SHOT)
+	_prev_cam = get_viewport().get_camera_3d()
 	letterbox(true)
 	if Game.player:
 		Game.player.input_enabled = false
 		Game.player.look_enabled = false
 	for s: Dictionary in steps:
+		if _aborted:
+			break
 		if skipped and not s.get("always", false):
 			continue
 		if s.has("card"):
@@ -114,24 +149,66 @@ func play(steps: Array) -> bool:
 			else:
 				await Post.fade_to(float(s["fade"]), float(s.get("t", 1.0)))
 		elif s.has("call"):
-			await (s["call"] as Callable).call()
+			var c: Callable = s["call"]
+			if c.is_valid():
+				await _call(c)
+			else:
+				push_warning("Cinematics: skipped call step on a freed object (%s)" % c.get_method())
 	_end()
 	return skipped
 
 
-func _end() -> void:
+## Stop now: the scene is changing. Safe to call any time; no-op when nothing plays.
+func abort() -> void:
+	if not playing or _aborted:
+		return
+	_aborted = true
+	skipped = true
+	_kill_cam()
+
+
+## Run a step's callable, but stop waiting for it if we abort (its object may be freed mid-await,
+## which would otherwise leave play() suspended forever with the bars down).
+func _call(c: Callable) -> void:
+	var st := {"done": false}
+	_call_into(c, st)
+	while not st["done"] and not _aborted:
+		await get_tree().process_frame
+
+
+func _call_into(c: Callable, st: Dictionary) -> void:
+	await c.call()
+	st["done"] = true
+
+
+func _kill_cam() -> void:
 	if _cam_tween:
 		_cam_tween.kill()
-	if _cam:
+	_cam_tween = null
+	if is_instance_valid(_cam):
 		_cam.queue_free()
-		_cam = null
-	if Game.player:
-		Game.player.camera.make_current()
-		Game.player.input_enabled = true
-		Game.player.look_enabled = true
+	_cam = null
+
+
+func _end() -> void:
+	_kill_cam()
+	var p := Game.player
+	if not _aborted and is_instance_valid(p) and p.is_inside_tree():
+		p.camera.make_current()
+		p.input_enabled = true
+		p.look_enabled = true
+	elif is_instance_valid(_prev_cam) and _prev_cam.is_inside_tree() and not _prev_cam.is_queued_for_deletion():
+		_prev_cam.make_current()
+	_prev_cam = null
+	if is_instance_valid(_scene) and _scene.tree_exiting.is_connected(abort):
+		_scene.tree_exiting.disconnect(abort)
+	_scene = null
+	if _card_tween:
+		_card_tween.kill()
 	_card_box.modulate.a = 0.0
 	_skip_label.modulate.a = 0.0
-	letterbox(false)
+	_skip_t = 0.0
+	letterbox(false, 0.0 if _aborted else 1.2)
 	playing = false
 	finished.emit(skipped)
 
@@ -157,32 +234,34 @@ func _card(s: Dictionary) -> void:
 			_card_main.add_theme_font_override(&"font", Style.LIGHT)
 			_card_main.add_theme_font_size_override(&"font_size", 54)
 	var t := float(s.get("t", 5.0))
-	var tw := create_tween()
-	tw.tween_property(_card_box, "modulate:a", 1.0, minf(1.4, t * 0.3))
+	if _card_tween:
+		_card_tween.kill()
+	_card_tween = create_tween()
+	_card_tween.tween_property(_card_box, "modulate:a", 1.0, minf(1.4, t * 0.3))
 	await _wait(t - 1.2)
-	tw.kill()
-	var out := create_tween()
-	out.tween_property(_card_box, "modulate:a", 0.0, 0.25 if skipped else 1.2)
+	_card_tween.kill()
+	_card_tween = create_tween()
+	_card_tween.tween_property(_card_box, "modulate:a", 0.0, 0.25 if skipped else 1.2)
 	await _wait(1.2)
 
 
 func _camera(s: Dictionary) -> void:
 	var path: Array = s["cam"]
-	if path.is_empty() or get_tree().current_scene == null:
+	if path.is_empty() or _scene == null or _aborted:
 		return
-	if not is_instance_valid(_cam):
+	if _cam == null:
 		_cam = Camera3D.new()
 		_cam.name = "CinematicCamera"
 		_cam.far = 800.0
-		get_tree().current_scene.add_child(_cam)
+		_scene.add_child(_cam)  # freed with the scene; abort() drops our ref before that happens
 	_cam.fov = float(s.get("fov", 60.0))
 	_cam.make_current()
 	_cam.global_transform = path[0]
 	if _cam_tween:
 		_cam_tween.kill()
+	var cam := _cam
 	_cam_tween = create_tween()
-	_cam_tween.tween_method(func(u: float) -> void:
-		if is_instance_valid(_cam): _cam.global_transform = _sample(path, u),
+	_cam_tween.tween_method(func(u: float) -> void: cam.global_transform = _sample(path, u),
 		0.0, 1.0, float(s["t"])).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
@@ -214,6 +293,8 @@ func _process(delta: float) -> void:
 
 
 func skip() -> void:
+	if not playing:
+		return
 	skipped = true
 	if _cam_tween:
 		_cam_tween.custom_step(9999.0)

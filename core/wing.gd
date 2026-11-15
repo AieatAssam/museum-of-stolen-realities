@@ -132,7 +132,8 @@ func finish() -> void:
 	var f := fragment()
 	toast(String(f.get("line", "A fragment of Exhibit 0 has been recovered.")), String(f.get("name", "Fragment")))
 	await get_tree().create_timer(3.0).timeout
-	exit_to_hub()
+	if Game.wing == self and not Transitions.busy:  # the player may already have left by a door
+		exit_to_hub()
 
 
 func exit_to_hub() -> void:

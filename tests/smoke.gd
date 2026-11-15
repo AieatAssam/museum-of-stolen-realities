@@ -164,7 +164,7 @@ func _run() -> void:
 
 	print("[smoke] done in %.1fs, %d failure(s)" % [(Time.get_ticks_msec() - t0) / 1000.0, _fails])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://smoke_save.json"))
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
 
 
 func _tap(action: StringName) -> void:
