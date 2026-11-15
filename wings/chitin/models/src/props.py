@@ -180,14 +180,14 @@ def _cocoon(name, L, rmax, bend, lumpy, turns, seed):
         r = rad(t, th) + off
         return cen(t) + Vector((r * math.cos(th), r * math.sin(th), 0.0))
 
-    NT, N = 20, 16
+    NT, N = 18, 16
     rings = [[pt(0.03 + 0.94 * i / NT, 2 * math.pi * k / N) for k in range(N)] for i in range(NT + 1)]
     parts = [loops(name + "_body", rings, "silk", cap=True)]
-    for k in range(6):  # heavy spiral bands wrapped round the body
-        th0 = k * math.pi / 3
-        M = 48
+    for k in range(4):  # spiral silk strands wrapped round the body, four of them, each a rounded cord
+        th0 = k * math.pi / 2
+        M = 40
         pts = [pt(0.04 + 0.92 * m / (M - 1), th0 + 2 * math.pi * turns * m / (M - 1), 0.008) for m in range(M)]
-        parts.append(S.snake("%s_band%d" % (name, k), pts, 0.011, "silk", seed + k, sides=5, wobble=0.0, steps=1, caps=False))
+        parts.append(S.snake("%s_band%d" % (name, k), pts, 0.011, "silk", seed + k, sides=4, wobble=0.0, steps=1, caps=False))
     rf = random.Random(seed)
     for k in range(7):  # loose fibres pulled off the body, drooping
         t = 0.2 + 0.1 * k
@@ -209,6 +209,9 @@ def _cocoon(name, L, rmax, bend, lumpy, turns, seed):
                                                          Vector((0.05 * math.cos(a + 1), 0.05 * math.sin(a + 1), zb - 0.2))],
                              0.004, "silk", seed + 9 + k, sides=4, wobble=0.1, taper=(1, 0.2), steps=2))
     parts.append(kit.tube(name + "_thread", [(0, 0, 0.0), (0.008, 0, -0.35), (-0.008, 0, -0.7), (0, 0, z0)], 0.008, sides=5, mat="silk"))
+    # a silk collar where the thread meets the cocoon neck
+    ring = [Vector((0.075 * math.cos(2 * math.pi * k / 10), 0.075 * math.sin(2 * math.pi * k / 10), z0 + 0.03)) for k in range(11)]
+    parts.append(S.snake(name + "_collar", ring, 0.009, "silk", seed, sides=4, wobble=0.0, steps=1, caps=False))
     return kit.join(name, parts)
 
 
@@ -427,20 +430,64 @@ def _hull(name, pts, mat, smooth, rnd):
 
 
 def _shard_pts(scale, rnd):
-    pts = [Vector((0, 0, 0.35 * scale))]
-    for z, rx, ry, n, rot in ((0.16, 0.13, 0.11, 9, 0.2), (-0.05, 0.25, 0.15, 11, 0.0), (-0.32, 0.17, 0.12, 8, 0.4)):
+    """Hull points of a faceted amber shard: a broken crown, a wide girdle, a blunt foot."""
+    pts = [Vector((0, 0, 0.29 * scale))]
+    for z, s, n in ((0.16, 0.6, 9), (0.02, 1.0, 13), (-0.11, 0.9, 12), (-0.23, 0.5, 8)):
         for k in range(n):
-            a = 2 * math.pi * k / n + rot + rnd.uniform(-0.2, 0.2)
-            rr = rnd.uniform(0.75, 1.12)
-            pts.append(Vector((rx * rr * math.cos(a) * scale, ry * rr * math.sin(a) * scale, z * scale)))
+            a = 2 * math.pi * k / n + rnd.uniform(-0.15, 0.15)
+            rr = s * rnd.uniform(0.85, 1.0)
+            pts.append(Vector((0.2 * rr * math.cos(a) * scale, 0.12 * rr * math.sin(a) * scale, z * scale)))
+    pts.append(Vector((0.02 * scale, 0.0, -0.28 * scale)))
     return pts
+
+
+def _inclusion(seed):
+    """A smaller carapace insect trapped in the amber: abdomen, thorax, head, ink eyes, antennae, six legs."""
+    parts = [S.blob("inc_abd", (0.068, 0.045, 0.038), (-0.035, 0, -0.008), "carapace", seed, lump=0.02, subdiv=2),
+             S.blob("inc_thx", (0.046, 0.038, 0.038), (0.012, 0, 0.0), "carapace", seed + 1, lump=0.02, subdiv=2),
+             S.blob("inc_head", (0.028, 0.028, 0.024), (0.052, 0, 0.004), "carapace", seed + 2, lump=0.0, subdiv=2)]
+    for s in (-1, 1):
+        parts.append(S.blob("inc_eye%d" % s, (0.009, 0.009, 0.009), (0.066, 0.016 * s, 0.01), "ink", seed + 3, lump=0.0, subdiv=1))
+        parts.append(S.snake("inc_ant%d" % s, [Vector((0.064, 0.012 * s, 0.006)), Vector((0.09, 0.04 * s, 0.03)),
+                                               Vector((0.105, 0.06 * s, 0.02))], 0.0035, "carapace_dull", seed + 4, sides=4,
+                             wobble=0.0, taper=(1, 0.4), steps=2))
+        for k, x in enumerate((-0.03, 0.0, 0.03)):
+            parts.append(S.snake("inc_leg%d%d" % (s, k), [Vector((x, 0.02 * s, -0.012)), Vector((x + 0.01, 0.055 * s, -0.05)),
+                                                           Vector((x - 0.004, 0.075 * s, -0.07))], 0.0055, "carapace_dull",
+                                 seed + 5 + k, sides=4, wobble=0.0, taper=(1, 0.5), steps=2))
+    return parts
+
+
+def _cradle(seed):
+    """Brass filigree held round the shard: two elliptical girdle bands, four bowed prongs curling over the
+    crown, a brass finial and small scroll curls at each foot."""
+    parts = []
+    for z in (-0.13, 0.1):
+        ob = kit.torus("frag_band", major=0.215, minor=0.011, seg=48, rseg=6, mat="brass", loc=(0, 0, z))
+        ob.scale = (1.0, 0.6, 1.0)
+        parts.append(ob)
+    for k in range(4):
+        a = k * math.pi / 2 + 0.4
+        ca, sa = math.cos(a), math.sin(a)
+        pts = [Vector((0.215 * f * ca, 0.13 * f * sa, z)) for z, f in ((-0.2, 1.0), (-0.08, 1.06), (0.05, 1.1), (0.16, 1.03))]
+        pts += [Vector((0.15 * ca, 0.09 * sa, 0.26)), Vector((0.08 * ca, 0.05 * sa, 0.27))]
+        parts.append(S.snake("frag_prong%d" % k, pts, 0.011, "brass", seed + k, sides=6, wobble=0.0, taper=(1.0, 0.7), steps=3))
+        cx, cy, cz = 0.25 * ca, 0.15 * sa, -0.26
+        spiral = []
+        for m in range(12):
+            t = m / 11
+            th = 3 * math.pi * t
+            r = 0.03 * (1 - 0.5 * t)
+            spiral.append(Vector((cx + r * math.cos(th) * ca, cy + r * math.cos(th) * sa, cz + r * math.sin(th))))
+        parts.append(S.snake("frag_scroll%d" % k, spiral, 0.0045, "brass", seed + 10 + k, sides=4, wobble=0.0, steps=1))
+    parts.append(S.blob("frag_finial", (0.04, 0.04, 0.035), (0, 0, 0.31), "brass", seed, lump=0.0, subdiv=2))
+    return parts
 
 
 def B_fragment():
     rnd = random.Random(19)
-    shard = _hull("fragment", _shard_pts(1.0, rnd), "amber", 45.0, rnd)
-    core = _hull("fragment_core", _shard_pts(0.5, rnd), "carapace", 45.0, rnd)
-    return kit.join("fragment", [shard, core])
+    shard = _hull("fragment", _shard_pts(1.0, rnd), "amber", 22.0, rnd)
+    return kit.join("fragment", [shard] + _inclusion(23) + _cradle(31))
 
 
 # --- 12. honey_drip --------------------------------------------------------------------------------
