@@ -103,6 +103,12 @@ func find_provenance(prov_id: StringName) -> void:
 		return
 	list.append(String(prov_id))
 	all[String(wing_id)] = list
+	for p in provenances:  # name and line travel with it: the hub labels its vitrine from these
+		if StringName(p["id"]) == prov_id:
+			var info: Dictionary = Save.data["provenance_info"]
+			var w: Dictionary = info.get(String(wing_id), {})
+			w[String(prov_id)] = {"name": String(p.get("name", "")), "line": String(p.get("line", ""))}
+			info[String(wing_id)] = w
 	Save.save_game()
 	provenance_found.emit(wing_id, prov_id)
 

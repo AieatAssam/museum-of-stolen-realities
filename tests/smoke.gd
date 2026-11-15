@@ -97,6 +97,8 @@ func run() -> void:
 	await seconds(1.0)
 	await until(func() -> bool: return not Cinematics.playing, 30.0)
 	hub = Game.wing
+	if not check(hub != null and hub.wing_id == Game.HUB_ID, "back in the atrium for the finale"):
+		return
 	check(hub.call("finale_available"), "finale available after six fragments")
 	for choice: StringName in [&"restore", &"break"]:
 		print("[smoke] finale ", choice)
@@ -118,13 +120,14 @@ func run() -> void:
 			Save.load_game()
 			Save.data["ending"] = ""
 			Save.save_game()
+			print("[smoke] continue from checkpoint ", Save.data["checkpoint"])
 			await Game.continue_game()
-			await until(func() -> bool: return Game.wing != null, 20.0)
+			await until(func() -> bool: return Game.wing != null and Game.wing.wing_id == Game.HUB_ID, 20.0)
 			await seconds(1.0)
 			await until(func() -> bool: return not Cinematics.playing, 30.0)
 			hub = Game.wing
-			check(hub != null, "continue after an ending reloads the atrium")
-			if hub == null:
+			if not check(hub != null and hub.wing_id == Game.HUB_ID and hub.has_method(&"start_finale"),
+					"continue after an ending reloads the atrium (got %s)" % (hub.wing_id if hub else &"none")):
 				break
 
 
