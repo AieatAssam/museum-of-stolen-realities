@@ -68,19 +68,28 @@ func aim(point: Vector3) -> void:
 	mm.relative = Vector2(-ey / s, -ep / s * inv)
 	mm.screen_relative = mm.relative
 	Input.parse_input_event(mm)
-	await frames(2)
+	await _handled()
 
 
-## Press and release in one go (the release lands next frame); does not wait.
+## Press, wait until the game has seen it, release.
 func press(action: StringName) -> void:
 	var ev := InputEventAction.new()
 	ev.action = action
 	ev.pressed = true
 	Input.parse_input_event(ev)
+	await _handled()
 	var up := InputEventAction.new()
 	up.action = action
 	up.pressed = false
-	Input.parse_input_event.call_deferred(up)
+	Input.parse_input_event(up)
+
+
+## Input is handled once per idle frame, and under load several physics ticks run per idle frame:
+## counting physics ticks alone does not prove an event has been seen. Wait for an idle frame, then
+## one physics tick for it to act.
+func _handled() -> void:
+	await get_tree().process_frame
+	await frames(1)
 
 
 ## Aim at an anchor and press `verb` once the cone has picked it.
@@ -93,7 +102,7 @@ func aim_and(node: Node3D, verb: StringName, what: String) -> bool:
 		var t: Node3D = silk.get("target")
 		print("    aim miss: at %s v %s, wanted %s, target %s, state %d" % [Game.player.global_position, Game.player.velocity, node.global_position if node else null, t.global_position if t else null, silk.get("state")])
 		return false
-	press(verb)
+	await press(verb)
 	await frames(3)
 	return true
 
@@ -144,7 +153,7 @@ func swing_chain(anchors: Array, fwd: Vector3, land_y: float, what: String) -> b
 				break
 			await frames(1)
 		if silk.get("state") == SilkMode.ROPE:
-			press(&"primary")
+			await press(&"primary")
 			await frames(1)
 		if k < anchors.size() - 1:
 			await frames(10)
@@ -197,7 +206,7 @@ func pluck_at(point: Vector3, what: String) -> bool:
 	var cb := func(st: Node) -> void: got.append(st)
 	silk.connect(&"plucked", cb)
 	await aim(point)
-	press(&"secondary")
+	await press(&"secondary")
 	await frames(3)
 	silk.disconnect(&"plucked", cb)
 	return check(not got.is_empty(), "pluck: " + what)
@@ -241,7 +250,7 @@ func _districts() -> void:
 		if g % 12 == 0 and OS.has_environment("CHITIN_DEBUG"):
 			print("      perch t%d st %d pos %s v %s" % [g, silk.get("state"), Game.player.global_position, Game.player.velocity])
 		if silk.get("state") == SilkMode.ROPE and ticks_to_apex(Vector3.RIGHT) in [0, 1] and Game.player.global_position.x > 72.0:
-			press(&"primary")
+			await press(&"primary")
 		await frames(1)
 	check(Game.player.global_position.y > -0.5, "up on the high perch (mantles %d)" % silk.get("mantles"))
 	await walk_to(Vector3(77.5, 0, -8), 10.0, 0.5)
@@ -387,7 +396,7 @@ func _ride(k: int, over: Vector3, what: String) -> void:
 	await until(func() -> bool: return bool(w.call("lift_done", k)), 25.0, what + " reaches the top of its run")
 	await frames(30)
 	if silk.get("state") == SilkMode.ROPE:
-		press(&"primary")
+		await press(&"primary")
 	await until(func() -> bool: return silk.get("state") == SilkMode.GROUND, 5.0)
 	var at: Vector3 = Game.player.global_position
 	check(absf(at.y - over.y) < 0.5, "%s: set down on its ledge (at %s)" % [what, at])
