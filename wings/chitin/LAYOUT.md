@@ -45,14 +45,14 @@ ledge she stood on (`silk.last_safe`). In the arena and heist a fall resets that
 4. **Phrase 3** (20 s): A3a, A3b, key 3, landing on the General's dais (a three-swing chain).
 5. Win: all keys turned, the General's forelimbs lock, the stair gate and gallery gate open.
 6. Failure: a fall resets the arena and respawns at checkpoint `general`, a few metres from the start zone.
-   The whole duel is 48 s of phrases, so a failure costs under a minute.
+   Measured by the playthrough: a fall in phrase 1 costs 4.3 s back to a running duel (48 s of phrases in all).
 
 ## Jaw-drop: the amber sky blinks
 
 Built with the reveal recipe: compress (80-riser processional stair, 3.5 m ceiling, one amber thread),
 occlude (curtain; `Audio.reveal` ducks to near-silence), release into the 70 m shaft base under the amber
 hemisphere, stinger, then 3.5 s later the sky blinks: it is the empress's compound eye. It blinks every
-9 s after. She is pinned under a dome labelled "Queen (type specimen)"; the court stands "at rest".
+9 s after. The heist ends on the rim (`court/escape`). She is pinned under a dome labelled "Queen (type specimen)"; the court stands "at rest".
 
 ## Heist beat by beat
 

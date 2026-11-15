@@ -29,6 +29,8 @@ func run() -> void:
 	await _section("heist", _heist)
 	for id: StringName in [&"bell", &"guild_key", &"tapestry"]:
 		check(Quest.has_provenance(&"chitin", id), "provenance held at the end: %s" % id)
+	for q: Dictionary in w.objectives():
+		check(Quest.is_done(StringName(q["id"])), "objective done: %s" % q["id"])
 
 
 func _section(name_: String, fn: Callable) -> void:
@@ -318,6 +320,17 @@ func _gallery() -> void:
 func _general() -> void:
 	await walk_to(Vector3(40, -31, 98), 20.0, 0.5)
 	await until(func() -> bool: return int(w.call("arena_phrase")) == 0, 3.0, "the first phrase begins")
+	# a deliberate failure: off the ledge into the pit; the duel resets at its checkpoint
+	var t0 := Engine.get_physics_frames()
+	await walk_to(Vector3(40, -31, 96.6), 10.0, 0.25)
+	await look_at(Vector3(40, -31, 90))
+	Input.action_press(&"move_forward")
+	await until(func() -> bool: return Game.player.global_position.y < -35.0, 5.0, "arena: she falls into the pit")
+	Input.action_release(&"move_forward")
+	await until(func() -> bool: return int(w.call("arena_phrase")) == -1 and Game.player.global_position.distance_to(Vector3(40, -31, 103)) < 2.0, 10.0, "arena: duel reset, back at the General's checkpoint")
+	await walk_to(Vector3(40, -31, 98), 20.0, 0.5)
+	await until(func() -> bool: return int(w.call("arena_phrase")) == 0, 3.0, "the first phrase begins again")
+	print("    arena failure cost %.1f s" % ((Engine.get_physics_frames() - t0) / 120.0))
 	var fwd := Vector3(0, 0, -1)
 	await walk_to(Vector3(40, -31, 96.6), 10.0, 0.25)
 	await look_at(Vector3(40, -25, 88))
@@ -363,7 +376,7 @@ func _heist() -> void:
 	await swing_chain([cut], Vector3.RIGHT, -38.0, "cut line")
 	await walk_to(Vector3(118, -38, -21), 10.0, 0.4)
 	await _ride(1, Vector3(118, -3, -35), "lift 2")
-	await until(func() -> bool: return Quest.has_fragment(&"chitin"), 6.0, "out on the rim with the fragment")
+	await until(func() -> bool: return Quest.is_step_done(&"court", &"escape"), 6.0, "out on the rim with the fragment: the wing finishes")
 
 
 ## Fire at lift k from below, ride it to the end of its path, let go over `over`.

@@ -104,7 +104,7 @@ func objectives() -> Array[Dictionary]:
 			"steps": [{"id": "key1", "title": "Turn the first key"}, {"id": "key2", "title": "Turn the second key"}, {"id": "key3", "title": "Turn the third key"}],
 			"hint": "Hang from each key she offers and swing on it before the space closes."},
 		{"id": "court", "title": "Attend the coronation",
-			"steps": [{"id": "hall", "title": "Enter the coronation hall"}, {"id": "dais", "title": "Open the dais case"}]},
+			"steps": [{"id": "hall", "title": "Enter the coronation hall"}, {"id": "dais", "title": "Open the dais case"}, {"id": "escape", "title": "Swing out of the shaft"}]},
 	]
 
 
@@ -760,6 +760,7 @@ func _arena_start() -> void:
 	if _arena_on or Quest.is_done(&"general"):
 		return
 	_arena_on = true
+	Game.set_checkpoint(&"general")  # the duel's checkpoint, whether or not she walked over it
 	_gallery_gate.visible = true
 	_set_solid(_gallery_gate, true)
 	Audio.set_intensity(0.6)
@@ -914,6 +915,7 @@ func _on_rim() -> void:
 		return
 	_heist_on = false
 	Audio.set_intensity(0.3)
+	complete_step(&"court", &"escape")
 	finish()
 
 
