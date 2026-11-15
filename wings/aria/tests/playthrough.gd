@@ -370,6 +370,9 @@ func _run() -> void:
 	_tap(&"interact")
 	await _until(func() -> bool: return Quest.has_fragment(&"aria"), 6.0)
 	check(Quest.has_fragment(&"aria"), "the fragment is taken")
+	# Ceremony.fragment records the fragment first and emits `picked` (which starts the heist) only
+	# once its ~3 s rise ends and input comes back; time the stages from there
+	await _until(func() -> bool: return Game.player.input_enabled, 6.0)
 	await seconds(0.3)
 	check(absf(Game.player.gravity_vector.y - Game.wing.gravity.y * 0.5) < 0.2, "gravity lets go in stages: half first (%.2f)" % Game.player.gravity_vector.y)
 	await seconds(3.5)
@@ -414,7 +417,7 @@ func _run() -> void:
 	_section("end", "")
 	_print_timings()
 	print("[aria] done, %d failure(s)" % _fails)
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
 
 
 ## Strike the duet bowl for `note`: stand two metres off it, face it, and press primary.

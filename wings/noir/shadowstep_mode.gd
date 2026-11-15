@@ -52,7 +52,9 @@ func try_latch() -> bool:
 	var p := player
 	var ex: Array[RID] = [p.get_rid()]
 	var from := p.head.global_position
-	var to := from + (-p.head.global_basis.z) * LATCH_RANGE
+	# along the view (pitch included): `head` only yaws, so a level ray could never reach the roof
+	# underfoot, and the far roof has no wall at head height to latch back from
+	var to := from + (-p.camera.global_basis.z) * LATCH_RANGE
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1, ex)
 	var hit := p.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():

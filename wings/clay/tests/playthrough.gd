@@ -158,7 +158,8 @@ func _run() -> void:
 	# The eye sits near 2.7 m and the peak is 3.2 m, so a ray at the peak only grazes it.
 	# Aim at lower points on the front face first; each press flattens clay under the aim.
 	var mound_ok: bool = false
-	for i in 12:
+	# two sweeps: a single sweep ends within a few cm of MOUND_DONE, so beat timing decides it
+	for i in 18:
 		var zt: float = mz + maxf(0.0, 2.0 - 0.25 * float(i % 9))
 		var ht: float = _w.terrain.height_at(mx, zt)
 		await _stand(mx, mz + 3.2, Vector3(mx, ht, zt))
@@ -283,7 +284,7 @@ func _run() -> void:
 	check(String(_w.save_state()["choice"]) == "kneel", "kneel is saved to the wing state")
 
 	print("[clay] %d failed check(s)" % _fails)
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
 
 
 ## The chase starts when the player crosses the village entrance (a long trigger at z -21.5).

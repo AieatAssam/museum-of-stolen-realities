@@ -33,7 +33,7 @@ func check(cond: bool, what: String) -> bool:
 		print("  FAIL ", what, "   at ", Game.player.global_position if Game.player else Vector3.ZERO)
 		# every later step depends on this one: stop rather than cascade
 		print("[glass] stopped after first failure (%.1fs game)" % (_frames / float(Engine.physics_ticks_per_second)))
-		get_tree().quit(1)
+		Game.quit(1)
 	return cond
 
 
@@ -386,7 +386,7 @@ func _run() -> void:
 
 	print("[glass] done in %.1fs real, %.1fs game, %d failure(s)" % [(Time.get_ticks_msec() - t0) / 1000.0, _frames / float(Engine.physics_ticks_per_second), _fails])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
-	get_tree().quit(1 if _fails > 0 else 0)
+	Game.quit(1 if _fails > 0 else 0)
 
 
 ## Phase 1: board a petal when one points at the balcony at full exhale, ride it in to the tear,
