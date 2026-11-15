@@ -18,6 +18,9 @@ var _better_items: Array[Interactable] = []
 var _better_mode := ""
 var _reel_taken := false
 var _in_cinema := false
+var _gate: StaticBody3D
+var _gate_shape: CollisionShape3D
+var _gate_mesh: MeshInstance3D
 
 
 func objectives() -> Array[Dictionary]:
@@ -29,6 +32,7 @@ func objectives() -> Array[Dictionary]:
 			{"id": "cross_street", "title": "Cross the street in shade"},
 			{"id": "better_half", "title": "Decide about The Better Half"}]},
 		{"id": "heist", "title": "Take the reel", "steps": [
+			{"id": "get_key", "title": "Open the precinct evidence locker"},
 			{"id": "enter_cinema", "title": "Get into the cinema unseen"},
 			{"id": "steal_reel", "title": "Take the reel"},
 			{"id": "reach_projection", "title": "Reach the projection booth"}]},
@@ -76,6 +80,7 @@ func on_enter(first_time: bool) -> void:
 			{"card": "Keep to the dark.", "sub": "Untitled (City at Night)", "t": 3.0, "style": "display"},
 		])
 	toast("Stay out of the light.")
+	_sync_gate()
 	_update_fragment()
 
 
@@ -87,7 +92,26 @@ func _ready() -> void:
 	_build_plaza()
 	_build_cinema()
 	_build_booth()
+	_build_shot_marks()
 	Quest.objective_completed.connect(func(_w: StringName, _o: StringName) -> void: _update_fragment())
+
+
+func _build_shot_marks() -> void:
+	# twelve camera marks for the art team, one per view worth a screenshot
+	var marks := [
+		["alley_entry", Vector3(0, 1.4, -2)], ["alley_latch", Vector3(-1.0, 1.4, -18)],
+		["alley_crate", Vector3(-3.0, 1.2, -12)], ["street_lamps", Vector3(0, 1.4, -24)],
+		["street_cover", Vector3(0, 1.4, -36)], ["street_figures", Vector3(0, 1.4, -54)],
+		["plaza_figures", Vector3(0, 1.6, -52)], ["precinct_locker", Vector3(3.0, 1.4, -55)],
+		["cinema_gate", Vector3(0, 1.4, -63)], ["cinema_lattice", Vector3(0, 1.6, -72)],
+		["cinema_reel", Vector3(0, 1.4, -80)], ["booth_frame", Vector3(0, 1.4, -92)],
+	]
+	for m: Array in marks:
+		var mk := Marker3D.new()
+		mk.name = m[0]
+		mk.position = m[1]
+		mk.add_to_group(&"shot_marks")
+		_world.add_child(mk)
 
 
 func _physics_process(delta: float) -> void:
@@ -264,7 +288,40 @@ func _build_plaza() -> void:
 		_world.add_child(it)
 		_better_items.append(it)
 	_provenance("matchbook", Vector3(4.2, 0.6, -63))
+	# precinct alcove: the evidence locker holds the key to the cinema gate
+	var locker := Interactable.make_box(Vector3(1.0, 1.6, 0.8), "Open the evidence locker")
+	locker.position = Vector3(4.3, 0.8, -55.0)
+	locker.hold_time = 1.0
+	locker.once = true
+	locker.interacted.connect(func(_p: Player) -> void: _get_key())
+	_world.add_child(locker)
+	_plaque(Vector3(4.9, 1.6, -60.0), -90.0, "Evidence locker, precinct", "Lock and key, precinct desk", "Acquisition No. 501.5",
+		"Key held by the desk sergeant until his retirement. The lock was replaced twice. The file inside lists the matchbook as returned. The owner is not named.")
 	_checkpoint_at("plaza", Vector3(0, 0.05, -55))
+
+
+func _get_key() -> void:
+	if Quest.is_step_done(&"heist", &"get_key"):
+		return
+	complete_step(&"heist", &"get_key")
+	_sync_gate()
+	toast("The locker gives up its key.", "Precinct")
+
+
+func _sync_gate() -> void:
+	var open := Quest.is_step_done(&"heist", &"get_key")
+	if _gate_shape:
+		_gate_shape.set_deferred("disabled", open)
+	if _gate_mesh:
+		_gate_mesh.visible = not open
+
+
+func _plaque(at: Vector3, yaw: float, heading: String, title: String, catalog: String, body: String) -> void:
+	var p := Placard.new()
+	_world.add_child(p)
+	p.position = at
+	p.rotation_degrees.y = yaw
+	p.set_text(heading, title, catalog, body, false)
 
 
 func _resolve_better(how: String) -> void:
@@ -284,6 +341,25 @@ func _build_cinema() -> void:
 	_box(_world, Vector3(0, -0.5, -78), Vector3(12, 1, 24), "floor", Color("111113"))
 	_box(_world, Vector3(-6.5, 3, -78), Vector3(1, 6, 24))
 	_box(_world, Vector3(6.5, 3, -78), Vector3(1, 6, 24))
+	# locked gate across the cinema mouth; the precinct key opens it
+	_gate = StaticBody3D.new()
+	_gate.position = Vector3(0, 2.0, -66.0)
+	var gcs := CollisionShape3D.new()
+	var gshape := BoxShape3D.new()
+	gshape.size = Vector3(11.0, 4.0, 0.5)
+	gcs.shape = gshape
+	_gate.add_child(gcs)
+	_gate_shape = gcs
+	_gate_mesh = MeshInstance3D.new()
+	var gmesh := BoxMesh.new()
+	gmesh.size = gshape.size
+	_gate_mesh.mesh = gmesh
+	_gate_mesh.material_override = _mat("gate", Color("3a3a3c"), 0.6)
+	_gate.add_child(_gate_mesh)
+	_world.add_child(_gate)
+	_sync_gate()
+	_plaque(Vector3(-5.9, 1.6, -74.0), 90.0, "Searchlight, row four", "Searchlight, cinema house", "Acquisition No. 501.4",
+		"A searchlight swept the house for the length of one feature. Patrons it found were asked to leave their seats. The register does not say the seats were refilled.")
 	# back wall with a doorway into the booth
 	_box(_world, Vector3(-3.5, 3, -90.5), Vector3(5, 6, 1))
 	_box(_world, Vector3(3.5, 3, -90.5), Vector3(5, 6, 1))

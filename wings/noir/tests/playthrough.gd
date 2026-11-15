@@ -82,6 +82,18 @@ func _cinema_try(pos: Vector3, look: Vector3, hold: float, done: Callable) -> vo
 			print("  beam caught the attempt, retrying")
 
 
+func _hold_on(action: StringName, t: float) -> void:
+	var down := InputEventAction.new()
+	down.action = action
+	down.pressed = true
+	Input.parse_input_event(down)
+	await seconds(t)
+	var up := InputEventAction.new()
+	up.action = action
+	up.pressed = false
+	Input.parse_input_event(up)
+
+
 func _walk_to(target: Vector3, timeout: float) -> void:
 	var end := Time.get_ticks_msec() + int(timeout * 1000)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -178,6 +190,13 @@ func _run() -> void:
 	_tap(&"interact")
 	await _until(func() -> bool: return Quest.has_provenance(&"noir", &"matchbook"), 4.0)
 	check(Quest.has_provenance(&"noir", &"matchbook"), "the matchbook is recorded")
+
+	print("[noir] the precinct locker opens the cinema gate")
+	await _tp(Vector3(3.0, 0.05, -55.0), Vector3(4.3, 0.8, -55.0))
+	await frames(4)
+	await _hold_on(&"interact", 1.4)
+	await _until(func() -> bool: return Quest.is_step_done(&"heist", &"get_key"), 4.0)
+	check(Quest.is_step_done(&"heist", &"get_key"), "holding interact at the locker completes get_key")
 
 	print("[noir] the cinema and the reel")
 	await _walk_to(Vector3(3.5, 0.05, -64.5), 15.0)
