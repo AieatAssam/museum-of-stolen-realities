@@ -1,0 +1,46 @@
+Chitin Court model contract (read by every build script author)
+
+World: an insect royal court grown inside a colossal hive. Architecture is secreted and woven, not
+built: ribbed carapace, honeycomb wax, silk, amber. Shapes are organic and segmented (insect legs,
+elytra, mandibles, antennae), never boxy. Every model needs bevels/rounded edges, a real silhouette and
+small-scale detail where the eye rests (segment collars, ridges, pits, rivets, teeth, veins).
+
+Tools: tools/blender/kit.py (material, box(bevel=), lathe, sweep_closed, torus, tube, join, place,
+duplicate). You may also copy wings/clay/models/src/sculpt.py into wings/chitin/models/src/ and use its
+blob/snake helpers. bmesh, subdivision and modifiers are allowed (export applies modifiers).
+
+Build: one script per group with build(args) dispatching to B_<name>(), like
+wings/clay/models/src/props.py. Build each model with
+    tools/blender_build.sh wings/chitin/models/src/<group>.py wings/chitin/models/<name>.glb <name>
+run from the worktree root. Export APPLIES transforms: every object's pivot is Blender's world origin,
+so model each piece at the origin stated below.
+
+Axes: Blender +Z up, 1 unit = 1 m. A model's FRONT faces Blender -Y (Godot +Z).
+
+Material names are the contract (Blender shading is ignored; Godot swaps by name). Use ONLY:
+  carapace       glossy green-black beetle shell (iridescent)
+  carapace_dull  matte dark chitin (undersides, stems, floors)
+  molt           translucent shed amber-brown husk
+  amber          translucent glowing amber / honey
+  wax            honey-gold beeswax
+  silk           pale silk, fur, thread
+  brass          worn brass
+  membrane       veined translucent wing membrane
+  fungus         bioluminescent fungus (emissive)
+  tapestry       woven tapestry image (UV 0..1 across the panel)
+  ink            black glossy eyes
+
+UVs: smart-project or cube-project with roughly 1 UV unit = 1 m (materials are mostly world-triplanar,
+so UVs matter only for "tapestry" and "membrane", which need clean 0..1 panel UVs).
+
+NO colliders: never use -col, -colonly, -convcol, -convcolonly suffixes. Gameplay collision lives in
+GDScript and must not change.
+
+Budgets: triangles as stated per model (hard cap 60000 via MOSR_MAX_TRIS). Use smooth shading with
+sharp-by-angle (kit does this).
+
+Self-check before reporting: render a preview of every model (workbench engine, 3/4 view, 768x768) to
+the scratchpad path you were given and LOOK at it. If it reads as a box/cylinder/sphere/capsule with
+decoration stuck on, rework it.
+
+Never commit. Never run godot_import.sh. Never create files outside wings/chitin/models/.

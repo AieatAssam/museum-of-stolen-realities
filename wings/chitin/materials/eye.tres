@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://wings/chitin/shaders/amber.gdshader" id="s"]
+[ext_resource type="Texture2D" path="res://wings/chitin/textures/eye/eye_albedo.png" id="a"]
+
+[resource]
+resource_name = "eye"
+shader = ExtResource("s")
+shader_parameter/albedo_tex = ExtResource("a")
+shader_parameter/use_uv = false
+shader_parameter/scale = 0.05
+shader_parameter/tint = Color(1, 0.7, 0.3, 1)
+shader_parameter/core = Color(1, 0.55, 0.12, 1)
+shader_parameter/through = 1.2
+shader_parameter/rim = 0.8
+shader_parameter/rough = 0.1
+shader_parameter/pulse = 0.0
