@@ -29,6 +29,8 @@ var _train: Node3D
 var _caster: DelayedCaster
 var _silhouette: MeshInstance3D
 var _traverse: Tween
+var _near_roof: StaticBody3D
+var _far_roof: StaticBody3D
 
 
 func objectives() -> Array[Dictionary]:
@@ -67,7 +69,6 @@ func register_modes(player: Player) -> void:
 	m.latched_changed.connect(func(on: bool) -> void:
 		if not on:
 			return
-		# the roof face is the only latch above street height
 		if _player.global_position.y > 4.0:
 			_cross_gap(m)
 		else:
@@ -84,7 +85,15 @@ func register_modes(player: Player) -> void:
 
 ## Latching the far roof's dark face carries the player across the gap. The train's lamp cuts the path:
 ## the traversal is refused while the gap is lit, and a lamp that catches it mid-air drops the player back.
+## Only the roof across the gap carries you: from the near roof, the far roof's dark east face; from
+## the far roof, the near roof. A latch on the roof underfoot (or anything else up here) lets go.
 func _cross_gap(m: ShadowstepMode) -> void:
+	var near_side := _player.global_position.x > -21.0
+	var body: Object = m.hit.get("collider")
+	var n: Vector3 = m.hit.get("normal", Vector3.ZERO)
+	if not ((near_side and body == _far_roof and n.x > 0.7) or (not near_side and body == _near_roof)):
+		m.release()
+		return
 	var ex: Array[RID] = [_player.get_rid()]
 	if ShadowField.lit(_player, Vector3(-21.0, 6.0, -29.0), ex):
 		m.release()
@@ -92,7 +101,7 @@ func _cross_gap(m: ShadowstepMode) -> void:
 		return
 	complete_step(&"cross_lit", &"latch_gap")
 	# from the near roof the latch carries you to the far roof; from the far roof, back to the near one
-	var to := Vector3(-25.2, 7.05, -29.0) if _player.global_position.x > -21.0 else Vector3(-16.6, 5.05, -29.0)
+	var to := Vector3(-25.2, 7.05, -29.0) if near_side else Vector3(-16.6, 5.05, -29.0)
 	_player.gravity_vector = Vector3.ZERO
 	_player.velocity = Vector3.ZERO
 	_traverse = create_tween()
@@ -394,13 +403,23 @@ func _resolve_better(how: String) -> void:
 
 func _build_elevated_line() -> void:
 	var e := _area("ElevatedLine")
-	# fire-escape ramp up from the street's west wall to the roof
-	# one continuous slab at 30 degrees: its high corner (x -13.7, y 5.0) sits inside the roof, so there is no lip
-	var ramp := _solid(e, Vector3(-9.5, 2.33, -28.5), Vector3(10, 0.4, 3.4), "metal", Color("3d3d40"))
-	ramp.rotation_degrees.z = -30.0
-	_solid(e, Vector3(-16.3, 2.5, -29.0), Vector3(6.6, 5, 8), "roof", Color("2a2a2c"))
+	# fire-stair ramp up from the street's west wall to the roof. Its top surface runs straight from the
+	# street floor's edge (x -4.5, y 0) to the roof's edge (x -13, y 5); the 11 m slab ends flush at the
+	# roof edge and runs on 1.1 m under the street floor, so neither end has a slot or a lip (the old
+	# 30-degree slab left a 0.57 m slot under the wall gap at the foot and a 0.42 m lip at the roof edge).
+	var slope := atan2(5.0, 8.5)
+	var down := Vector3(cos(slope), -sin(slope), 0)
+	var up_n := Vector3(sin(slope), cos(slope), 0)
+	var ramp := _solid(e, Vector3(-13, 5, -28.5) + down * 5.5 - up_n * 0.2, Vector3(11, 0.4, 3.4), "metal", Color("3d3d40"))
+	ramp.rotation.z = -slope
+	# threshold under the wall gap, and the stair's side rails (no walking off into the yard)
+	_solid(e, Vector3(-5.0, -0.5, -28.4), Vector3(1.0, 1.0, 4.2), "floor", Color("111113"))
+	for zr in [-26.75, -30.25]:
+		var rail := _solid(e, Vector3(-8.75, 2.5, zr) + up_n * 0.5, Vector3(9.9, 1.0, 0.1), "metal", Color("3d3d40"))
+		rail.rotation.z = -slope
+	_near_roof = _solid(e, Vector3(-16.3, 2.5, -29.0), Vector3(6.6, 5, 8), "roof", Color("2a2a2c"))
 	# the far roof: its east face is the dark wall across the gap, taller than the roof we stand on
-	_solid(e, Vector3(-26.25, 3.5, -29.0), Vector3(7.5, 7, 8), "roof", Color("2a2a2c"))
+	_far_roof = _solid(e, Vector3(-26.25, 3.5, -29.0), Vector3(7.5, 7, 8), "roof", Color("2a2a2c"))
 	_checkpoint_at("roof", Vector3(-14.5, 5.05, -29.0))
 	_checkpoint_at("ramp_foot", Vector3(-2.0, 0.05, -28.5))
 	_plaque(e, Vector3(-16.3, 5.35, -32.6), 0.0, "Gelatin silver print, 1955", "Elevated line, last train", "Acquisition No. 501.4",

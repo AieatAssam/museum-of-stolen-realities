@@ -216,10 +216,28 @@ func _run() -> void:
 			agreed = false
 	check(agreed, "the window silhouette tracks the caster's position eleven seconds ahead")
 
-	print("[noir] the roof: ramp up, latch across the gap between trains")
+	print("[noir] the roof: walk up the fire-stair ramp, latch across the gap between trains")
 	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
-	await _walk_to(Vector3(-12.0, 4.0, -29.0), 15.0)
-	await _walk_to(Vector3(-18.0, 5.05, -29.0), 15.0)
+	# set off just after the train wraps, so its lamp is at the far end while we climb
+	await _until(func() -> bool: return _train_x() < -40.0, 14.0)
+	var f0 := Engine.get_physics_frames()
+	await _walk_to(Vector3(-15.0, 5.05, -28.5), 12.0)
+	var climb := (Engine.get_physics_frames() - f0) / float(Engine.physics_ticks_per_second)
+	var at := Game.player.global_position
+	check(at.x < -13.5 and at.y > 4.8, "walking up the ramp reaches the roof (at %s)" % at)
+	check(climb < 6.0, "the ramp climb takes %.1f s of physics (limit 6)" % climb)
+	await _walk_to(Vector3(-18.0, 5.05, -29.0), 10.0)
+	var m := Game.player.mode as ShadowstepMode
+	# looking down at the roof underfoot is a latch on this roof, never the crossing
+	await _until(func() -> bool: return not _gap_lit(), 14.0)
+	await _tp(Vector3(-18.0, 5.05, -29.0), Vector3(-16.5, 5.0, -29.0))
+	await frames(10)
+	m.hit = {}
+	_tap(&"secondary")
+	await frames(30)
+	check(m.hit.get("collider") == w.get("_near_roof"), "the downward latch ray hits the near roof")
+	check(not Quest.is_step_done(&"cross_lit", &"latch_gap"), "latching the roof underfoot does not count as the crossing")
+	check(Game.player.global_position.x > -19.0 and not m.latched, "latching the roof underfoot leaves the player there, unlatched (at %.2f)" % Game.player.global_position.x)
 	# the train's lamp cuts the shadow path while it is over the gap; the latch only carries you while the gap is dark
 	await _until(func() -> bool: return not _gap_lit(), 14.0)
 	await _tp(Vector3(-19.0, 5.05, -29.0), Vector3(-22.5, 5.55, -29.0))
@@ -229,16 +247,20 @@ func _run() -> void:
 	check(Quest.is_step_done(&"cross_lit", &"latch_gap"), "latching across the rooftop gap completes latch_gap")
 	check(Game.player.global_position.x < -21.0, "the latch carries the player to the far roof (at %.2f)" % Game.player.global_position.x)
 	# x < -21 is reached mid-traversal; a press before the 1.2 s tween ends lets go instead of latching
-	await _until(func() -> bool: return not (Game.player.mode as ShadowstepMode).latched, 3.0)
-	# latch the far roof itself: aimed level at (-19.5, 7.05) the 4 m ray passes over the lower near roof
-	await _tp(Vector3(-23.2, 7.05, -29.0), Vector3(-22.75, 7.0, -29.0))
+	await _until(func() -> bool: return not m.latched, 3.0)
+	# back across: from the far roof's east edge, latch the near roof below across the gap
+	await _tp(Vector3(-22.8, 7.05, -29.0), Vector3(-18.8, 5.0, -29.0))
 	await frames(10)
 	await _until(func() -> bool: return not _gap_lit(), 14.0)
 	_tap(&"secondary")
 	await _until(func() -> bool: return Game.player.global_position.x > -18.0, 5.0)
 	check(Game.player.global_position.x > -18.0, "the latch carries the player back to the near roof (at %.2f)" % Game.player.global_position.x)
-	await _walk_to(Vector3(-13.0, 4.0, -29.0), 15.0)
-	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
+	await _until(func() -> bool: return not m.latched, 3.0)
+	await _until(func() -> bool: return _train_x() < -40.0, 14.0)
+	await _walk_to(Vector3(-13.5, 5.05, -29.0), 10.0)
+	await _walk_to(Vector3(-2.5, 0.05, -28.5), 12.0)
+	at = Game.player.global_position
+	check(at.x > -4.5 and at.y < 0.1, "walking down the ramp returns to the street (at %s)" % at)
 	await _walk_to(Vector3(3.2, 0.05, -28.5), 15.0)
 	print("  at ", Game.player.global_position)
 

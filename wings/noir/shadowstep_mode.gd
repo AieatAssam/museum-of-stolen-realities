@@ -8,12 +8,14 @@ extends SilhouetteMode
 signal latched_changed(on: bool)
 signal ejected
 
-const LATCH_RANGE := 4.0
+const LATCH_RANGE := 5.0
 const LATCH_GRAVITY := 15.0
 
 var last_dark: Vector3 = Vector3.ZERO
 var has_dark: bool = false
 var latched: bool = false
+## The ray hit of the last latch (collider, normal, position), read by the wing when latched_changed fires.
+var hit: Dictionary = {}
 
 
 func enter(_from: MovementMode) -> void:
@@ -52,18 +54,20 @@ func try_latch() -> bool:
 	var p := player
 	var ex: Array[RID] = [p.get_rid()]
 	var from := p.head.global_position
-	# along the view (pitch included): `head` only yaws, so a level ray could never reach the roof
-	# underfoot, and the far roof has no wall at head height to latch back from
+	# along the view (pitch included): `head` only yaws, so a level ray could not reach down across the
+	# gap to the lower near roof. The wing checks which body was hit (`hit`), so the view down at the
+	# roof underfoot is an ordinary latch, never a crossing.
 	var to := from + (-p.camera.global_basis.z) * LATCH_RANGE
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1, ex)
-	var hit := p.get_world_3d().direct_space_state.intersect_ray(q)
-	if hit.is_empty():
+	var res := p.get_world_3d().direct_space_state.intersect_ray(q)
+	if res.is_empty():
 		return false
-	var n: Vector3 = hit["normal"]
-	var at: Vector3 = hit["position"]
+	var n: Vector3 = res["normal"]
+	var at: Vector3 = res["position"]
 	if ShadowField.lit(p, at + n * 0.2, ex):
 		return false
 	latched = true
+	hit = res
 	p.gravity_vector = -n * LATCH_GRAVITY
 	latched_changed.emit(true)
 	return true
