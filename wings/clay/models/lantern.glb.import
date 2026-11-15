@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://drd66wrw57xo1"
-path="res://.godot/imported/stand.glb-7da6fb5bf715f0042d29b71f329f0f1e.scn"
+uid="uid://c8p6hyyokhylm"
+path="res://.godot/imported/lantern.glb-d21bd61a7f1a61a0e60039bc7da2952f.scn"
 
 [deps]
 
-source_file="res://wings/clay/models/stand.glb"
-dest_files=["res://.godot/imported/stand.glb-7da6fb5bf715f0042d29b71f329f0f1e.scn"]
+source_file="res://wings/clay/models/lantern.glb"
+dest_files=["res://.godot/imported/lantern.glb-d21bd61a7f1a61a0e60039bc7da2952f.scn"]
 
 [params]
 
