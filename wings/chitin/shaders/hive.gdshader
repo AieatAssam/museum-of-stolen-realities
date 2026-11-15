@@ -51,22 +51,28 @@ void fragment() {
 	vec3 nx = texture(normal_tex, p.zy).xyz * 2.0 - 1.0;
 	vec3 ny = texture(normal_tex, p.xz).xyz * 2.0 - 1.0;
 	vec3 nz = texture(normal_tex, p.xy).xyz * 2.0 - 1.0;
-	nx.xy *= normal_depth; ny.xy *= normal_depth; nz.xy *= normal_depth;
+	// detail normals fade with distance: far surfaces keep their geometric form, not texel shimmer
+	float nd = normal_depth * (1.0 - 0.75 * smoothstep(12.0, 50.0, length(VERTEX)));
+	nx.xy *= nd; ny.xy *= nd; nz.xy *= nd;
 	vec3 sn = sign(wnrm);
 	vec3 n = normalize(vec3(nx.z * sn.x, nx.y, nx.x) * w.x + vec3(ny.x, ny.z * sn.y, ny.y) * w.y + vec3(nz.x, nz.y, nz.z * sn.z) * w.z + wnrm);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	float g = mix(1.0 - grime, 1.0 + grime * 0.5, vnoise(wpos.xz * 0.11 + wpos.y * 0.07));
 	vec3 base = alb * tint.rgb * g;
 	float ndv = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
-	// thin film: a cosine palette indexed by optical path, green -> blue -> violet -> bronze
-	float path = film * (1.6 - ndv) + h * 0.35 + vnoise(wpos.xy * 0.23 + wpos.zx * 0.17) * 0.7;
-	vec3 tf = 0.5 + 0.5 * cos(6.2832 * (path + vec3(0.0, 0.33, 0.67)));
-	tf = tf * tf;
-	// the film tints both the diffuse (a sheen readable in any light) and the reflections
-	float fres = 0.35 + 0.65 * pow(1.0 - ndv, 1.5);
-	ALBEDO = mix(base, base * 0.4 + tf * 0.6, iridescence * fres);
-	METALLIC = clamp(metal + iridescence * 0.45, 0.0, 1.0);
-	ROUGHNESS = mix(rough_lo, rough_hi, r);
+	// thin film, restrained: a beetle-shell sheen that only shifts hue toward grazing angles and only
+	// with the smooth geometric normal (no per-texel sparkle). Facing: near the base colour.
+	float ndv_geo = clamp(dot(normalize((VIEW_MATRIX * vec4(wnrm, 0.0)).xyz), VIEW), 0.0, 1.0);
+	float graze = pow(1.0 - ndv_geo, 2.0);
+	float path = film * (0.9 + 0.8 * (1.0 - ndv_geo)) + vnoise(wpos.xz * 0.04 + wpos.y * 0.03) * 0.25;
+	vec3 tf = 0.5 + 0.5 * cos(6.2832 * (path + vec3(0.0, 0.25, 0.55)));
+	tf = mix(vec3(dot(tf, vec3(0.333))), tf, 0.55) * vec3(0.35, 0.75, 0.6);  // desaturated, green-weighted
+	ALBEDO = base + tf * iridescence * graze * 0.35;
+	METALLIC = clamp(metal + iridescence * 0.25, 0.0, 1.0);
+	// specular anti-aliasing: roughen where the normal varies faster than a pixel (Kaplanyan-style)
+	vec3 dn = fwidth(n);
+	float var = clamp(dot(dn, dn) * 2.0, 0.0, 0.25);
+	ROUGHNESS = sqrt(clamp(pow(mix(rough_lo, rough_hi, r), 2.0) + var, 0.0, 1.0));
 	SPECULAR = 0.5;
 	if (glow > 0.0) {
 		float cell = smoothstep(glow_cut, glow_cut - 0.3, h);

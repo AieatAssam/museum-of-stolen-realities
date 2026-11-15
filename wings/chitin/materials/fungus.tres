@@ -15,3 +15,4 @@ shader_parameter/through = 2.4
 shader_parameter/rim = 1.4
 shader_parameter/rough = 0.4
 shader_parameter/pulse = 0.12
+shader_parameter/patch = 0.0

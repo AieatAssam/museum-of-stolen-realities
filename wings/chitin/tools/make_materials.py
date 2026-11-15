@@ -10,10 +10,9 @@ AMBER = "res://wings/chitin/shaders/amber.gdshader"
 
 # hive.gdshader: name: texture set, params
 HIVE_MATS = {
-    "carapace":      ("carapace", dict(tint="Color(0.55, 0.7, 0.6, 1)", scale=0.45, normal_depth=1.2, rough_lo=0.08, rough_hi=0.35, iridescence=0.85, film=1.1)),
-    "carapace_dull": ("carapace", dict(tint="Color(0.32, 0.36, 0.3, 1)", scale=0.6, normal_depth=1.0, rough_lo=0.45, rough_hi=0.85, iridescence=0.08, film=0.8)),
-    "floor":         ("floor", dict(tint="Color(0.3, 0.42, 0.36, 1)", scale=0.22, normal_depth=1.0, rough_lo=0.04, rough_hi=0.4, iridescence=0.3, film=0.9,
-                                    glow_color="Color(1, 0.58, 0.16, 1)", glow=0.08, glow_cut=0.25)),
+    "carapace":      ("carapace", dict(tint="Color(0.13, 0.19, 0.15, 1)", scale=0.3, normal_depth=0.7, rough_lo=0.12, rough_hi=0.4, iridescence=1.0, film=1.1, grime=0.15)),
+    "carapace_dull": ("carapace", dict(tint="Color(0.16, 0.18, 0.14, 1)", scale=0.5, normal_depth=0.7, rough_lo=0.45, rough_hi=0.85, iridescence=0.15, film=0.8)),
+    "floor":         ("floor2", dict(tint="Color(0.6, 0.68, 0.6, 1)", scale=0.14, normal_depth=0.5, rough_lo=0.06, rough_hi=0.32, iridescence=0.3, film=0.9, grime=0.3)),
     "comb":          ("comb", dict(tint="Color(1, 0.9, 0.75, 1)", scale=0.32, normal_depth=1.4, rough_lo=0.2, rough_hi=0.6,
                                    glow_color="Color(1, 0.55, 0.14, 1)", glow=0.6, glow_cut=0.45)),
     "comb_dim":      ("comb", dict(tint="Color(0.6, 0.5, 0.38, 1)", scale=0.32, normal_depth=1.4, rough_lo=0.2, rough_hi=0.6,
@@ -25,7 +24,8 @@ HIVE_MATS = {
 AMBER_MATS = {
     "amber":    ("amber", False, 0.9, "Color(1, 0.75, 0.35, 1)", "Color(1, 0.66, 0.25, 1)", 1.0, 0.6, 0.08, 0.0),
     "molt":     ("membrane", False, 0.35, "Color(0.4, 0.36, 0.26, 1)", "Color(0.6, 0.45, 0.25, 1)", 0.15, 0.45, 0.25, 0.0),
-    "wax":      ("comb", False, 0.6, "Color(1, 0.85, 0.55, 1)", "Color(1, 0.7, 0.3, 1)", 0.25, 0.3, 0.35, 0.0),
+    "wax":      ("comb", False, 0.6, "Color(0.62, 0.45, 0.24, 1)", "Color(1, 0.6, 0.22, 1)", 0.1, 0.2, 0.35, 0.0, 0.8),
+    "amber_cell": ("amber", False, 1.6, "Color(0.9, 0.55, 0.2, 1)", "Color(1, 0.55, 0.16, 1)", 1.1, 0.35, 0.12, 0.0, 1.0),
     "membrane": ("membrane", True, 1.0, "Color(0.85, 0.6, 0.35, 1)", "Color(0.9, 0.5, 0.18, 1)", 0.9, 0.4, 0.3, 0.0),
     "fungus":   ("silk", False, 1.5, "Color(0.7, 1, 0.95, 1)", "Color(0.45, 1, 0.85, 1)", 2.4, 1.4, 0.4, 0.12),
     "tapestry": ("tapestry_a", True, 1.0, "Color(1, 0.95, 0.85, 1)", "Color(0.5, 0.4, 0.28, 1)", 0.18, 0.0, 0.8, 0.0),
@@ -57,7 +57,9 @@ for name, (tex, p) in HIVE_MATS.items():
 [resource]
 resource_name = "{name}"
 """ + "\n".join(lines) + "\n")
-for name, (tex, uv, scale, tint, core, through, rim, rough, pulse) in AMBER_MATS.items():
+for name, row in AMBER_MATS.items():
+    tex, uv, scale, tint, core, through, rim, rough, pulse = row[:9]
+    patch = row[9] if len(row) > 9 else 0.0
     with open(os.path.join(D, name + ".tres"), "w") as f:
         f.write(f"""[gd_resource type="ShaderMaterial" load_steps=3 format=3]
 
@@ -76,5 +78,6 @@ shader_parameter/through = {through}
 shader_parameter/rim = {rim}
 shader_parameter/rough = {rough}
 shader_parameter/pulse = {pulse}
+shader_parameter/patch = {patch}
 """)
 print("wrote", len(HIVE_MATS) + len(AMBER_MATS))
