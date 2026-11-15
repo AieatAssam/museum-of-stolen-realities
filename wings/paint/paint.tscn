@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://wings/paint/paint.gd" id="1"]
+[ext_resource type="AudioStream" path="res://wings/paint/audio/motif_drone.ogg" id="2"]
+[ext_resource type="AudioStream" path="res://wings/paint/audio/motif_mid.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://wings/paint/audio/motif_texture.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://wings/paint/audio/amb_meadow.ogg" id="5"]
+
+[node name="Paint" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"paint"
+spawn_checkpoint = &"start"
+start_mode = &"paint"
+void_height = -150.0
+music_layers = Array[AudioStream]([ExtResource("2"), ExtResource("3"), ExtResource("4")])
+music_intensity = 0.3
+ambience = ExtResource("5")

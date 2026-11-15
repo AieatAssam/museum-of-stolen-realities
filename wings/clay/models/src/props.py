@@ -41,30 +41,6 @@ def _hand(prefix, c, palm_dir, r, seed, mat):
     return parts
 
 
-def B_villager():
-    """A figure half-covered: clay body and head, legs and one arm still bare twisted wire. Open hands."""
-    rnd = 3
-    parts = []
-    # wire armature: legs, spine, one bare arm (left)
-    for s in (-1, 1):
-        parts.append(S.snake("v_leg%d" % s, [(s * 0.11, 0.0, 0.0), (s * 0.12, 0.02, 0.35), (s * 0.11, 0.0, 0.62)], 0.022, "wire", rnd + s, sides=6, wobble=0.0))
-        parts.append(S.blob("v_foot%d" % s, (0.16, 0.26, 0.09), (s * 0.11, 0.06, 0.04), "clay", rnd + s, lump=0.01, subdiv=2))
-    parts.append(S.snake("v_armL", [(-0.2, 0.0, 1.18), (-0.36, 0.12, 0.98), (-0.42, 0.3, 0.92)], 0.02, "wire", rnd, sides=6, wobble=0.0))
-    parts += _hand("v_hL", (-0.43, 0.36, 0.9), 1, 0.045, rnd + 1, "skin")
-    # clay: hips, torso (pear), the covered right arm
-    parts.append(S.blob("v_hips", (0.38, 0.3, 0.3), (0, 0, 0.66), "clay", rnd, lump=0.02, dents=4))
-    parts.append(S.blob("v_torso", (0.44, 0.34, 0.62), (0, 0, 1.0), "clay", rnd + 1, lump=0.025, dents=6, dent_r=0.1, dent_d=0.02))
-    parts.append(S.snake("v_armR", [(0.2, 0.0, 1.18), (0.34, 0.1, 0.98), (0.4, 0.28, 0.92)], 0.055, "clay", rnd + 3, sides=10, wobble=0.12))
-    parts += _hand("v_hR", (0.41, 0.36, 0.9), 1, 0.045, rnd + 4, "skin")
-    parts.append(S.snake("v_neck", [(0, 0, 1.28), (0, 0.01, 1.36)], 0.05, "skin", rnd, sides=8))
-    head = (0.0, 0.02, 1.48)
-    parts.append(S.blob("v_head", (0.26, 0.25, 0.3), head, "skin", rnd + 5, lump=0.012, dents=3, dent_r=0.06, dent_d=0.012))
-    _face("v", head, 0.13, rnd, parts)
-    # a thumb-smeared cap of hair
-    parts.append(S.blob("v_hair", (0.28, 0.27, 0.14), (0, -0.01, 1.6), "bark", rnd + 6, lump=0.02, dents=5, dent_r=0.05, dent_d=0.015))
-    kit.join("villager", parts).name = "villager"
-
-
 def B_unfinished():
     """The Unfinished One: 2.1 m, a lump of raw clay from the waist down, wire above with clay only half
     pressed on, holding a wooden modelling tool forward in its right hand."""
@@ -208,27 +184,52 @@ def B_river():
 
 # --- the hill: burrow and plug ----------------------------------------------------------------------
 
+INNER = [(-0.4, 2.42), (0.6, 2.42), (1.7, 2.2), (2.55, 1.5), (2.85, 0.0)]  # burrow chamber (z, r), bottom up
+
+
+def _inner_r(z):
+    for (z0, r0), (z1, r1) in zip(INNER, INNER[1:]):
+        if z <= z1:
+            return r0 + (r1 - r0) * max(0.0, (z - z0) / (z1 - z0))
+    return 0.0
+
+
+def _inner_z(r):
+    """Ceiling height of the chamber at radius r."""
+    for (z0, r0), (z1, r1) in zip(INNER[2:], INNER[3:]):
+        if r >= r1:
+            return z0 + (z1 - z0) * (r0 - r) / max(r0 - r1, 1e-4)
+    return INNER[-1][0]
+
+
+def _ring_pt(r, a, z):
+    return (math.cos(a) * r, math.sin(a) * r, z)
+
+
 def B_burrow():
-    """The chamber in the hill: a thick lumpy mound, moss outside, raw clay inside, a round doorway on its
-    west face (where the plug sits, x = -2.4) and a thumb-hole skylight in its crown."""
-    import bmesh
+    """The chamber in the hill, hand-dug: a thick lumpy mound (moss outside, raw clay inside) with a round
+    doorway on its west face (where the plug sits, x = -2.4) and a thumb-hole skylight in its crown over
+    the plinth. Inside: spatula-gouged walls, roots through the ceiling, two shelves let into the wall
+    with jars and a candle, a packed floor, and a cotton reel for a plinth under the skylight's pool
+    (the film sits on it, local (1.7, 0)). A low trimesh collider gives the walls substance."""
     sd = 71
+    SKY = (1.55, 0.0)
     outer = S.lathe("burrow", [(0.0, 3.9), (1.4, 3.75), (2.6, 3.0), (3.3, 1.7), (3.55, 0.5), (3.7, -0.3), (0.0, -0.3)], "moss", sd,
                     segments=48, lump=0.14, scale=0.8)
-    inner = S.lathe("inner", [(0.0, -0.4), (2.42, -0.4), (2.42, 0.6), (2.2, 1.7), (1.5, 2.55), (0.0, 2.85)], "clay", sd + 1,
-                    segments=40, lump=0.05, scale=1.4)
+    inner = S.lathe("inner", [(r, z) for z, r in INNER][:1] + [(r, z) for z, r in INNER], "clay", sd + 1, segments=40, lump=0.07, scale=1.4)
     S.boolean(outer, inner)
     door = S.lathe("door", [(0.0, 0.0), (1.28, 0.0), (1.28, 3.0), (0.0, 3.0)], "clay", sd, segments=28, lump=0.0)
     door.rotation_euler = (0, math.pi / 2, 0)
     door.location = (-4.5, 0.0, 1.05)
     bpy_apply(door)
     S.boolean(outer, door)
-    sky = S.lathe("sky", [(0.0, 0.0), (0.42, 0.0), (0.42, 3.0), (0.0, 3.0)], "clay", sd, segments=16, lump=0.0)
-    sky.location = (0.8, 0.0, 1.8)
+    sky = S.lathe("sky", [(0.0, 0.0), (0.45, 0.0), (0.45, 3.0), (0.0, 3.0)], "clay", sd, segments=16, lump=0.0)
+    sky.location = (SKY[0], SKY[1], 1.8)
     bpy_apply(sky)
     S.boolean(outer, sky)
-    # a rolled rim round the doorway, and lumps of moss on the crown
-    def wall_r(z):  # outer radius of the mound at height z (the lathe profile above)
+    S.scatter_dents(outer, sd, 70, r=0.32, d=0.07)  # scoops where the digger's thumb went in
+
+    def wall_r(z):  # outer radius of the mound at height z
         pts = [(-0.3, 3.7), (0.5, 3.55), (1.7, 3.3), (3.0, 2.6), (3.75, 1.4)]
         for (z0, r0), (z1, r1) in zip(pts, pts[1:]):
             if z <= z1:
@@ -241,16 +242,105 @@ def B_burrow():
         z = max(0.0, 1.05 + math.sin(a) * 1.36)
         rim.append((-math.sqrt(max(wall_r(z) ** 2 - y * y, 0.0)) + 0.05, y, z))
     parts = [outer, S.snake("rim", rim, 0.14, "clay", sd, sides=10, wobble=0.25)]
+    # a rolled lip round the skylight, outside and in
+    for k, (zz, rr) in enumerate(((3.62, 0.5), (2.5, 0.5))):
+        parts.append(S.snake("skyrim%d" % k, [(SKY[0] + math.cos(t / 16 * 2 * math.pi) * rr, SKY[1] + math.sin(t / 16 * 2 * math.pi) * rr, zz) for t in range(17)],
+                             0.07, "clay" if k else "moss", sd + k, sides=8, wobble=0.3))
     for i in range(6):
         a = i * 1.05 + 0.3
         parts.append(S.blob("tuft%d" % i, (0.9, 0.7, 0.35), (math.cos(a) * 2.6, math.sin(a) * 2.6, 2.9 - 0.25 * (i % 2)), "leaf", sd + i, lump=0.05, dents=2))
     for i in range(4):
         a = i * 1.6 + 0.9
         parts.append(S.blob("stone%d" % i, (0.5, 0.4, 0.32), (math.cos(a) * 3.8, math.sin(a) * 3.8, 0.05), "stone", sd + i, lump=0.04, dents=2))
+    rnd = random.Random(sd)
+    DOOR = math.pi
+    # spatula gouges: short raised ridges swept round the wall, the edge a modelling tool leaves
+    for i in range(46):
+        a = rnd.uniform(0, 2 * math.pi)
+        if abs((a - DOOR + math.pi) % (2 * math.pi) - math.pi) < 0.75:
+            continue
+        z = rnd.uniform(0.25, 2.3)
+        span = rnd.uniform(0.25, 0.6)
+        dz = rnd.uniform(-0.25, 0.25)
+        pts = []
+        for k in range(5):
+            t = k / 4
+            zz = z + dz * t
+            pts.append(_ring_pt(_inner_r(zz) - 0.015, a + span * t, zz))
+        parts.append(S.snake("gouge%d" % i, pts, rnd.uniform(0.02, 0.04), "clay", sd + i, sides=6, wobble=0.35, taper=(0.4, 1.0), steps=3))
+    # roots through the ceiling: tapered bark snakes that wander down, a few forking
+    for i in range(9):
+        r = rnd.uniform(0.6, 1.9)
+        a = rnd.uniform(0, 2 * math.pi)
+        z = _inner_z(r) + 0.05
+        L = rnd.uniform(0.5, 1.2)
+        pts = [_ring_pt(r, a, z)]
+        for k in range(1, 6):
+            pts.append((pts[-1][0] + rnd.uniform(-0.12, 0.12), pts[-1][1] + rnd.uniform(-0.12, 0.12), z - L * k / 5))
+        parts.append(S.snake("root%d" % i, pts, rnd.uniform(0.03, 0.055), "bark", sd + i, sides=7, wobble=0.3, taper=(1.0, 0.15)))
+        if i % 2 == 0:
+            m = pts[2]
+            parts.append(S.snake("rootb%d" % i, [m, (m[0] + 0.2, m[1] + 0.1, m[2] - 0.25), (m[0] + 0.25, m[1] + 0.22, m[2] - 0.45)], 0.02, "bark", sd, sides=5, wobble=0.2, taper=(1.0, 0.1)))
+    # two shelves let into the wall, north and south, with what a burrow keeps
+    for k, (a, z) in enumerate(((math.pi / 2, 1.25), (-math.pi / 2 + 0.25, 0.85))):
+        r = _inner_r(z) - 0.2
+        c = Vector(_ring_pt(r, a, z))
+        t = Vector((-math.sin(a), math.cos(a), 0))
+        shelf = S.slab("shelf%d" % k, (1.25, 0.42, 0.07), (0, 0, 0), "wood", sd + k, lump=0.008, bevel=0.025, cuts=4)
+        shelf.rotation_euler = (0, 0, a + math.pi / 2)
+        shelf.location = c
+        parts.append(shelf)
+        for j in range(2):
+            parts.append(S.snake("peg%d_%d" % (k, j), [tuple(c + t * (0.45 * (2 * j - 1)) + Vector((0, 0, -0.03))),
+                                                     tuple(c + t * (0.45 * (2 * j - 1)) + Vector((0, 0, -0.03)) - Vector((math.cos(a), math.sin(a), 0)) * -0.25 + Vector((0, 0, -0.18)))],
+                                 0.03, "bark", sd, sides=6, steps=2))
+        top = z + 0.035
+        # a jar with something kept in it, a little pot, a candle, a ball of string
+        jar = S.lathe("bjar%d" % k, [(0.0, 0.0), (0.09, 0.0), (0.1, 0.18), (0.07, 0.22), (0.075, 0.25), (0.0, 0.25)], "glass", sd, segments=16, lump=0.0)
+        kit.place(jar, loc=tuple(c + t * -0.35 + Vector((0, 0, top - c.z + 0.0))))
+        parts.append(jar)
+        parts.append(S.blob("bjarin%d" % k, (0.13, 0.13, 0.12), tuple(c + t * -0.35 + Vector((0, 0, top - c.z + 0.07))), ["red", "yellow"][k], sd + k, lump=0.02, subdiv=2))
+        pot = S.lathe("bpot%d" % k, [(0.0, 0.0), (0.08, 0.0), (0.11, 0.1), (0.09, 0.16), (0.1, 0.18), (0.0, 0.17)], "orange", sd + k, segments=14, lump=0.01)
+        kit.place(pot, loc=tuple(c + t * 0.05 + Vector((0, 0, top - c.z))))
+        parts.append(pot)
+        if k == 0:
+            parts.append(S.lathe("candle", [(0.0, 0.0), (0.05, 0.0), (0.045, 0.2), (0.0, 0.21)], "ivory", sd, segments=10, lump=0.004))
+            kit.place(parts[-1], loc=tuple(c + t * 0.38 + Vector((0, 0, top - c.z))))
+            parts.append(S.blob("flame", (0.035, 0.035, 0.07), tuple(c + t * 0.38 + Vector((0, 0, top - c.z + 0.25))), "bulb", sd, lump=0.0, subdiv=1))
+        else:
+            coil = [tuple(c + t * 0.38 + Vector((math.cos(q * 0.9) * 0.07, math.sin(q * 0.9) * 0.07, top - c.z + 0.07 + 0.004 * q))) for q in range(24)]
+            parts.append(S.snake("string", coil, 0.022, "ivory", sd, sides=5, wobble=0.0, steps=1))
+    # packed floor, trodden smoother at the middle; pebbles and a toadstool cluster at the foot of the wall
+    parts.append(S.lathe("floor", [(0.0, 0.1), (2.38, 0.06), (2.38, -0.1), (0.0, -0.1)], "clay", sd + 5, segments=36, lump=0.02, scale=2.5, dents=14))
+    for i in range(10):
+        a = rnd.uniform(0.3, 2 * math.pi - 0.3) + DOOR
+        parts.append(S.blob("pb%d" % i, (rnd.uniform(0.08, 0.18),) * 2 + (0.07,), _ring_pt(_inner_r(0.1) - 0.25, a, 0.12), "stone", sd + i, lump=0.02, subdiv=2))
+    for i in range(3):
+        a = -0.9 + i * 0.12
+        cx, cy, _ = _ring_pt(_inner_r(0.1) - 0.3, a, 0)
+        h = 0.12 + 0.06 * i
+        parts.append(S.snake("tst%d" % i, [(cx, cy, 0.08), (cx, cy, 0.08 + h)], 0.025, "ivory", sd + i, sides=6, steps=2))
+        parts.append(S.blob("tcap%d" % i, (0.12, 0.12, 0.06), (cx, cy, 0.08 + h), "red", sd + i, lump=0.01, subdiv=2))
+    # the plinth: a cotton reel, red thread wound on a wooden core, under the skylight
+    reel = S.lathe("reel", [(0.0, 0.0), (0.42, 0.0), (0.44, 0.02), (0.42, 0.06), (0.26, 0.07), (0.26, 0.24), (0.42, 0.25), (0.44, 0.28), (0.42, 0.31), (0.0, 0.31)],
+                   "wood", sd + 9, segments=32, lump=0.004)
+    kit.place(reel, loc=(1.7, 0.0, 0.1))
+    parts.append(reel)
+    parts.append(S.snake("thread", [(1.7 + math.cos(q * 0.55) * 0.3, math.sin(q * 0.55) * 0.3, 0.19 + 0.0042 * q) for q in range(40)], 0.035, "red", sd, sides=6, wobble=0.05, steps=1))
     ob = kit.join("burrow", parts)
     ob.name = "burrow"
     for p in ob.data.polygons:
         p.use_smooth = True
+    # collider: the same shell, plain and low, so the walls stop you
+    co = kit.lathe("burrow_col-colonly", [(0.0, 3.85), (1.4, 3.7), (2.6, 2.95), (3.3, 1.65), (3.55, 0.45), (3.65, -0.3), (0.0, -0.3)], segments=20)
+    ci = kit.lathe("ci", [(r, z) for z, r in INNER][:1] + [(r - 0.04, z) for z, r in INNER], segments=20)
+    S.boolean(co, ci)
+    cd = kit.lathe("cd", [(0.0, 0.0), (1.3, 0.0), (1.3, 3.0), (0.0, 3.0)], segments=16)
+    cd.rotation_euler = (0, math.pi / 2, 0)
+    cd.location = (-4.5, 0.0, 1.05)
+    bpy_apply(cd)
+    S.boolean(co, cd)
+    co.name = "burrow_col-colonly"
 
 
 def bpy_apply(ob):
@@ -369,13 +459,7 @@ def B_bench():
                             rot=(math.acos(max(-1, min(1, d.z))) * 0 + math.atan2(math.hypot(d.x, d.y), d.z), 0, math.atan2(d.x, -d.y))))
         parts.append(S.blob("pupil%d" % i, (0.14, 0.14, 0.06), c + d * 0.29, "ink", sd + i, lump=0.0, subdiv=1,
                             rot=(math.atan2(math.hypot(d.x, d.y), d.z), 0, math.atan2(d.x, -d.y))))
-    # rolls of plasticine, 0.9 m thick, one cut and squashed
-    for i, (x, y, rot, mat) in enumerate([(3.6, 2.6, 0.3, "red"), (4.3, 1.4, 0.1, "blue"), (2.7, 3.4, -0.2, "yellow"), (4.6, 3.3, 0.6, "leaf_lt")]):
-        L = 2.4 - 0.3 * i
-        rl = S.snake("roll%d" % i, [(-L / 2, 0, 0), (0, 0, 0.02), (L / 2, 0, 0)], 0.45, mat, sd + i, sides=16, wobble=0.06, steps=4)
-        rl.rotation_euler = (0, 0, rot)
-        rl.location = (x, y, 0.42)
-        parts.append(rl)
+    # the plasticine itself (tray of bars, coil, squashed ball, cut block) is plasticine.glb, placed by clay.gd here
     cols.append(kit.collision_box("rolls-convcolonly", (3.0, 3.4, 0.9), (3.9, 2.5, 0.45)))
     # a pot of modelling tools
     parts.append(S.lathe("pot", [(0.0, 0.0), (0.55, 0.0), (0.6, 0.9), (0.66, 1.0), (0.6, 1.02), (0.5, 0.95), (0.0, 0.95)], "orange", sd, segments=28, lump=0.02))
@@ -433,7 +517,7 @@ def B_lamp():
 def B_apron():
     """The workbench's own edge, seen from the set below: a thick front board with a routed lip and a
     drawer with a brass pull, side boards and two chunky legs, sized to the plateau (12 x 10 m, top
-    2.6 m). Origin = plateau centre at ground level. No colliders: the clay plateau is the solid."""
+    2.6 m). Origin = plateau centre at ground level. Collider only under the top board behind z=-40, where the terrain ends."""
     sd = 121
     parts = []
     # front board (faces +Y = Godot -Z? no: the set lies at Godot +Z of the bench, Blender -Y)
@@ -447,7 +531,10 @@ def B_apron():
         parts.append(S.slab("leg%d" % s, (1.0, 1.0, 2.0), (s * 5.7, -4.7, 0.95), "wood", sd + 2 + s, lump=0.006, bevel=0.08, cuts=4))
         parts.append(S.slab("legb%d" % s, (1.0, 1.0, 2.0), (s * 5.7, 4.7, 0.95), "wood", sd + 4 + s, lump=0.006, bevel=0.08, cuts=4))
     parts.append(S.slab("back", (12.6, 0.5, 0.75), (0, 5.25, 2.25), "wood", sd + 7, lump=0.006, bevel=0.06, cuts=12))
+    # the terrain stops at Godot z=-40, so the back of the bench top (z -46..-40) is a board, flush under the clay
+    parts.append(S.slab("top", (12.2, 6.3, 0.4), (0, 2.1, 2.38), "wood", sd + 8, lump=0.0, bevel=0.03, cuts=12))
     kit.join("apron", parts).name = "apron"
+    kit.collision_box("top", (12.2, 6.3, 0.4), (0, 2.1, 2.38))
 
 
 # --- set dressing ----------------------------------------------------------------------------------
@@ -556,23 +643,6 @@ def B_cloud(seed="191"):
     kit.join("cloud", parts).name = "cloud"
 
 
-def B_cottage(seed="201"):
-    """A village cottage in clay: lumpy plaster walls, a thumbed roof, a door, lit windows, a chimney."""
-    sd = int(seed)
-    rnd = random.Random(sd)
-    w, d, h = rnd.uniform(2.6, 3.4), rnd.uniform(2.2, 2.8), rnd.uniform(1.9, 2.3)
-    parts = [S.slab("walls", (w, d, h), (0, 0, h / 2), "plaster", sd, lump=0.04, bevel=0.12, cuts=8, dents=8)]
-    parts.append(_roof(w + 0.5, d + 0.6, d * 0.62, h - 0.05, sd))
-    parts.append(S.slab("chimney", (0.45, 0.45, 1.2), (w * 0.28, d * 0.2, h + 0.9), "stone", sd, lump=0.03, bevel=0.06, cuts=3))
-    parts.append(S.slab("door", (0.7, 0.12, 1.2), (-w * 0.2, d / 2 + 0.01, 0.6), "bark", sd, lump=0.01, bevel=0.06, cuts=3))
-    for k, x in enumerate((w * 0.18, w * 0.38)):
-        parts.append(S.slab("win%d" % k, (0.42, 0.08, 0.5), (x - w * 0.1, d / 2 + 0.02, h * 0.58), "window", sd + k, lump=0.0, bevel=0.03, cuts=2))
-        parts.append(S.snake("sill%d" % k, [(x - w * 0.1 - 0.28, d / 2 + 0.07, h * 0.58 - 0.3), (x - w * 0.1 + 0.28, d / 2 + 0.07, h * 0.58 - 0.3)], 0.05, "bark", sd, sides=6))
-    parts.append(S.slab("winside", (0.08, 0.42, 0.5), (w / 2 + 0.02, 0.1, h * 0.58), "window", sd, lump=0.0, bevel=0.03, cuts=2))
-    kit.join("cottage", parts).name = "cottage"
-    kit.collision_box("cottage-convcolonly", (w, d, h + 0.6), (0, 0, (h + 0.6) / 2))
-
-
 def _roof(w, d, rh, z0, sd):
     """A thumbed roof: a gabled prism of clay, thick at the eaves, ridge a little sagged."""
     import bmesh
@@ -619,6 +689,8 @@ def B_backhills():
             base = Vector((math.cos(a) * r, math.sin(a) * r, 0))
             hill = (0.5 + 0.5 * math.sin(a * 5 + 1.3) * math.cos(a * 3)) * 6.0 + 2.0
             hgt = (-0.6 + hill * math.sin(min(t * 1.6, 1.0) * math.pi * 0.5) * (1.0 - 0.6 * t * t)) + 1.6 * S._lump(base * 0.08, sd, 1.0) * t
+            if abs(base.x) < 9.0 and base.y > 0 and r < 50.0:  # stay under the workbench top (2.6, z -46..-36)
+                hgt = min(hgt, 1.8)
             row.append(bm.verts.new((base.x, base.y, max(hgt, -0.6))))
         grid.append(row)
     for i in range(seg):
@@ -632,14 +704,6 @@ def B_backhills():
     for p in ob.data.polygons:
         if p.normal.z < 0.8 and p.center.length > 46:
             p.material_index = 1
-
-
-def B_stand():
-    """A placard stand: a turned wooden post in a lump of clay, the label board pegged at the top."""
-    sd = 221
-    parts = [S.blob("foot", (0.5, 0.42, 0.24), (0, 0, 0.0), "clay", sd, lump=0.03, dents=3, dent_r=0.1, dent_d=0.02)]
-    parts.append(S.lathe("post", [(0.0, 0.0), (0.05, 0.0), (0.045, 0.6), (0.04, 0.95), (0.0, 0.97)], "wood", sd, segments=10, lump=0.004))
-    kit.join("stand", parts).name = "stand"
 
 
 def B_bush(seed="231"):
@@ -656,6 +720,11 @@ def B_bush(seed="231"):
         a = k * 1.7
         parts.append(S.blob("berry%d" % k, (0.08, 0.08, 0.08), (math.cos(a) * 0.35, math.sin(a) * 0.35, 0.55), "red", sd + k, lump=0.0, subdiv=1))
     kit.join("bush", parts).name = "bush"
+
+
+from figures import *  # noqa: E402,F401,F403  B_villager(variant)
+from houses import *  # noqa: E402,F401,F403  B_cottage, village props
+from workshop import *  # noqa: E402,F401,F403  B_sign, B_plasticine
 
 
 def build(args):

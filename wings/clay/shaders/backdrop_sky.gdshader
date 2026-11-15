@@ -33,9 +33,14 @@ void sky() {
 		col = mix(col, sun_col * 1.4, (1.0 - smoothstep(sun_size * 0.9, sun_size, sd)));
 		col += sun_col * 0.25 * (1.0 - smoothstep(sun_size, sun_size * 5.0, sd));
 	}
-	// stars: pin-pricks in the night flat
-	vec2 sp = cyl * vec2(60.0, 45.0);
-	float s = step(0.996, hash(floor(sp))) * smoothstep(0.05, 0.3, el);
-	col += vec3(1.0, 0.95, 0.85) * s * stars * (1.0 - smoothstep(0.1, 0.4, length(fract(sp) - 0.5)));
+	// stars: pin-holes pricked in the night flat, round on the dome (3D cells on the view sphere, so
+	// they never stretch the way the cylindrical brush strokes do)
+	vec3 q = d * 70.0;
+	vec3 c = floor(q);
+	float hs = fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+	vec3 o = c + 0.5 + (vec3(fract(hs * 13.1), fract(hs * 71.7), fract(hs * 37.3)) - 0.5) * 0.5;
+	float pr = 0.09 + 0.08 * fract(hs * 5.3);
+	float s = step(0.93, hs) * (1.0 - smoothstep(pr * 0.5, pr, length(q - o))) * smoothstep(0.05, 0.3, el);
+	col = mix(col, vec3(1.0, 0.95, 0.85) * (1.2 + 1.5 * fract(hs * 3.1)), s * stars);
 	COLOR = col * energy;
 }

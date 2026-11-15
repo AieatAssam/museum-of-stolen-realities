@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "hat"
+albedo_color = Color(0.09, 0.085, 0.08, 1)
+roughness = 0.85
+metallic = 0.0
