@@ -20,7 +20,7 @@ Play time: not yet met. The scripted playthrough (wings/noir/tests/playthrough.g
 
 - learn_dark: enter_shade (alley zone), latch_wall (alley back wall).
 - cross_lit: cross_street (diner street zone at z -50.5), latch_gap (roof, across to the dark east face of the far roof at x -22.5), better_half (Better Half interactables).
-- heist: dim_lamp (precinct switch, outside the room at (4.8, 1.2, -57.8)), get_key (locker, needs dim_lamp first), enter_cinema (zone at z -66.5), steal_reel (pedestal, hold 1.5 s), reach_projection (booth zone).
+- heist: dim_lamp (precinct switch on the outer door jamb at (5.5, 1.2, -58.8)), get_key (locker, needs dim_lamp first), enter_cinema (zone at z -66.5), steal_reel (pedestal, hold 1.5 s), reach_projection (booth zone).
 
 Provenances: pawn (alley), matchbook (plaza), stub (cinema). Fragment: booth frame, which opens the colour reveal for eleven seconds.
 
@@ -28,7 +28,7 @@ Provenances: pawn (alley), matchbook (plaza), stub (cinema). Fragment: booth fra
 
 - Eleven-second rule: DelayedCaster (`wings/noir/delayed_caster.gd`) is the shade, sampled eleven seconds ahead. The diner window silhouette is placed at the caster's z each frame, so reading the window tells the player where the caster will be.
 - Roof gap: latching onto the far roof's dark east face completes latch_gap and carries the player across (tween, 1.2 s) to the far roof. The traversal is refused while the train's lamp lights the gap (about 1.3 m window around the train's x), and a lamp that catches the player mid-air drops them back to the last dark point. Latching the far roof again carries the player back to the near roof.
-- Ramp: a 10 x 3.4 m slab at 30 degrees from the street's west wall gap (z -26.8..-30.2) up to the roof at y 5, with a continuous collider. Known defect: its low corner sits about 0.2 m below street level, so the player can sink in at the foot (seen in playthrough run 28, about 20 s stall). The street lamps sit at z -40 and -48 so the ramp stays in shade.
+- Ramp: an 11 x 0.4 x 3.4 m slab at atan2(5, 8.5) (about 30 degrees) from the street's west wall gap (z -26.75..-30.25, rails both sides) up to the roof at y 5, with a flush threshold block at x -5 so there is no lip or slot at the foot. The playthrough walks it up (about 1.9 s) and down. The street lamps sit at z -40 and -48 so the ramp stays in shade.
 - Checkpoints: alley, street, roof, ramp_foot, precinct, cinema, booth. A void fall below y -20 respawns at the last one.
 - Gate: StaticBody3D across the cinema mouth at z -66, removed when get_key completes.
 
@@ -40,4 +40,6 @@ Eleven placards are on the `_plaque` helper plus one in the wing scene (`$Placar
 
 - Sedan and fire-escape models from `wings/noir/models/` are not placed.
 - Audio: no third-party audio added; `CREDITS.md` unchanged.
-- Known gaps: the ramp foot defect above; the enter_cinema failure in run 27 was a precinct floor hole at x 5 to 6 (fixed; run 28 passes enter_cinema). The cause of the earlier cross_street failures is not proven; it passed in runs 27 and 28. Street lamp pools eject a shadowstep player to their last dark point, which can hold a walker at a lit edge; the bot route avoids it.
+- Crossing the gap: a latch only counts when the ray hits the far roof (from the near side, normal x > 0.7) or the near roof (return); any other collider releases.
+- Art: noir_dress.gd builds all visual dressing, per-area exposure/fog and the mono pass; ShotMarks (12 markers) feed tests/shots.tscn; wings/noir/tests/shot_check.py is the calibrated exposure gate.
+- Known gaps: the enter_cinema failure in run 27 was a precinct floor hole at x 5 to 6 (fixed; run 28 passes enter_cinema). The cause of the earlier cross_street failures is not proven; it passed in runs 27 and 28. Street lamp pools eject a shadowstep player to their last dark point, which can hold a walker at a lit edge; the bot route avoids it.

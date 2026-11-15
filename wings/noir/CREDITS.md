@@ -26,3 +26,14 @@ Generator: `audio_src/gen_audio.py` (numpy synthesis, encoded to Ogg Vorbis with
 | `models/marquee.glb` | `models/src/marquee.py` |
 
 Built with the project kit at `tools/blender_build.sh`. Project original, no third-party meshes or textures.
+
+## Third-party audio (CC0 / CC-BY)
+
+| Path | Title | Author | Source | Licence |
+|---|---|---|---|---|
+| wings/noir/audio/rain_loop.ogg | Rain (loopable) | Ylmir | https://opengameart.org/content/rain-loopable | CC0-1.0 |
+| wings/noir/audio/city_night.ogg | Traffic on a street (gatve Varniu) | IgnasD | https://opengameart.org/content/high-traffic-road-sounds | CC0-1.0 |
+| wings/noir/audio/jazz_bed.ogg | Bird in Hand (Night) | Fupi | https://opengameart.org/node/114599 | CC0-1.0 |
+| wings/noir/audio/step_wet_1.ogg | Footstep on water 1 (from Water Footsteps by EminYILDIRIM, Freesound 608663) | congusbongus (OpenGameArt pack) | https://opengameart.org/content/footsteps-on-different-surfaces | CC-BY-3.0 |
+| wings/noir/audio/step_wet_2.ogg | Footstep on water 2 (from Water Footsteps by EminYILDIRIM, Freesound 608663) | congusbongus (OpenGameArt pack) | https://opengameart.org/content/footsteps-on-different-surfaces | CC-BY-3.0 |
+| wings/noir/audio/step_wet_3.ogg | Footstep on water 3 (from Water Footsteps by EminYILDIRIM, Freesound 608663) | congusbongus (OpenGameArt pack) | https://opengameart.org/content/footsteps-on-different-surfaces | CC-BY-3.0 |
