@@ -7,6 +7,7 @@ extends Wing
 ## on the downbeat over a gap), FlyLoft (tuning-fork statue), Dome (chandelier fall, heist exit).
 
 const SongMode := preload("res://wings/aria/song_mode.gd")
+const Art := preload("res://wings/aria/art.gd")
 const Instrument := preload("res://wings/aria/instrument.gd")
 const MODELS := "res://wings/aria/models/"
 const AUDIO := "res://wings/aria/audio/"
@@ -32,13 +33,6 @@ const CHANDELIER_TOP := 15.0
 const CHANDELIER_LOW := 4.0
 const DOME_CENTRE := Vector3(0, 0, -50)
 
-# placeholder colours, one per function
-const C_WALK := Color("6b7f8a")  # walkable
-const C_WALL := Color("39424a")  # structure
-const C_INTERACT := Color("e0c040")  # interactive
-const C_HAZARD := Color("c0392b")  # hazard
-const C_GOAL := Color("2ecc71")  # goal
-
 var _strikes: Array[StringName] = []
 var _fragment: Pickup
 var _fragment_spot: Node3D
@@ -56,6 +50,7 @@ var _sung: AudioStream
 var _fall_on: bool = false
 var _chandelier: Node3D
 var _heads: Array[Node3D] = []
+var art: Art
 
 
 func objectives() -> Array[Dictionary]:
@@ -95,6 +90,7 @@ func register_modes(player: Player) -> void:
 
 
 func on_enter(first_time: bool) -> void:
+	art.on_enter()
 	if first_time:
 		await Cinematics.play([
 			{"card": "The Drowned Aria", "sub": "Acquisition No. 003", "t": 3.0, "style": "display"},
@@ -108,6 +104,7 @@ func on_enter(first_time: bool) -> void:
 
 
 func on_exit() -> void:
+	art.on_exit()
 	SongMode.flipping = false
 	SongMode.duet_box = AABB()
 	SongMode.duet_accel = 0.0
@@ -126,7 +123,6 @@ func load_state(state: Dictionary) -> void:
 
 
 func _ready() -> void:
-	_build_environment()
 	var areas := Node3D.new()
 	areas.name = "Areas"
 	add_child(areas)
@@ -139,6 +135,10 @@ func _ready() -> void:
 	_build_checkpoints()
 	_build_fragment()
 	_build_marks()
+	art = Art.new()
+	art.name = "Art"
+	add_child(art)
+	art.build(self)
 	Quest.objective_completed.connect(func(_w: StringName, _o: StringName) -> void: _update_fragment())
 
 
@@ -169,38 +169,13 @@ func _process(delta: float) -> void:
 			h.look_at(_chandelier.global_position, Vector3.UP)
 
 
-func _build_environment() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("04201f")
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("0f4d48")
-	env.ambient_light_energy = 0.5
-	env.fog_enabled = true
-	env.fog_light_color = Color("0f4d48")
-	env.fog_density = 0.025
-	env.glow_enabled = true
-	env.glow_bloom = 0.12
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.ssao_enabled = true
-	Quality.apply(env)
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.light_color = Color("c9e8df")
-	sun.light_energy = 0.35
-	sun.rotation_degrees = Vector3(-55, 30, 0)
-	add_child(sun)
-
-
 # --- Foyer: entrance hall, grand ramp, gallery landing -----------------------------------
 
 func _build_foyer(areas: Node3D) -> void:
 	var foyer := _group(areas, "Foyer")
 	var geo := _group(foyer, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
+	var walk := _mat("marble_teal")
+	var wall := _mat("damask_ox")
 	# entrance floor, z 16 (the auditorium threshold) to 30 (the ramp foot)
 	_box(geo, Vector3(30, 1, 14), Vector3(0, -0.5, 23), walk)
 	_box(geo, Vector3(1, 14, 26), Vector3(-15.5, 7, 29), wall)
@@ -212,6 +187,7 @@ func _build_foyer(areas: Node3D) -> void:
 	var ramp := Vector3(12, 0.4, 7.54)
 	var angle := atan2(2.8, 7.0)
 	var ramp_body := StaticBody3D.new()
+	ramp_body.name = "FoyerRamp"
 	ramp_body.position = Vector3(0, 1.4 - 0.2 * cos(angle), 33.5 + 0.2 * sin(angle))
 	ramp_body.rotation.x = -angle
 	stairs.add_child(ramp_body)
@@ -234,8 +210,8 @@ func _build_foyer(areas: Node3D) -> void:
 func _build_auditorium(areas: Node3D) -> void:
 	var aud := _group(areas, "Auditorium")
 	var geo := _group(aud, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
+	var walk := _mat("marble_teal")
+	var wall := _mat("damask_ox")
 	# floor, 30 m wide, from z = 16 (the foyer threshold) to z = -30 (the stage)
 	_box(geo, Vector3(30, 1, 46), Vector3(0, -0.5, -7), walk)
 	# west wall, with the opening to the orchestra pit at z -14..-6
@@ -308,8 +284,8 @@ func _build_duet(aud: Node3D) -> void:
 func _build_pit(areas: Node3D) -> void:
 	var pit := _group(areas, "OrchestraPit")
 	var geo := _group(pit, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
+	var walk := _mat("boards")
+	var wall := _mat("ebony")
 	# pit floor, 3 m below the auditorium, x -32..-16, z -20..0
 	_box(geo, Vector3(16, 1, 20), Vector3(-24, -3.5, -10), walk)
 	_box(geo, Vector3(1, 14, 20), Vector3(-32.5, 4, -10), wall)
@@ -319,6 +295,7 @@ func _build_pit(areas: Node3D) -> void:
 	var len_ := sqrt(36.0 + 9.0)
 	var a := atan2(3.0, 6.0)
 	var ramp_body := StaticBody3D.new()
+	ramp_body.name = "PitRamp"
 	ramp_body.position = Vector3(-18.5 + 0.2 * sin(a), -1.5 - 0.2 * cos(a), -10)
 	ramp_body.rotation.z = a
 	geo.add_child(ramp_body)
@@ -328,7 +305,7 @@ func _build_pit(areas: Node3D) -> void:
 	_box(geo, Vector3(1, 14, 4), Vector3(45.5, 7, 44), wall)
 	# the gantry: a platform reached only by lifting on both pipes at once
 	# kept clear of the ramp (z -14..-6): the ramp would otherwise pass through the block
-	_box(geo, Vector3(8, GANTRY_TOP + 3, 5), Vector3(-22, (GANTRY_TOP - 3) * 0.5, -17), walk)
+	_box(geo, Vector3(8, GANTRY_TOP + 3, 5), Vector3(-22, (GANTRY_TOP - 3) * 0.5, -17), walk).name = "Gantry"
 	# under-stage machinery: two lift pipes that must sound together, and a sink well
 	var root := _group(pit, "Instruments")
 	for p: Array in [[Vector3(-28, -3, -13), &"pit_a", "note_organ_c"], [Vector3(-28, -3, -11), &"pit_b", "note_organ_e"]]:
@@ -352,18 +329,18 @@ func _build_pit(areas: Node3D) -> void:
 func _build_corridor(areas: Node3D) -> void:
 	var cor := _group(areas, "ScoredCorridor")
 	var geo := _group(cor, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
-	var haz := _flat(C_HAZARD)
+	var walk := _mat("boards")
+	var wall := _mat("damask_ox")
+	var haz := _mat("ebony")
 	# x 15..46, z 36..42, floor at 2.8 m (the gallery height); a 6 m gap sits at x 24..30
 	_box(geo, Vector3(9, 2.8, 6), Vector3(19.5, 1.4, 39), walk)
 	_box(geo, Vector3(16, 2.8, 6), Vector3(38, 1.4, 39), walk)
 	_box(geo, Vector3(31, 14, 1), Vector3(30.5, 7, 35.5), wall)
 	_box(geo, Vector3(31, 14, 1), Vector3(30.5, 7, 42.5), wall)
 	# the ceiling the player rides upside down during a downbeat, over the gap and its approach
-	_box(geo, Vector3(10, 0.4, 6), Vector3(27, 6.0, 39), wall)
+	_box(geo, Vector3(10, 0.4, 6), Vector3(27, 6.0, 39), wall).name = "FlipCeiling"
 	# the drop into the gap: hazard floor and a trigger that sends her back to the corridor checkpoint
-	_box(geo, Vector3(8, 1, 6), Vector3(27, -2.5, 39), haz)
+	_box(geo, Vector3(8, 1, 6), Vector3(27, -2.5, 39), haz).name = "GapFloor"
 	var drop := TriggerZone.make_box(Vector3(8, 2, 6), false)
 	drop.position = Vector3(27, -1, 39)
 	drop.triggered.connect(func(_p: Player) -> void: Game.respawn())
@@ -378,8 +355,8 @@ func _build_corridor(areas: Node3D) -> void:
 func _build_fly_loft(areas: Node3D) -> void:
 	var loft := _group(areas, "FlyLoft")
 	var geo := _group(loft, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
+	var walk := _mat("boards")
+	var wall := _mat("ebony")
 	_box(geo, Vector3(16, 2.8, 16), Vector3(54, 1.4, 38), walk)
 	_box(geo, Vector3(1, 14, 18), Vector3(62.5, 7, 38), wall)
 	_box(geo, Vector3(16, 14, 1), Vector3(54, 7, 46.5), wall)
@@ -388,13 +365,7 @@ func _build_fly_loft(areas: Node3D) -> void:
 	# the statue: a tall column that rings a fork note when struck
 	var statue := _instrument("", "fork_strike", &"fork", &"lift", Vector3(56, 2.8, 40))
 	statue.name = "TuningForkStatue"
-	var column := MeshInstance3D.new()
-	var cm := BoxMesh.new()
-	cm.size = Vector3(0.6, 3.0, 0.6)
-	column.mesh = cm
-	column.material_override = _flat(C_INTERACT)
-	column.position.y = 1.5
-	statue.add_child(column)
+	statue.add_child(_model("fork_statue", Vector3.ZERO))
 	root.add_child(statue)
 	# the loft organ: a lift that sounds on its own note
 	var organ := _instrument("pipes", "note_organ_g", &"loft_organ", &"lift", Vector3(48, 2.8, 32))
@@ -411,15 +382,15 @@ func _build_fly_loft(areas: Node3D) -> void:
 func _build_dome(areas: Node3D) -> void:
 	var dome := _group(areas, "Dome")
 	var geo := _group(dome, "Geometry")
-	var walk := _flat(C_WALK)
-	var wall := _flat(C_WALL)
+	var walk := _mat("marble_teal")
+	var wall := _mat("damask_ox")
 	var c := DOME_CENTRE
 	# rotunda floor, x -12..12, z -62..-30, level with the auditorium floor
 	_box(geo, Vector3(24, 1, 32), Vector3(c.x, -0.5, -46), walk)
 	_box(geo, Vector3(1, 16, 32), Vector3(-12.5, 8, -46), wall)
 	_box(geo, Vector3(1, 16, 32), Vector3(12.5, 8, -46), wall)
 	_box(geo, Vector3(26, 16, 1), Vector3(0, 8, -62.5), wall)
-	_box(geo, Vector3(24, 0.5, 32), Vector3(0, 16.25, -46), wall)
+	_box(geo, Vector3(24, 0.5, 32), Vector3(0, 16.25, -46), wall).name = "Lid"
 	# the audience: twelve seated figures ringed around the chandelier, heads free to turn
 	var audience := _group(dome, "Audience")
 	for i: int in 12:
@@ -427,24 +398,17 @@ func _build_dome(areas: Node3D) -> void:
 		var fig := Node3D.new()
 		fig.name = "Figure%02d" % i
 		fig.position = c + Vector3(sin(a) * 8.0, 0.0, cos(a) * 8.0)
+		fig.rotation.y = a + PI  # the model faces +Z; turn it to the centre
 		audience.add_child(fig)
-		var body := MeshInstance3D.new()
-		var cap := CapsuleMesh.new()
-		cap.radius = 0.35
-		cap.height = 1.2
-		body.mesh = cap
-		body.material_override = wall
-		body.position.y = 0.6
+		var body := _model("figure", Vector3.ZERO)
+		body.add_child(_model("seat", Vector3.ZERO))
 		fig.add_child(body)
 		var head := Node3D.new()
 		head.position.y = 1.55
 		fig.add_child(head)
-		var skull := MeshInstance3D.new()
-		var sph := SphereMesh.new()
-		sph.radius = 0.25
-		sph.height = 0.5
-		skull.mesh = sph
-		skull.material_override = _flat(C_INTERACT)
+		# look_at aims -Z; the modelled face looks +Z, so it is turned within the pivot
+		var skull := _model("figure_head", Vector3.ZERO)
+		skull.rotation.y = PI
 		head.add_child(skull)
 		_heads.append(head)
 	# the cathedral chandelier: a ring of light hung from the dome, lowered during the silent fall
@@ -452,13 +416,17 @@ func _build_dome(areas: Node3D) -> void:
 	_chandelier.name = "Chandelier"
 	_chandelier.position = Vector3(c.x, CHANDELIER_TOP, c.z)
 	dome.add_child(_chandelier)
-	var ring := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = 3.2
-	torus.outer_radius = 4.0
-	ring.mesh = torus
-	ring.material_override = _flat(C_INTERACT)
-	_chandelier.add_child(ring)
+	_chandelier.add_child(_model("chandelier", Vector3(0, 5.0, 0)))
+	_chandelier.add_child(_model("chain", Vector3(0, 31.0, 0)))
+	var glow := OmniLight3D.new()
+	glow.position = Vector3(0, 2.6, 0)
+	glow.light_color = Color("ffc98a")
+	glow.light_energy = 6.0
+	glow.omni_range = 18.0
+	glow.omni_attenuation = 1.4
+	glow.light_volumetric_fog_energy = 2.0
+	glow.shadow_enabled = false  # an omni shadow re-renders the whole rotunda six times; the crystals read without it
+	_chandelier.add_child(glow)
 	# the heist's chord route: two pipes that must sound together, a sink between them, and a ledge
 	var root := _group(dome, "Instruments")
 	for p: Array in [[Vector3(-2, 0, -56), &"heist_a", "note_organ_c"], [Vector3(2, 0, -56), &"heist_b", "note_organ_g"]]:
@@ -473,7 +441,7 @@ func _build_dome(areas: Node3D) -> void:
 	sink.height = 3.0
 	sink.strength = 14.0
 	root.add_child(sink)
-	_box(geo, Vector3(6, 1, 4), Vector3(0, 7.5, -60), walk)
+	_box(geo, Vector3(6, 1, 4), Vector3(0, 7.5, -60), walk).name = "Ledge"
 	# tall enough to catch the chord's lift, which carries her to about y 14 before gravity is gone
 	var exit_zone := TriggerZone.make_box(Vector3(6, 10, 4), false)
 	exit_zone.position = Vector3(0, 12, -60)
@@ -505,29 +473,30 @@ func _checkpoint(id: StringName, pos: Vector3) -> void:
 	add_child(cp)
 
 
-## Camera marks for capture: twelve Marker3D nodes in group shot_marks, each with a look_at meta.
+## Camera marks for capture (tests/shots.tscn): twelve Marker3D under ShotMarks, in group shot_marks,
+## each looking down its -Z. Two per area, three in the auditorium, one in the fly-loft.
 func _build_marks() -> void:
-	var holder := _group(self, "CameraMarks")
+	var holder := _group(self, "ShotMarks")
 	var marks := [
-		[Vector3(0, 2.0, 14.0), Vector3(0, 3.0, -20.0)],
-		[Vector3(-6.0, 1.7, 1.0), Vector3(-8.0, 2.5, -4.0)],
-		[Vector3(0, 1.7, -12.0), Vector3(0, 2.5, -19.0)],
-		[Vector3(0, 1.7, 0.5), Vector3(0, 1.2, -7.0)],
-		[Vector3(-8.0, 2.0, -16.0), Vector3(0, 4.0, -30.0)],
-		[Vector3(3.0, 1.6, -22.0), Vector3(0, 1.0, -26.0)],
-		[Vector3(13.0, 5.0, 9.0), Vector3(-6.0, 3.0, -20.0)],
-		[Vector3(-2.0, 0.8, 4.0), Vector3(0, 0.0, -8.0)],
-		[Vector3(-26, -1, -8), Vector3(-22, 1, -17)],
-		[Vector3(17, 3.5, 39), Vector3(40, 2, 39)],
-		[Vector3(50, 4, 36), Vector3(56, 2, 40)],
-		[Vector3(0, 6, -38), Vector3(0, 12, -50)],
+		["foyer_stair", Vector3(6, 1.7, 17.5), Vector3(-2, 3.6, 34)],
+		["foyer_gallery", Vector3(-10, 4.7, 40), Vector3(5, 2.0, 18)],
+		["auditorium_hall", Vector3(0, 2.2, 13), Vector3(0, 5.5, -21)],
+		["auditorium_tiers", Vector3(10, 1.8, -10), Vector3(-15, 7.0, 4)],
+		["auditorium_stage", Vector3(5, 2.0, -16.5), Vector3(0, 4.5, -27)],
+		["pit_gantry", Vector3(-17, -1.2, -2), Vector3(-26, -1.0, -16)],
+		["pit_pipes", Vector3(-18, -0.8, -16), Vector3(-30, -1.5, -6)],
+		["corridor_gap", Vector3(17, 4.5, 39), Vector3(40, 4.0, 39)],
+		["corridor_ceiling", Vector3(19, 3.4, 39), Vector3(28, 6.2, 39)],
+		["flyloft", Vector3(49, 3.6, 32), Vector3(56, 9.0, 44)],
+		["dome_ring", Vector3(0, 3.5, -33), Vector3(0, 6.0, -50)],
+		["dome_chandelier", Vector3(6, 1.6, -42), Vector3(-1, 11.0, -48)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
-		mk.position = m[0]
-		mk.set_meta("look_at", m[1])
+		mk.name = m[0]
 		mk.add_to_group(&"shot_marks")
 		holder.add_child(mk)
+		mk.look_at_from_position(m[1], m[2], Vector3.UP)
 
 
 func _build_fragment() -> void:
@@ -535,12 +504,13 @@ func _build_fragment() -> void:
 	_fragment_spot.name = "FragmentSpot"
 	_fragment_spot.position = Vector3(0, 0.6, -26)
 	find_child("Auditorium", true, false).add_child(_fragment_spot)
-	var shard := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.5, 0.7, 0.3)
-	shard.mesh = pm
-	shard.material_override = _flat(C_GOAL)
+	var shard := _model("fragment", Vector3.ZERO)
 	_fragment_spot.add_child(shard)
+	var halo := OmniLight3D.new()
+	halo.light_color = Color("7fffe0")
+	halo.light_energy = 2.5
+	halo.omni_range = 5.0
+	shard.add_child(halo)
 	_fragment = Pickup.new()
 	_fragment.kind = &"fragment"
 	_fragment.prompt = "Take the fragment"
@@ -700,12 +670,13 @@ func _provenance(parent: Node3D, id: String, pos: Vector3) -> void:
 	if holder == null:
 		holder = _group(parent, "Provenances")
 	holder.add_child(marker)
-	var mesh := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.25, 0.3, 0.25)
-	mesh.mesh = pm
-	mesh.material_override = _flat(C_INTERACT)
-	mesh.position.y = 0.4
+	var mesh := _model({"score": "prov_score", "baton": "prov_baton", "tuning_fork": "prov_fork"}[id], Vector3.ZERO)
+	var lamp := OmniLight3D.new()  # a small warm vitrine light, so the eye finds it
+	lamp.position = Vector3(0, 1.2, 0.3)
+	lamp.light_color = Color("ffd6a0")
+	lamp.light_energy = 1.2
+	lamp.omni_range = 2.5
+	mesh.add_child(lamp)
 	marker.add_child(mesh)
 	var pick := Pickup.new()
 	pick.kind = &"provenance"
@@ -735,11 +706,8 @@ func _group(parent: Node3D, name_: String) -> Node3D:
 	return n
 
 
-func _flat(c: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 1.0
-	return m
+func _mat(name_: String) -> Material:
+	return MaterialLib.lookup(name_, MAT_DIRS)
 
 
 func _instrument(model: String, sound_name: String, note: StringName, kind_: StringName, pos: Vector3) -> Instrument:
@@ -750,18 +718,16 @@ func _instrument(model: String, sound_name: String, note: StringName, kind_: Str
 	inst.position = pos
 	inst.sound = load(AUDIO + sound_name + ".ogg")
 	if model != "":
-		var node := _model(model, Vector3.ZERO)
-		for mi: Node in node.find_children("*", "MeshInstance3D", true, false):
-			(mi as MeshInstance3D).material_override = _flat(C_INTERACT)
-		inst.add_child(node)
+		inst.add_child(_model(model, Vector3.ZERO))
 	return inst
 
 
-func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> void:
+func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.position = pos
 	parent.add_child(body)
 	_slab(body, size, mat)
+	return body
 
 
 ## A box mesh and collision on an existing body, centred on the body's origin.

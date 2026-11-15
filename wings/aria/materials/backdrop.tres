@@ -11,6 +11,6 @@ roughness = 0.95
 emission_enabled = true
 emission_texture = ExtResource("t1")
 emission = Color(1, 1, 1, 1)
-emission_energy_multiplier = 0.15
+emission_energy_multiplier = 0.45
 cull_mode = 0
 texture_filter = 5

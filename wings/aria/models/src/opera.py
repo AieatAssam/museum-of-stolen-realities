@@ -459,14 +459,15 @@ def seat():
         for sy in (-1, 1):
             leg = kit.tube("leg", [(sx * 0.28, sy * 0.24, 0.0), (sx * 0.31, sy * 0.27, 0.15), (sx * 0.29, sy * 0.25, 0.32), (sx * 0.27, sy * 0.23, 0.4)], 0.03, 6, "gilt")
             P.append(leg)
-    seat_path = arc(0, 0.6, 0.85, math.radians(250), math.radians(290), 8)
-    P.append(sweep("seat_cushion", [(-0.55, 0.0), (0.0, 0.0), (0.04, 0.05), (0.02, 0.14), (-0.55, 0.14)], [(x, y - 1.15, 0.38) for x, y, _ in seat_path], "velvet"))
-    back_path = arc(0, 0.6, 0.9, math.radians(245), math.radians(295), 10)
-    P.append(sweep("seat_back", [(-0.12, 0.0), (0.0, 0.0), (0.02, 0.4), (0.0, 0.7), (-0.12, 0.72)], [(x, y - 0.2 + 0.9 - 0.9, 0.5) for x, y, _ in back_path], "velvet"))
-    P.append(sweep("back_frame", [(-0.14, 0.7), (0.02, 0.7), (0.04, 0.76), (-0.14, 0.78)], [(x, y - 0.2, 0.5) for x, y, _ in back_path], "gilt"))
+    # front edge at y -0.3, curving back at the sides; the cushion runs 0.5 m back from it
+    seat_path = [(x, y + 1.13, z) for x, y, z in arc(0, 0, 1.45, math.radians(256), math.radians(284), 8)]
+    P.append(sweep("seat_cushion", [(-0.5, 0.0), (0.0, 0.0), (0.04, 0.05), (0.02, 0.14), (-0.5, 0.14)], [(x, y, 0.38) for x, y, _ in seat_path], "velvet"))
+    back_path = [(x, y + 1.62, z) for x, y, z in arc(0, 0, 1.45, math.radians(254), math.radians(286), 10)]
+    P.append(sweep("seat_back", [(-0.12, 0.0), (0.0, 0.0), (0.02, 0.4), (0.0, 0.7), (-0.12, 0.72)], [(x, y, 0.5) for x, y, _ in back_path], "velvet"))
+    P.append(sweep("back_frame", [(-0.14, 0.7), (0.02, 0.7), (0.04, 0.76), (-0.14, 0.78)], [(x, y, 0.5) for x, y, _ in back_path], "gilt"))
     for sx in (-1, 1):
         P.append(kit.tube("arm", [(sx * 0.32, 0.25, 0.55), (sx * 0.34, 0.0, 0.62), (sx * 0.33, -0.25, 0.6), (sx * 0.31, -0.3, 0.5)], 0.035, 6, "gilt"))
-    P.append(sweep("seat_apron", [(0.0, -0.06), (0.03, -0.06), (0.03, 0.0), (0.0, 0.0)], [(x, y - 1.15 + 0.05, 0.38) for x, y, _ in seat_path], "gilt"))
+    P.append(sweep("seat_apron", [(0.0, -0.06), (0.03, -0.06), (0.03, 0.0), (0.0, 0.0)], [(x, y, 0.38) for x, y, _ in seat_path], "gilt"))
     kit.join("seat", P)
 
 
@@ -692,7 +693,8 @@ def stair(width=12.0, rise=2.8, run=7.0, steps=8):
     for i in range(steps):
         z = h * (i + 1)
         y = -d * i
-        P.append(kit.box("riser", (width, d + 0.02, h), (0, y - d / 2, z - h / 2), mat="marble_ivory", bevel=0.01))
+        # each step is solid to the ground, so the flight reads as one carved mass, not floating slabs
+        P.append(kit.box("riser", (width, d + 0.02, z), (0, y - d / 2, z / 2), mat="marble_ivory", bevel=0.01))
         P.append(sweep("nosing", [(0.0, -0.04), (0.04, -0.03), (0.05, 0.0), (0.0, 0.0)], [(-width / 2, y, z), (width / 2, y, z)], "marble_ivory", cap=True))
         P.append(kit.box("runner", (width * 0.45, d + 0.02, 0.02), (0, y - d / 2, z + 0.01), mat="velvet"))
         P.append(kit.lathe("rod", [(0.015, -width * 0.24), (0.015, width * 0.24)], segments=6, mat="brass"))
@@ -783,7 +785,7 @@ def royal_box():
 def coffer_panel():
     """The corridor's flip ceiling dressed (10 x 6 m, faces down at z=0): three sunk coffers in gilt
     ribs, each with a rosette. The player walks on it upside down, so it reads from both sides."""
-    P = [kit.box("deck", (10.0, 6.0, 0.4), (0, 0, 0.2), mat="damask_ox")]
+    P = [kit.box("deck", (10.0, 6.0, 0.4), (0, 0, 0.2), mat="marble_teal")]
     for k in range(3):
         x = -3.33 + 3.33 * k
         P.append(frame("coffer", 2.8, 5.2, (0, 0, 0), mat="gilt"))

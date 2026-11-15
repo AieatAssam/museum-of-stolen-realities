@@ -73,7 +73,7 @@ def main():
                                "emission": (0.5, 1.0, 0.9), "emission_energy_multiplier": 5.0, "rim_enabled": True, "rim": 1.0})
     write("mirror", {"albedo_color": (0.32, 0.42, 0.42), "metallic": 1.0, "roughness": 0.08})
     write("backdrop", {"albedo_texture": T + "backdrop.png", "albedo_color": (0.9, 0.9, 0.9), "roughness": 0.95,
-                       "emission_enabled": True, "emission_texture": T + "backdrop.png", "emission": (1, 1, 1), "emission_energy_multiplier": 0.15}, cull=0)
+                       "emission_enabled": True, "emission_texture": T + "backdrop.png", "emission": (1, 1, 1), "emission_energy_multiplier": 0.45}, cull=0)
     write("ceiling_fresco", {"albedo_texture": T + "ceiling.png", "roughness": 0.9, "emission_enabled": True, "emission_texture": T + "ceiling.png",
                              "emission": (1, 1, 1), "emission_energy_multiplier": 0.35}, cull=0)
     write("score_paper", {"albedo_texture": T + "score.png", "roughness": 0.9}, cull=0)
