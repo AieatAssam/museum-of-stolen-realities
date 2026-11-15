@@ -18,6 +18,8 @@ const Canvas := preload("res://wings/paint/canvas.gd")
 const Stroke := preload("res://wings/paint/stroke.gd")
 const SurfMode := preload("res://wings/paint/surf_mode.gd")
 const PaintWalk := preload("res://wings/paint/paint_walk.gd")
+const Art := preload("res://wings/paint/paint_art.gd")
+const Look := preload("res://wings/paint/paint_look.gd")
 const SND := "res://wings/paint/audio/"
 const COURSE := Vector3(600, 0, 0)
 
@@ -36,8 +38,9 @@ var uses: Dictionary = {}         # interactables by id
 var mood: float = 0.5             # the painter, as weather: 0 grey smear .. 1 warm
 var mood_shown: float = 0.5
 var env: Environment
-var sky_mat: ProceduralSkyMaterial
 var sun: DirectionalLight3D
+var look: Look
+var splash: GPUParticles3D
 var _mats: Dictionary = {}
 var _last_safe: Vector3 = Vector3.INF
 var _last_safe_stroke: Node3D
@@ -122,6 +125,11 @@ func on_enter(first_time: bool) -> void:
 # =============================================================================================
 # Build
 
+func _exit_tree() -> void:
+	Art.clear()
+	Stroke._mats.clear()
+
+
 func _ready() -> void:
 	canvas = Canvas.new()
 	canvas.name = "Canvas"
@@ -147,35 +155,47 @@ func _ready() -> void:
 
 
 func _build_environment() -> void:
-	env = Environment.new()
-	env.background_mode = Environment.BG_SKY
-	var sky := Sky.new()
-	sky_mat = ProceduralSkyMaterial.new()
-	sky.sky_material = sky_mat
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.8
-	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.glow_enabled = true
-	env.glow_bloom = 0.05
-	env.fog_enabled = true
-	env.fog_density = 0.002
-	env.fog_sky_affect = 0.4
-	var we := WorldEnvironment.new()
-	we.name = "WorldEnvironment"
-	we.environment = env
-	add_child(we)
-	sun = DirectionalLight3D.new()
-	sun.name = "Sun"
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 120.0
-	add_child(sun)
-	sun.look_at_from_position(Vector3.ZERO, Vector3(0.4, -0.7, -0.5), Vector3.UP)
-	grade = PostGrade.new()
-	grade.saturation = 1.05
-	grade.contrast = 1.02
-	grade.grain = 0.02
-	grade.vignette = 0.3
+	look = Look.new()
+	look.name = "Look"
+	add_child(look)
+	look.build(self)
+	env = look.env
+	sun = look.sun
+	grade = look.grade
+	_build_splash()
+
+
+## Paint thrown off the stroke where she rides: droplets of the stroke's own colour.
+func _build_splash() -> void:
+	splash = GPUParticles3D.new()
+	splash.name = "Splash"
+	splash.amount = 48
+	splash.lifetime = 0.7
+	splash.emitting = false
+	splash.local_coords = false
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 55.0
+	pm.initial_velocity_min = 1.5
+	pm.initial_velocity_max = 4.0
+	pm.gravity = Vector3(0, -12, 0)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.4
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.35
+	splash.process_material = pm
+	var drop := SphereMesh.new()   # a droplet is the one honest sphere in the wing
+	drop.radius = 0.05
+	drop.height = 0.07
+	drop.radial_segments = 8
+	drop.rings = 4
+	var dm := StandardMaterial3D.new()
+	dm.vertex_color_use_as_albedo = true
+	dm.roughness = 0.08
+	dm.clearcoat_enabled = true
+	drop.material = dm
+	splash.draw_pass_1 = drop
+	add_child(splash)
 
 
 # --- primitives ---------------------------------------------------------------------------------
@@ -195,17 +215,8 @@ func _area(path: String) -> Node3D:
 	return parent
 
 
-func _mat(key: String) -> StandardMaterial3D:
-	if not _mats.has(key):
-		var m := StandardMaterial3D.new()
-		m.albedo_color = COL[key]
-		m.roughness = 0.85
-		if key == "goal":
-			m.emission_enabled = true
-			m.emission = COL[key]
-			m.emission_energy_multiplier = 0.6
-		_mats[key] = m
-	return _mats[key]
+func _mat(key: String) -> Material:
+	return Art.mat("g_" + ("goal" if key == "interact" else key))
 
 
 ## A named block: <name>/Visual (mesh) + <name>/Collision (static body), corners a and b.
@@ -218,9 +229,7 @@ func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "p
 	var size := hi - lo
 	var mi := MeshInstance3D.new()
 	mi.name = "Visual"
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
+	mi.mesh = Art.slab_mesh(size, root.position)
 	mi.material_override = _mat(mat)
 	root.add_child(mi)
 	if solid:
@@ -291,16 +300,19 @@ func _use(area: String, id: String, pos: Vector3, size: Vector3, prompt: String,
 	return it
 
 
-func _prop(area: String, name: String, pos: Vector3, size: Vector3, mat: String) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.name = name
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = _mat(mat)
-	mi.position = pos
-	_area(area).add_child(mi)
-	return mi
+## A Blender model placed in an area. `vis` > 0 sets a visibility range (repeats).
+func _model(area: String, name: String, pos: Vector3, yaw: float = 0.0, scale: float = 1.0, vis: float = 0.0) -> Node3D:
+	var n := Art.model(name)
+	n.position = pos
+	n.rotation.y = yaw
+	n.scale = Vector3.ONE * scale
+	if vis > 0.0:
+		for mi in n.find_children("*", "GeometryInstance3D", true, false):
+			(mi as GeometryInstance3D).visibility_range_end = vis
+			(mi as GeometryInstance3D).visibility_range_end_margin = vis * 0.1
+			(mi as GeometryInstance3D).visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	_area(area).add_child(n)
+	return n
 
 
 func _sfx(n: String, at: Variant = null, db: float = 0.0, pitch: float = 1.0) -> void:
@@ -372,6 +384,8 @@ func _on_surf(ev: String, data: Variant) -> void:
 				complete_step(&"river", &"float")
 		"kick":
 			_sfx("kick", Game.player.global_position, -4.0)
+		"wall":
+			_sfx("refuse", Game.player.global_position, -4.0)
 
 
 func _nudge_mood(d: float) -> void:
@@ -381,17 +395,31 @@ func _nudge_mood(d: float) -> void:
 ## The painter as weather: warm, high-key light when travelled well; a grey smear across the
 ## horizon (fog, desaturation, low sun) when the canvas is being damaged.
 func _apply_mood(m: float) -> void:
-	var grey := Color("8f8c88")
-	sky_mat.sky_top_color = grey.lerp(Color("5f9ee8"), m)
-	sky_mat.sky_horizon_color = grey.lerp(Color("ffc98a"), m)
-	sky_mat.ground_horizon_color = sky_mat.sky_horizon_color
-	sky_mat.ground_bottom_color = Color("3b352c")
-	sun.light_color = Color("c9c6c0").lerp(Color("ffe0b0"), m)
-	sun.light_energy = lerpf(0.7, 1.5, m)
-	env.fog_light_color = grey.lerp(Color("ffd9a8"), m)
-	env.fog_density = lerpf(0.009, 0.0015, m)
-	if grade:
-		grade.saturation = lerpf(0.55, 1.12, m)
+	look.update(_view_pos(), m, 0.0)
+
+
+func _view_pos() -> Vector3:
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		return cam.global_position
+	return Game.player.global_position if Game.player else Vector3.ZERO
+
+
+## The rider presses a wake into the wet paint and throws its colour off the stroke.
+func _ride_fx(p: Player) -> void:
+	var riding: bool = surf != null and p.mode == surf and is_instance_valid(surf.stroke)
+	if riding:
+		var st: Node3D = surf.stroke
+		Stroke.set_rider(p.global_position, clampf(surf.speed / 10.0, 0.4, 1.0), st.visual.material_override)
+		splash.global_position = p.global_position + Vector3.UP * 0.1
+		var pm := splash.process_material as ParticleProcessMaterial
+		var t: Vector3 = st.tangent(surf.s) * surf.dir
+		pm.direction = (Vector3.UP * 1.2 - t).normalized()
+		pm.color = (Stroke.PALETTE.get(st.colour, Stroke.PALETTE["white"])[0] as Color).lerp(Color("a99c86"), clampf(st.dry, 0.0, 1.0))
+		splash.amount_ratio = clampf(surf.speed / 16.0, 0.3, 1.0)
+	elif splash.emitting:
+		Stroke.set_rider(Vector3(0, -999, 0), 0.0)
+	splash.emitting = riding
 
 
 func _physics_process(delta: float) -> void:
@@ -400,10 +428,10 @@ func _physics_process(delta: float) -> void:
 		return
 	# weather follows the painter's mood over minutes, not seconds
 	mood_shown = lerpf(mood_shown, mood, 1.0 - exp(-delta / 20.0))
-	if Engine.get_physics_frames() % 30 == 0:
-		_apply_mood(mood_shown)
-		if grade:
-			Post.apply(grade, 0.0)
+	look.update(_view_pos(), mood_shown, delta)
+	_ride_fx(p)
+	if Engine.get_physics_frames() % 30 == 0 and grade:
+		Post.apply(grade, 0.0)
 	if surf and p.mode == surf:
 		_surf_dist_acc += surf.speed * delta
 		if _surf_dist_acc > 40.0:
@@ -492,7 +520,7 @@ var pent: int = 0                # layers removed
 var pent_t: float = 0.0
 var _regrow: float = -1.0
 var figure: Node3D
-var arena_mat: StandardMaterial3D
+var arena_mat: ShaderMaterial
 var revealed: bool = false
 var heist: bool = false          # the long stroke home is live
 var heist_t: float = -1.0        # seconds since boarding it (-1: not started)
@@ -513,13 +541,14 @@ func _build_world() -> void:
 	_build_edge()
 	_build_heist()
 	_build_marks()
+	_dress()
 	# the bare weave: the void, far below, never solid
 	_block("BareWeave", "Weave", Vector3(-420, -32, 80), Vector3(320, -31, -460), "weave", false)
 	canvas.seal_scraped.connect(_on_seal)
 
 
 func _post(area: String, pos: Vector3, facing: Vector3, title: String, date: String, medium: String, acq: String, body: String) -> void:
-	_prop(area, "Post_" + acq.replace(".", "_"), pos + Vector3(0, 0.55, 0), Vector3(0.12, 1.1, 0.12), "museum")
+	_model(area, "post", pos, atan2(facing.x, facing.z)).name = "Post_" + acq.replace(".", "_")
 	_placard(area, pos + Vector3(0, 1.25, 0), facing, title, date, medium, acq, body)
 
 
@@ -560,7 +589,9 @@ func _build_orchard() -> void:
 	_ground(A, "Crown", -6, -136, 6, -152, 0.5, "goal")
 	_zone(A, Vector3(-6, 0, -136), Vector3(6, 4, -152), func() -> void: complete_step(&"orchard", &"crown"))
 	_stroke(A, "stray_bough", [Vector3(-4.6, 0.5, -139), Vector3(-4.6, 0.5, -148)], "blue", 1.5, {"up": true, "t": 0.4})
-	_prop(A, "Knife", Vector3(2, 0.62, -146), Vector3(0.12, 0.04, 0.5), "museum")
+	var kn := _model(A, "knife", Vector3(2, 0.56, -146), 0.4, 2.2)   # shown large: it is the wing's one tool
+	kn.name = "Knife"
+	_model(A, "palette", Vector3(2.9, 0.5, -146.6), 1.1, 1.6)
 	_use(A, "knife", Vector3(2, 0.9, -146), Vector3(1.2, 1, 1.2), "Take the painter's knife", _take_knife)
 	pts["grove"] = Vector3(0, 0, -50)
 	pts["crown"] = Vector3(0, 0.5, -146)
@@ -628,18 +659,18 @@ func _pickup(area: String, id: String, pos: Vector3, c: Color) -> Pickup:
 	root.name = "Provenance_" + id
 	root.position = pos
 	_area(area).add_child(root)
-	var mi := MeshInstance3D.new()
+	var mi := Art.model(id)
 	mi.name = "Visual"
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.35, 0.35, 0.35)
-	mi.mesh = bm
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.emission_enabled = true
-	m.emission = COL["goal"]
-	m.emission_energy_multiplier = 0.4
-	mi.material_override = m
+	mi.scale = Vector3.ONE * {"swatch": 1.6, "stub": 3.0, "ferrule": 3.0}.get(id, 2.0)
+	mi.rotation = Vector3(0.0, 0.6, 0.0) if id == "swatch" else Vector3(0.0, 0.6, 0.35)
+	mi.position.y = -0.2 if id == "swatch" else 0.0
 	root.add_child(mi)
+	var glint := OmniLight3D.new()   # a warm glint so a provenance is found by light, not a marker
+	glint.light_color = c.lerp(COL["goal"], 0.6)
+	glint.light_energy = 0.8
+	glint.omni_range = 2.5
+	glint.position = Vector3(0, 0.6, 0)
+	mi.add_child(glint)
 	var pk := Pickup.new()
 	pk.name = "Pickup"
 	pk.kind = &"provenance"
@@ -754,13 +785,18 @@ func _build_pentimento() -> void:
 		"From the Italian for repentance: a painter's change of mind, showing through. This one is large. The museum has not decided which version it acquired.")
 	_checkpoint(A, "pentimento", Vector3(0, 0, -349), Vector3(0, 0, -1))
 	# the ground around a crack where the figure stands
-	arena_mat = (_mat("primed") as StandardMaterial3D).duplicate()
+	arena_mat = (_mat("primed") as ShaderMaterial).duplicate()
 	var parts := [[-34, -351, 34, -380], [-34, -390, 34, -419], [-34, -380, -5, -390], [5, -380, 34, -390]]
 	for i in parts.size():
 		var b: Array = parts[i]
 		var g := _ground(A, "Ground_%d" % i, b[0], b[1], b[2], b[3])
 		(g.get_node("Visual") as MeshInstance3D).material_override = arena_mat
 	figure = _block(A, "Figure", C + Vector3(-4, -40, 4), C + Vector3(4, 22, -4), "figure")
+	figure.get_node("Visual").queue_free()
+	var fm := Art.model("figure")
+	fm.name = "Visual"
+	fm.position = Vector3(0, -31, 0)   # her feet at the bottom of the block, 62 m tall
+	figure.add_child(fm)
 	# six hills, pivoting at the rim, heaving; the seals of the earlier layers ride on them
 	for k in 6:
 		var a := hill_angle(k)
@@ -849,11 +885,12 @@ func _apply_pent(instant: bool) -> void:
 	var warm := Color("efe9dc").lerp(Color("cfe6b0"), float(pent) / LAYERS)
 	if instant:
 		figure.position.y = y
-		arena_mat.albedo_color = warm
+		arena_mat.set_shader_parameter(&"colour", warm)
 	else:
 		var t := create_tween().set_parallel()
 		t.tween_property(figure, "position:y", y, 3.0).set_trans(Tween.TRANS_SINE)
-		t.tween_property(arena_mat, "albedo_color", warm, 3.0)
+		var from: Color = arena_mat.get_shader_parameter(&"colour")
+		t.tween_method(func(c: Color) -> void: arena_mat.set_shader_parameter(&"colour", c), from, warm, 3.0)
 	if pent >= LAYERS:
 		for id: String in ["kinder_road", "kinder_road_home", "pear"]:
 			var st: Node3D = canvas.get_stroke(id)
@@ -898,19 +935,31 @@ func _build_edge() -> void:
 		[Vector3(-240, 24.2, -168.4), Vector3(-262, 24.6, -180.3)]]
 	for i in walls.size():
 		_block(T, "Wall_%d" % i, walls[i][0], walls[i][1], "weave")
-	_block(T, "Stretcher", Vector3(-254, 24.6, -150), Vector3(-256, 26.6, -200), "crust")
+	_block(T, "Stretcher", Vector3(-254, 24.6, -150), Vector3(-256, 26.6, -200), "crust").get_node("Visual").visible = false
+	for i in 5:   # the stretcher bar, canvas wrapped over it and stapled
+		_model(T, "stretcher", Vector3(-255, 24.6, -155.0 - i * 10.0))
 	# the frame's gilt top edge and its staples, then the museum wall and a moulding ledge
 	var M := "MuseumWall"
 	for i in 6:
-		_prop(M, "Staple_%d" % i, Vector3(-259.5, 21.65, -176.6 - i * 0.7), Vector3(0.6, 0.05, 0.08), "museum")
+		var sp := MeshInstance3D.new()
+		sp.name = "Staple_%d" % i
+		sp.mesh = Art.slab_mesh(Vector3(0.6, 0.05, 0.08), Vector3(i, 0, 0), 0.02, 0.01, 0.005)
+		sp.material_override = Art.mat("p_steel")
+		sp.position = Vector3(-259.5, 21.65, -176.6 - i * 0.7)
+		_area(M).add_child(sp)
 	_block(M, "GiltTop", Vector3(-261, 21.6, -150), Vector3(-262, 21.9, -205), "frame")
-	_block(M, "WallNorth", Vector3(-262, -94, 0), Vector3(-264, 80, -177.4), "wall")
-	_block(M, "WallSouth", Vector3(-262, -94, -180), Vector3(-264, 80, -400), "wall")
-	_block(M, "WallBelow", Vector3(-262, -94, -177.4), Vector3(-264, 21.6, -180), "wall")
-	_block(M, "WallAbove", Vector3(-262, 24.2, -177.4), Vector3(-264, 80, -180), "wall")
+	_block(M, "WallNorth", Vector3(-262, -94, 0), Vector3(-264, 80, -177.4), "museum_wall")
+	_block(M, "WallSouth", Vector3(-262, -94, -180), Vector3(-264, 80, -400), "museum_wall")
+	_block(M, "WallBelow", Vector3(-262, -94, -177.4), Vector3(-264, 21.6, -180), "museum_wall")
+	_block(M, "WallAbove", Vector3(-262, 24.2, -177.4), Vector3(-264, 80, -180), "museum_wall")
+	# from inside the picture the museum wall is the back of its own gilt frame: one moulding around
+	# the whole wall (visual only, on its face, nowhere near the passage)
+	var gf := _model(M, "frame", Vector3(-261.6, -7, -200), PI * 0.5)
+	gf.name = "GreatFrame"
+	gf.scale = Vector3(400.0 / 13.0, 174.0 / 13.0, 6.0)
 	_ground(M, "Ledge", -264, -170, -271, -187, 21.6, "museum")
 	_block(M, "Floor", Vector3(-264, -96, 0), Vector3(-430, -94, -400), "museum", false)
-	_block(M, "FarWall", Vector3(-350, -94, 0), Vector3(-352, 80, -400), "wall", false)
+	_block(M, "FarWall", Vector3(-350, -94, 0), Vector3(-352, 80, -400), "gallery", false)
 	_zone(M, Vector3(-264, 20, -170), Vector3(-271, 26, -187), _reveal_hall)
 	_post(M, Vector3(-266, 21.6, -172), Vector3(-1, 0, 0), "Gallery wall, east", "Permanent collection", "Plaster, gilt, thirty storeys", "001.14",
 		"Every acquisition hangs here. One frame is reserved. Its label was printed before the work was acquired, which is standard practice, and before the artist was born, which is not.")
@@ -920,12 +969,9 @@ func _build_edge() -> void:
 	root.name = "FragmentSpot"
 	root.position = Vector3(-268.5, 22.4, -181)
 	_area(M).add_child(root)
-	var mi := MeshInstance3D.new()
+	var mi := Art.model("fragment")
 	mi.name = "Visual"
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.25, 0.12, 0.9)
-	mi.mesh = bm
-	mi.material_override = Stroke.mat_for("red")
+	mi.scale = Vector3.ONE * 1.4
 	root.add_child(mi)
 	var pk := Pickup.new()
 	pk.name = "Pickup"
@@ -956,12 +1002,30 @@ func _build_frames(area: String) -> void:
 		var z := -178.0 + (float(i) - (n - 1) * 0.5) * 18.0
 		var c := Vector3(-349.5, 18.0, z)
 		var mine := i == ex.size()
-		_prop(area, "Frame_%d" % i, c, Vector3(0.6, 13, 13), "frame")
-		var pane := _prop(area, "Canvas_%d" % i, c + Vector3(0.4, 0, 0), Vector3(0.3, 11, 11), "wall")
+		var fr := _model(area, "frame", c, PI * 0.5)
+		fr.name = "Frame_%d" % i
+		var lamp := SpotLight3D.new()   # a picture light for each exhibit
+		lamp.name = "PictureLight_%d" % i
+		lamp.light_color = Color(1.0, 0.86, 0.66)
+		lamp.light_energy = 24.0
+		lamp.spot_range = 24.0
+		lamp.spot_angle = 26.0
+		lamp.position = c + Vector3(8, 10, 0)
+		_area(area).add_child(lamp)
+		lamp.look_at(c, Vector3.UP)
+		var pane := MeshInstance3D.new()
+		pane.name = "Canvas_%d" % i
+		pane.mesh = Art.slab_mesh(Vector3(0.3, 11, 11), c, 0.1, 0.05, 0.02)
+		pane.position = c + Vector3(0.1, 0, 0)
+		_area(area).add_child(pane)
+		var pm := (Art.mat("g_wall") as ShaderMaterial).duplicate()
 		if not mine and ex[i].palette.size() > 0:
-			var m := StandardMaterial3D.new()
-			m.albedo_color = ex[i].palette[0]
-			pane.material_override = m
+			pm.set_shader_parameter(&"colour", ex[i].palette[0])
+			pm.set_shader_parameter(&"colour2", ex[i].palette[mini(1, ex[i].palette.size() - 1)])
+			pm.set_shader_parameter(&"mix_amount", 0.8)
+			pm.set_shader_parameter(&"tex_value", 0.3)
+			pm.set_shader_parameter(&"emission_gain", 0.3)   # each wing's picture holds its own light
+		pane.material_override = pm
 		var pl: Placard
 		if mine:
 			pane.visible = false
@@ -1002,10 +1066,9 @@ func _build_heist() -> void:
 	for k: Array in [["heist_blue_1", 30.0], ["heist_blue_1", 75.0], ["heist_final", 20.0]]:
 		var st: Node3D = canvas.get_stroke(k[0])
 		var at: Vector3 = st.sample(k[1])
-		var n := _prop(A, "Knot_%s_%d" % [k[0], int(k[1])], at + Vector3(0, 0.35, 0), Vector3(1.6, 0.7, 0.7), "crust")
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color("c98a1e")
-		n.material_override = m
+		var tg: Vector3 = st.tangent(k[1])
+		var n := _model(A, "knot", at + Vector3(0, 0.35, 0), atan2(-tg.x, -tg.z))
+		n.name = "Knot_%s_%d" % [k[0], int(k[1])]
 		n.visible = false
 		knots.append([st, float(k[1]), n])
 	_post("PrimedShore", Vector3(6, 0, 10), Vector3(-0.5, 0, -1), "The first stroke, removed", "Today", "Absence, in oil", "001.15",
@@ -1084,6 +1147,88 @@ func _on_home() -> void:
 		heist = false
 		store("heist", false)
 		finish()
+
+
+# --- dressing: visual only, never collision; kept off every rail, path and gameplay volume ----------
+
+const TREES := [   # area, x, y, z, variant, scale
+	["PrimedShore", -11.0, 0.0, 22.0, "a", 1.0], ["PrimedShore", 10.5, 0.0, 24.0, "b", 1.1], ["PrimedShore", -12.0, 0.0, -5.0, "c", 0.9],
+	["PrimedShore", 12.0, 0.0, 7.0, "a", 0.85],
+	["Orchard", -12.0, 0.0, -40.0, "b", 1.0], ["Orchard", 12.5, 0.0, -44.0, "c", 1.1], ["Orchard", -13.0, 0.0, -55.0, "a", 1.2],
+	["Orchard", 13.0, 0.0, -58.0, "b", 0.95], ["Orchard", -6.5, 0.0, -59.5, "c", 0.8],
+	["Windfall", 20.5, 0.5, -161.0, "a", 1.0], ["Windfall", 22.0, 0.5, -172.0, "c", 0.9],
+	["River", -27.0, 0.0, -215.0, "b", 1.0], ["River", 22.0, 0.0, -249.0, "a", 1.1], ["River", -10.0, 0.0, -250.5, "c", 0.9],
+	["River", 97.0, 0.0, -246.0, "b", 0.8],
+	["Corrections", -27.0, 0.0, -326.0, "a", 1.0], ["Corrections", 27.0, 0.0, -274.0, "c", 0.9],
+]
+# painted country far below the strokes: never reachable, there so the void is a landscape
+const ISLANDS := [   # centre x, top y, centre z, size x, size z, trees
+	[-36.0, -7.0, -95.0, 22.0, 30.0, 3], [34.0, -8.0, -110.0, 20.0, 36.0, 3], [-60.0, -14.0, -150.0, 40.0, 30.0, 4],
+	[60.0, -12.0, -170.0, 30.0, 40.0, 3], [-110.0, -18.0, -110.0, 70.0, 50.0, 6], [-160.0, -20.0, -230.0, 80.0, 60.0, 6],
+	[-90.0, -16.0, -300.0, 60.0, 60.0, 5], [80.0, -16.0, -310.0, 60.0, 50.0, 4], [-40.0, -14.0, 30.0, 40.0, 40.0, 3],
+	[45.0, -14.0, 20.0, 40.0, 50.0, 3], [-180.0, -22.0, -60.0, 70.0, 60.0, 5],
+]
+
+
+func _tree(area: String, pos: Vector3, v: String, sc: float, yaw: float) -> void:
+	_model(area, "tree_" + v, pos, yaw, sc, 70.0)
+	var lod := _model(area, "tree_%s_lod" % v, pos, yaw, sc, 420.0)
+	for gi in lod.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).visibility_range_begin = 70.0
+		(gi as GeometryInstance3D).visibility_range_begin_margin = 7.0
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _dress() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1891
+	for t: Array in TREES:
+		_tree(t[0], Vector3(t[1], t[2], t[3]), t[4], t[5], rng.randf() * TAU)
+	var field := (_mat("primed") as ShaderMaterial).duplicate()
+	field.set_shader_parameter(&"colour", Color(0.50, 0.66, 0.24))
+	field.set_shader_parameter(&"colour2", Color(0.96, 0.80, 0.36))
+	field.set_shader_parameter(&"shade", Color(0.25, 0.35, 0.62))
+	field.set_shader_parameter(&"mix_amount", 0.75)
+	for i in ISLANDS.size():
+		var d: Array = ISLANDS[i]
+		var c := Vector3(d[0], d[1] - 2.0, d[2])
+		var mi := MeshInstance3D.new()
+		mi.name = "Field_%d" % i
+		mi.mesh = Art.slab_mesh(Vector3(d[3], 4.0, d[4]), c, 1.6, 0.8, 0.25)
+		mi.material_override = field
+		mi.position = c
+		_area("Scenery").add_child(mi)
+		for j in int(d[5]):
+			var at := Vector3(d[0] + rng.randf_range(-0.4, 0.4) * d[3], d[1], d[2] + rng.randf_range(-0.4, 0.4) * d[4])
+			_tree("Scenery", at, ["a", "b", "c"][j % 3], rng.randf_range(1.2, 2.0), rng.randf() * TAU)
+	# rocks, bushes and tufts at the margins
+	for r: Array in [["PrimedShore", -13.0, 0.0, 12.0, "rock_a", 0.7], ["PrimedShore", 13.0, 0.0, -14.0, "rock_b", 0.8],
+			["PrimedShore", -9.0, 0.0, 27.0, "bush", 1.2], ["PrimedShore", 8.5, 0.0, -15.5, "bush", 1.0],
+			["Orchard", 14.0, 0.0, -50.0, "bush", 1.3], ["Orchard", -14.5, 0.0, -47.0, "rock_a", 0.6],
+			["Windfall", 9.0, 0.5, -167.0, "bush", 1.1], ["Windfall", 15.5, 0.5, -175.0, "bush", 1.0], ["Windfall", -14.0, 0.5, -186.5, "rock_b", 0.6],
+			["River", 95.0, 0.0, -210.0, "rock_a", 0.9], ["River", -28.0, 0.0, -232.0, "rock_b", 1.0], ["River", 70.0, 0.0, -208.0, "bush", 1.2],
+			["Corrections", -28.0, 0.0, -290.0, "bush", 1.2], ["Corrections", 28.0, 0.0, -300.0, "rock_a", 0.8],
+			["CanvasEdge", -205.0, 21.6, -152.0, "rock_b", 0.9], ["CanvasEdge", -235.0, 21.6, -188.0, "bush", 1.0]]:
+		_model(r[0], r[4], Vector3(r[1], r[2], r[3]), rng.randf() * TAU, r[5], 160.0)
+	for g: Array in [[-14, 30, 14, -18, 0.0, 30], [-16, -36, 16, -61, 0.0, 26], [-16, -158, 24, -188, 0.5, 26],
+			[-30, -209, 26, -252, 0.0, 30], [-30, -272, 30, -330, 0.0, 30], [-203, -150, -240, -190, 21.6, 20]]:
+		for k in int(g[5]):
+			var x := rng.randf_range(g[0], g[2])
+			if absf(x) < 3.0 and g[0] > -100:
+				x += 6.0 * signf(x + 0.01)   # keep the walking line through the middle clear
+			_model("Tufts", "tuft", Vector3(x, g[4], rng.randf_range(g[1], g[3])), rng.randf() * TAU, rng.randf_range(0.8, 1.6), 45.0)
+	# the river's mill and boat; the studio's easels, palette, tubes and the painter's hand
+	_model("River", "mill", Vector3(-21.0, 0.0, -244.0), PI * 0.5)
+	_model("River", "boat", Vector3(-24.0, -0.35, -196.0), 1.3)
+	_model("PrimedShore", "boat", Vector3(9.0, 0.05, 19.0), -0.6, 0.9).rotation.z = 0.25
+	_model("Windfall", "tube", Vector3(10.5, 0.5, -187.4), PI * 0.5, 2.6)
+	_model("Windfall", "tube_blue", Vector3(-12.5, 0.5, -187.2), -PI * 0.5, 2.6)
+	_model("Corrections", "tube", Vector3(13.6, 0.0, -323.4), PI * 0.4, 2.0)
+	_model("Corrections", "tube_blue", Vector3(-22.4, 0.0, -305.5), -0.3, 2.0)
+	_model("Corrections", "easel", Vector3(-8.0, 0.0, -286.5), 0.5, 1.3)
+	_model("Corrections", "easel", Vector3(-26.0, 0.0, -279.0), -0.4, 1.1)
+	_model("Corrections", "palette", Vector3(-6.5, 0.02, -284.6), 0.3, 1.4)
+	_model("Corrections", "hand", Vector3(22.0, 0.0, -322.0), -2.5, 1.2)
 
 
 # --- shot marks --------------------------------------------------------------------------------------
