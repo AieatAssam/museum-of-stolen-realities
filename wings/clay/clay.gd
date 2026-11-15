@@ -156,7 +156,7 @@ func _ready() -> void:
 func on_enter(first_time: bool) -> void:
 	if first_time:
 		await Cinematics.play([
-			{"card": "Handmade.", "sub": "The Pinched Forest  ·  Acquisition No. 088", "t": 3.0, "style": "display"},
+			{"card": "Handmade.", "sub": "The Pinched Forest\nAcquisition No. 088", "t": 3.0, "style": "display"},
 		])
 	toast("You are in the Pinched Forest. The clay is still soft, and so is everything else.")
 
@@ -246,7 +246,7 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	add_child(pl)
 	pl.position = _ground_at(at) + Vector3(0, 1.1, 0)
 	pl.rotation.y = yaw
-	pl.set_text(heading, title, catalog, body, false)
+	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)
 
 
 func _build_checkpoints() -> void:
@@ -273,12 +273,12 @@ func _build_meadow() -> void:
 	ledge.triggered.connect(func(_p: Player) -> void: complete_step(&"raise", &"ledge"))
 	add_child(ledge)
 	# Pit: aim at it and hold primary to scoop clay back into the pouch.
-	_placard("PitNote", Vector3(-12, 0, 27), PI, "I", "The Pit", "Acquisition No. 088  ·  Source material",
+	_placard("PitNote", Vector3(-12, 0, 27), PI, "I", "The Pit", "Acquisition No. 088\nSource material",
 		"The clay was dug from here, and it was dug again. It is the only part of the forest that is still empty.")
 
 
 func _build_start_note() -> void:
-	_placard("StartNote", Vector3(-4, 0, 30), 0.0, "0", "The Pinched Forest", "Acquisition No. 088  ·  Handmade",
+	_placard("StartNote", Vector3(-4, 0, 30), 0.0, "0", "The Pinched Forest", "Acquisition No. 088\nHandmade",
 		"Everything here was made by hand and then made again. The ground is the first exhibit. Please do not sit on it, though it will not object.")
 
 
@@ -294,7 +294,7 @@ func _build_river() -> void:
 	var sheet := _model("river.glb")
 	sheet.position = Vector3(0, -0.2, -4.5)
 	add_child(sheet)
-	_placard("RiverNote", Vector3(-4, 0, 1.4), 0.0, "II", "The River", "Acquisition No. 088  ·  Cling film",
+	_placard("RiverNote", Vector3(-4, 0, 1.4), 0.0, "II", "The River", "Acquisition No. 088\nCling film",
 		"The river is cling film over a trench. The Curator has not decided whether it is water. A stone is the recommended crossing, and the clay does the rest.")
 
 
@@ -303,7 +303,7 @@ func _build_hill() -> void:
 	top.position = _ground_at(HILL) + Vector3(0, 2.6, 0)
 	top.triggered.connect(func(_p: Player) -> void: complete_objective(&"lookout"))
 	add_child(top)
-	_placard("HillNote", Vector3(HILL.x + 9.0, 0, HILL.z), -PI / 2.0, "III", "The Hill", "Acquisition No. 088  ·  Thumbed",
+	_placard("HillNote", Vector3(HILL.x + 9.0, 0, HILL.z), -PI / 2.0, "III", "The Hill", "Acquisition No. 088\nThumbed",
 		"The hill was pushed up by a thumb, from the inside. Its door is kept shut with a plug of the same clay. The door is not locked. Nothing here is locked.")
 
 
@@ -340,7 +340,7 @@ func _build_village() -> void:
 			_chase_started = true
 			_chaser.start_chase())
 	add_child(entrance)
-	_placard("VillageNote", Vector3(-22, 0, -17), PI / 2.0, "IV", "The Armature Village", "Acquisition No. 088  ·  Wire and hope",
+	_placard("VillageNote", Vector3(-22, 0, -17), PI / 2.0, "IV", "The Armature Village", "Acquisition No. 088\nWire and hope",
 		"The figures were never covered. Their wire shows, and their hands are open. They face the workbench. They have been praying for the workbench for some time.")
 
 
@@ -377,7 +377,7 @@ func _build_table() -> void:
 	top.position = Vector3(0, TABLE_TOP + 1.2, TABLE.z)
 	top.triggered.connect(_on_bench_top)
 	add_child(top)
-	_placard("BenchNote", Vector3(3.2, TABLE_TOP, TABLE.z + 1.6), PI / 2.0 + PI, "V", "The Workbench", "Acquisition No. 088  ·  Tools",
+	_placard("BenchNote", Vector3(3.2, TABLE_TOP, TABLE.z + 1.6), PI / 2.0 + PI, "V", "The Workbench", "Acquisition No. 088\nTools",
 		"The workbench is the exhibit's most charming feature. The scissors are open. The jar of eyes has not been closed. The figures below have been waiting for it to be finished.")
 
 
@@ -422,7 +422,7 @@ func _build_burrow() -> void:
 		_plug.add_child(cs)
 		_plug.position = Vector3(26.1, 0.0, -11.0)
 		add_child(_plug)
-	_placard("BurrowNote", Vector3(23.6, 0, -11.0), -PI / 2.0, "VI", "The Chamber", "Acquisition No. 088  ·  Closed",
+	_placard("BurrowNote", Vector3(23.6, 0, -11.0), -PI / 2.0, "VI", "The Chamber", "Acquisition No. 088\nClosed",
 		"A chamber in the hill, closed with a plug. The plug has a thumbprint on it the size of a door. The Curator would like it noted that the door was never locked.")
 
 
