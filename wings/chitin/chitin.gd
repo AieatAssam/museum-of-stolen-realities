@@ -74,7 +74,7 @@ var _dais_gate: Node3D
 var _general: Node3D
 # hall
 var _curtain: Node3D
-var _dome_mat: StandardMaterial3D
+var _dome_mat: ShaderMaterial
 var _revealed := false
 var _blink_t := 0.0
 var _court_figs: Array[Node3D] = []
@@ -188,7 +188,7 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color("060806")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("2c3c34")
+	env.ambient_light_color = Color("23403c")
 	env.ambient_light_energy = 1.4
 	# reflections only (the background stays the dark hive): teal above, honey at the horizon,
 	# so the beetle-shell film has colours to throw back
@@ -203,7 +203,7 @@ func _build_environment() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.volumetric_fog_enabled = true
 	env.volumetric_fog_density = 0.008
-	env.volumetric_fog_albedo = Color("7c8470")
+	env.volumetric_fog_albedo = Color("6f8a80")
 	env.volumetric_fog_emission = Color(0.004, 0.007, 0.006)
 	env.volumetric_fog_anisotropy = 0.6
 	env.volumetric_fog_length = 90.0
@@ -230,7 +230,7 @@ func _build_environment() -> void:
 	we.environment = env
 	add_child(we)
 	key_light = DirectionalLight3D.new()
-	key_light.light_color = Color("ffbe6a")
+	key_light.light_color = Color("ffd9a8")
 	key_light.light_energy = 1.4
 	key_light.rotation_degrees = Vector3(-78, 28, 0)  # steep: the eye is overhead, the shaft floor gets it
 	key_light.shadow_enabled = true
@@ -330,11 +330,12 @@ func _build_shaft(area: Node3D) -> void:
 	sm.radius = 60.0
 	sm.height = 60.0
 	sm.is_hemisphere = true
-	sm.radial_segments = 48
-	sm.rings = 16
+	sm.radial_segments = 96
+	sm.rings = 32
 	dome.mesh = sm
-	_dome_mat = _glow(C_AMBER, DOME_E, false)
-	_dome_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_dome_mat = ShaderMaterial.new()
+	_dome_mat.shader = load("res://wings/chitin/shaders/eye.gdshader")
+	_dome_mat.set_shader_parameter(&"energy", DOME_E)
 	dome.material_override = _dome_mat
 	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # it is the sky, not a lid
 	dome.position = Vector3(115, 20, -8)
@@ -660,7 +661,7 @@ func _build_marks() -> void:
 		["perch", Vector3(60, -1, 4), Vector3(76, 1, -6)],
 		["shaft_rim", Vector3(76, -1, 2), Vector3(110, 5, 0)],
 		["shaft_down", Vector3(129, -5.5, -6), Vector3(100, -14, -20)],
-		["foundry", Vector3(130, -26, 45), Vector3(130, -18, 60)],
+		["foundry", Vector3(130, -26, 45), Vector3(130, -23.5, 62)],
 		["gallery", Vector3(92, -29.5, 91), Vector3(62, -27, 91)],
 		["arena", Vector3(40, -29, 105), Vector3(40, -32, 60)],
 		["eye_reveal", Vector3(84, -68.3, -12), Vector3(118, 30, -8)],
@@ -686,7 +687,7 @@ func _dress() -> void:
 	# the molted gate: the shed husk replaces its three membrane boxes
 	for b: Node in areas.get_node("OuterGate/Geometry").get_children():
 		var p := (b as Node3D).position
-		if p.x > -13.5 and p.x < -10.5:
+		if p.x > -13.5 and p.x < -10.5 and p.y > 1.0:  # not the floor under them
 			_hide_mesh(b)
 	L.put("gate", Transform3D(Basis.IDENTITY, Vector3(-12, 0, 0)))
 	# the usher, the doors, the curtain, the case, the dais: models in their boxes
@@ -728,7 +729,7 @@ func _dress() -> void:
 	for f: Node3D in _court_figs:
 		for c: Node in f.get_children():
 			c.free()
-		L.put("courtier_a" if f.get_index() % 2 == 0 else "courtier_b", Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO), f)
+		L.put(["courtier_a", "courtier_b", "courtier_c"][f.get_index() % 3], Transform3D(Basis(Vector3.UP, PI + (f.get_index() % 5 - 2) * 0.12), Vector3.ZERO), f)
 	for c: Node in _general.get_children():
 		c.free()
 	L.put("general", Transform3D.IDENTITY, _general)
@@ -743,9 +744,6 @@ func _dress() -> void:
 	pin.visible = false
 	L.put("pin", Transform3D(Basis.IDENTITY, pin.position))
 	L.put("queen", Transform3D(Basis(Vector3.UP, 0.4), Vector3(138, -58, 4)))
-	_dome_mat.albedo_texture = load("res://wings/chitin/textures/eye/eye_albedo.png")
-	_dome_mat.emission_texture = _dome_mat.albedo_texture
-	_dome_mat.uv1_scale = Vector3(14, 7, 1)
 	# keys, lifts, the clockwork anchor, the moth: models on the same anchors
 	for key_node: Node3D in _keys:
 		for c: Node in key_node.get_children():
@@ -793,7 +791,10 @@ func _dress() -> void:
 	L.light(Vector3(6, 7, 0), warm, 2.0, 10.0, 1.5)              # the first hook
 	L.light(Vector3(46, -8, 0), Color("ffc060"), 4.0, 14.0, 3.0)  # the light-well glows up
 	L.light(Vector3(30, 0, 0), warm, 1.5, 10.0)                  # the usher's door
+	L.light(Vector3(21, 1.5, 11), Color("7affd8"), 4.0, 12.0, 0.5)  # fungus glow over the harp line
+	L.light(Vector3(21.5, -0.4, 11.5), Color("ffb060"), 4.5, 12.0, 0.0)  # and warm comb light across it
 	L.light(Vector3(77, 2, -6), Color("ffd27a"), 1.6, 8.0)       # the perch
+	L.light(Vector3(100, -33.5, -20.5), Color("ff9a40"), 4.0, 11.0)  # honey seeping from the heist lift's comb
 	L.light(Vector3(122, -5, 0), warm, 2.0, 14.0)                # the balcony
 	L.light(Vector3(130, -20, 56), Color("ff7a2a"), 3.0, 16.0, 2.0)   # the foundry forge glow
 	L.light(Vector3(130, -27, 76), Color("ff9a40"), 5.0, 12.0)   # the guild door
@@ -805,8 +806,10 @@ func _dress() -> void:
 	L.light(Vector3(43, -33, -8), Color("ff9a30"), 5.0, 14.0, 2.0)    # brazier glow before the General
 	# a crescent of lit comb behind her dais, so she reads in silhouette against honey
 	for i: int in 7:
-		var a := -0.9 + i * 0.3
-		L.put("comb", Transform3D(Basis(Vector3.UP, a) * Basis.from_scale(Vector3.ONE * 2.5), Vector3(40 + sin(a) * 11.0, -40.0 + (i % 2) * 2.5, -16 - cos(a) * 11.0)))
+		var a := -1.08 + i * 0.36
+		var h := 1.8 - absf(i - 3.0) * 0.18
+		L.put("comb_panel", Transform3D(Basis(Vector3.UP, -a) * Basis.from_scale(Vector3(1.0, h, 1.0)), Vector3(40 + sin(a) * 11.0, -42.5, -16 - cos(a) * 11.0)))
+		L.put("rib", Transform3D(Basis(Vector3.UP, -a - 0.18) * Basis.from_scale(Vector3(1.0, h * 4.0 + 1.0, 1.0)), Vector3(40 + sin(a + 0.18) * 11.2, -42.5, -16 - cos(a + 0.18) * 11.2)))
 	L.light(Vector3(40, -34, -24), Color("ffa040"), 4.0, 14.0, 1.5)
 	L.light(Vector3(115, -66, -8), Color("ffb040"), 7.0, 18.0, 2.0)   # the case on the dais
 	L.light(Vector3(67, -55, -12), Color("ffb040"), 1.2, 8.0)         # halfway down the stair
@@ -1080,11 +1083,9 @@ func _reveal() -> void:
 func _blink() -> void:
 	Audio.sfx(_sfx["blink"], null, -2.0, 0.6, 0.5)
 	var t := create_tween()
-	t.tween_property(_dome_mat, "emission_energy_multiplier", 0.02, 0.18)
-	t.parallel().tween_property(_dome_mat, "albedo_color", Color("150a02"), 0.18)
+	t.tween_property(_dome_mat, "shader_parameter/energy", 0.02, 0.18)
 	t.tween_interval(0.12)
-	t.tween_property(_dome_mat, "emission_energy_multiplier", DOME_E, 0.45)
-	t.parallel().tween_property(_dome_mat, "albedo_color", C_AMBER, 0.45)
+	t.tween_property(_dome_mat, "shader_parameter/energy", DOME_E, 0.45)
 
 
 func _update_fragment() -> void:

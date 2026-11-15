@@ -14,12 +14,12 @@ const MATS := "res://wings/chitin/materials"
 const AREAS := {
 	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 2.4},
 	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.35},
-	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 10, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
-	"Foundry": {"wall": "comb_dim", "fungus": 14, "comb": 8, "lamp": Color(1.0, 0.55, 0.22), "exp": 1.9},
+	"HiveShaft": {"wall": "carapace", "win": 0.65, "fungus": 4, "comb": 16, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
+	"Foundry": {"wall": "carapace", "win": 0.8, "fungus": 14, "comb": 8, "lamp": Color(0.55, 1.0, 0.85), "exp": 1.9},
 	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 2.3},
 	"GeneralArena": {"wall": "comb_dim", "fungus": 18, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 2.8},
-	"CoronationHall": {"wall": "carapace", "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 3.0},
-	"Heist": {"wall": "carapace", "fungus": 4, "comb": 0, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.8},
+	"CoronationHall": {"wall": "carapace", "win": 0.45, "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 3.0},
+	"Heist": {"wall": "carapace", "win": 0.7, "fungus": 4, "comb": 12, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.8},
 }
 
 var wing: Node3D
@@ -31,6 +31,17 @@ var _lights := 0
 var _rope: Array[MeshInstance3D] = []
 var _rope_mat: Material
 var _exp := -1.0
+var _meshes := {}                  # model name -> Mesh with the wing's materials baked in
+
+const CHUNK := 16.0
+const NEAR := 30.0                 # wall skins switch to flat stand-ins of the same material family past this
+const FAR := {"comb_panel": "comb", "plate_panel": "carapace"}
+## Wall skins and small scatter cast no shadows: the walls behind them already do, and the key's
+## cascades would otherwise redraw thousands of cells.
+const NO_SHADOW := ["comb_panel", "plate_panel", "web", "shelf_edge", "lip", "fungus_cap", "fungus_shelf", "comb"]
+const FADE := {"fungus_cap": 70.0, "web": 60.0, "fungus_shelf": 80.0}
+## Per-model material swaps: comb panel caps use a dimmer, cell-varied amber.
+const SWAP := {"comb_panel": {"amber": "amber_cell", "carapace_dull": "wax"}}  # open cells: old dim wax, not void
 
 
 func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void:
@@ -44,7 +55,15 @@ func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void
 	for area: Node in areas.get_children():
 		_dress_area(area as Node3D, AREAS.get(String(area.name), AREAS["OuterGate"]))
 	for m: String in _xf:
-		_mm(m, _xf[m])
+		# chunked so each MultiMesh frustum-culls and picks its own mesh LOD
+		var chunks := {}
+		for xf: Transform3D in _xf[m]:
+			var c := Vector3i((xf.origin / CHUNK).floor())
+			if not chunks.has(c):
+				chunks[c] = []
+			chunks[c].append(xf)
+		for c: Vector3i in chunks:
+			_mm(m, chunks[c])
 	_xf.clear()
 
 
@@ -73,6 +92,8 @@ func _dress_area(area: Node3D, cfg: Dictionary) -> void:
 				walls.append(box)
 	for f: AABB in floors:
 		_lips(f)
+		if f.size.x * f.size.z < 600.0:
+			_underside(f)
 		_scatter_floor(f, cfg)
 	for wb: AABB in walls:
 		_ribs(wb, cfg)
@@ -90,9 +111,30 @@ func _lips(b: AABB) -> void:
 		# lip.glb overhangs toward its front (+Z in Godot): face outward from the ledge
 		var basis := Basis(Vector3.UP, e[2]) * Basis.from_scale(Vector3(length, 1.0, 1.0))
 		_add("lip", Transform3D(basis, e[0]))
+		# layered chitin shelves hang under the edge, so a slab's side never reads as a box
+		if b.size.y > 0.6:
+			var n := maxi(1, roundi(length / 4.0))
+			var dir := Basis(Vector3.UP, e[2]).x
+			for i: int in n:
+				var off := (i + 0.5) * length / n - length * 0.5
+				var sb := Basis(Vector3.UP, e[2]) * Basis.from_scale(Vector3(length / n / 4.0, minf(1.0, b.size.y / 1.2), 1.0))
+				_add("shelf_edge", Transform3D(sb, e[0] + dir * off + Vector3(0, -0.12, 0)))
 
 
-## Carapace ribs up both broad faces of a wall every ~4 m, with comb and fungus between some.
+## Ledges seen from below (the shaft, the heist): overlapping plates over the bottom face.
+func _underside(b: AABB) -> void:
+	var nx := maxi(1, roundi(b.size.x / 4.0))
+	var nz := maxi(1, roundi(b.size.z / 4.0))
+	# rotated so the plates' front (+Z) faces down; the panel's height then runs along +Z
+	var basis := Basis(Vector3.RIGHT, PI / 2.0) * Basis.from_scale(Vector3(b.size.x / nx / 4.0, b.size.z / nz / 4.0, 0.6))
+	for i: int in nx:
+		for k: int in nz:
+			_add("plate_panel", Transform3D(basis, Vector3(b.position.x + (i + 0.5) * b.size.x / nx, b.position.y, b.position.z + k * b.size.z / nz)))
+
+
+## Every broad wall face is covered in modelled panels (deep comb cells or overlapping carapace
+## plates), so no wall reads as a textured plane; ribs every ~8 m, secreted columns at the ends,
+## silk webs strung between some ribs, and comb or fungus shelves on the panels.
 func _ribs(b: AABB, cfg: Dictionary) -> void:
 	var h := b.size.y
 	if h < 2.5:
@@ -101,29 +143,69 @@ func _ribs(b: AABB, cfg: Dictionary) -> void:
 	var length := b.size.x if along_x else b.size.z
 	if length < 3.0:
 		return
-	var n := int(length / 4.0)
+	var comb_wall: bool = String(cfg["wall"]).begins_with("comb")
+	var nx := maxi(1, roundi(length / 4.0))
+	var nz := maxi(1, roundi(h / 4.0))
+	var sx := length / nx / 4.0
+	var sz := h / nz / 4.0
 	for side: float in [-1.0, 1.0]:
+		var yaw: float
+		if along_x:
+			yaw = 0.0 if side > 0 else PI
+		else:
+			yaw = PI / 2.0 if side > 0 else -PI / 2.0
+		var basis := Basis(Vector3.UP, yaw)
+		for i: int in nx:
+			var u := (i + 0.5) * length / nx
+			# a few carapace columns break up comb streets, a few comb windows light carapace walls
+			var stripe := _rng.randf()
+			var lo := 0
+			if not comb_wall and nz > 2:
+				lo = _rng.randi_range(0, nz - 2)  # windows two panels tall, not floor-to-ceiling stripes
+			for k: int in nz:
+				var win := stripe < float(cfg.get("win", 0.22)) and (comb_wall or nz <= 2 or k == lo or k == lo + 1)
+				var panel := "comb_panel" if (comb_wall and stripe > 0.15) or (not comb_wall and win) else "plate_panel"
+				var p: Vector3
+				if along_x:
+					p = Vector3(b.position.x + u, b.position.y + k * h / nz, b.position.z if side < 0 else b.end.z)
+				else:
+					p = Vector3(b.position.x if side < 0 else b.end.x, b.position.y + k * h / nz, b.position.z + u)
+				# model front is +Z (Godot); depth squashed so cells never reach far into the walk space
+				_add(panel, Transform3D(basis * Basis.from_scale(Vector3(sx, sz, 0.6)), p))
+		var n := maxi(1, int(length / 8.0))
 		for i: int in n + 1:
-			var u := (float(i) / maxf(n, 1)) * (length - 1.0) + 0.5
+			var u := (float(i) / n) * (length - 1.0) + 0.5
 			var p: Vector3
-			var yaw: float
 			if along_x:
 				p = Vector3(b.position.x + u, b.position.y, b.position.z if side < 0 else b.end.z)
-				yaw = 0.0 if side > 0 else PI
 			else:
 				p = Vector3(b.position.x if side < 0 else b.end.x, b.position.y, b.position.z + u)
-				yaw = PI / 2.0 if side > 0 else -PI / 2.0
-			var basis := Basis(Vector3.UP, yaw)
 			_add("rib", Transform3D(basis * Basis.from_scale(Vector3(1.0, h, 1.0)), p))
 			if i < n and h > 4.0:
-				var mid_u := u + length / maxf(n, 1) * 0.5
-				var q := p + (Vector3(mid_u - u, 0, 0) if along_x else Vector3(0, 0, mid_u - u))
+				var step := (length - 1.0) / n
+				var q := p + (Vector3(step * 0.5, 0, 0) if along_x else Vector3(0, 0, step * 0.5))
 				var roll := _rng.randf()
 				var y := q.y + clampf(_rng.randf_range(1.5, h - 2.0), 1.0, 6.0)
 				if roll < float(cfg["comb"]) / 40.0:
-					_add("comb", Transform3D(basis.rotated(Vector3.UP, 0.0) * Basis.from_scale(Vector3.ONE * _rng.randf_range(0.8, 1.4)), Vector3(q.x, y, q.z)))
+					_add("comb", Transform3D(basis * Basis.from_scale(Vector3.ONE * _rng.randf_range(0.8, 1.4)), Vector3(q.x, y, q.z)))
 				elif roll < 0.45:
 					_add("fungus_shelf", Transform3D(basis * Basis.from_scale(Vector3.ONE * _rng.randf_range(0.7, 1.3)), Vector3(q.x, q.y + _rng.randf_range(0.8, 3.0), q.z)))
+				elif roll < 0.7 and h > 7.0:
+					# a web strung across the bay, standing off the panels
+					var off := (Vector3(0, 0, side) if along_x else Vector3(side, 0, 0)) * 0.5
+					var ws := step / 4.0
+					_add("web", Transform3D(basis * Basis.from_scale(Vector3(ws, ws, 1.0)), Vector3(q.x, q.y + h - 4.5 * ws, q.z) + off))
+	# secreted columns hide the wall's end faces
+	if h > 5.0:
+		var ends: Array[Vector3] = []
+		if along_x:
+			ends = [Vector3(b.position.x, b.position.y, b.get_center().z), Vector3(b.end.x, b.position.y, b.get_center().z)]
+		else:
+			ends = [Vector3(b.get_center().x, b.position.y, b.position.z), Vector3(b.get_center().x, b.position.y, b.end.z)]
+		var thick := minf(b.size.x, b.size.z)
+		for e: Vector3 in ends:
+			var r := clampf(thick / 1.2, 0.8, 2.5)
+			_add("column", Transform3D(Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(r, h / 8.0, r)), e))
 
 
 ## Fungus clusters along a floor's edges; some carry a practical light.
@@ -168,20 +250,9 @@ static func model(n: String) -> Node3D:
 
 
 func _mm(n: String, xforms: Array) -> void:
-	var src := model(n)
-	if src == null or xforms.is_empty():
+	var mesh := _mesh(n, n)
+	if mesh == null or xforms.is_empty():
 		return
-	var found := src.find_children("*", "MeshInstance3D", true, false)
-	if found.is_empty():
-		src.free()
-		return
-	var smi := found[0] as MeshInstance3D
-	var mesh: Mesh = smi.mesh.duplicate()
-	for i in mesh.get_surface_count():
-		var m := smi.get_surface_override_material(i)
-		if m:
-			mesh.surface_set_material(i, m)
-	src.free()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -191,7 +262,67 @@ func _mm(n: String, xforms: Array) -> void:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "MM_" + n
 	mmi.multimesh = mm
+	if NO_SHADOW.has(n):
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if FADE.has(n):
+		mmi.visibility_range_end = FADE[n]
+		mmi.visibility_range_end_margin = 8.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(mmi)
+	if FAR.has(n):
+		# HLOD: the modelled skin near the eye, a flat stand-in with the same material family beyond
+		mmi.visibility_range_end = NEAR
+		mmi.visibility_range_end_margin = 4.0
+		var q: Mesh = _meshes.get(n + "_far")
+		if q == null:
+			var qm := QuadMesh.new()
+			qm.size = Vector2(4.0, 4.0)
+			qm.center_offset = Vector3(0, 2.0, 0.12)
+			qm.material = _mat(FAR[n])
+			q = qm
+			_meshes[n + "_far"] = q
+		_tier(n + "_far", q, xforms, NEAR, 0.0)
+
+
+func _tier(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) -> void:
+	var fm := MultiMesh.new()
+	fm.transform_format = MultiMesh.TRANSFORM_3D
+	fm.mesh = mesh
+	fm.instance_count = xforms.size()
+	for i in xforms.size():
+		fm.set_instance_transform(i, xforms[i])
+	var fmi := MultiMeshInstance3D.new()
+	fmi.name = "MM_" + n
+	fmi.multimesh = fm
+	fmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fmi.visibility_range_begin = begin
+	fmi.visibility_range_begin_margin = 4.0
+	fmi.visibility_range_end = end
+	fmi.visibility_range_end_margin = 4.0
+	add_child(fmi)
+
+
+## A model's first mesh with its materials baked in (and SWAP applied under the base name), cached.
+func _mesh(n: String, base: String) -> Mesh:
+	if _meshes.has(n):
+		return _meshes[n]
+	var src := model(n)
+	if src == null:
+		return null
+	var found := src.find_children("*", "MeshInstance3D", true, false)
+	var mesh: Mesh = null
+	if not found.is_empty():
+		var smi := found[0] as MeshInstance3D
+		mesh = smi.mesh.duplicate()
+		for i in mesh.get_surface_count():
+			var m := smi.get_surface_override_material(i)
+			if m and SWAP.has(base) and SWAP[base].has(m.resource_name):
+				m = _mat(SWAP[base][m.resource_name])
+			if m:
+				mesh.surface_set_material(i, m)
+	src.free()
+	_meshes[n] = mesh
+	return mesh
 
 
 ## Place a model at a transform (one-offs).
