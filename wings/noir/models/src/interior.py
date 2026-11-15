@@ -428,10 +428,210 @@ def frame_stand():
     kit.join("frame_stand", p)
 
 
+# --- office and street props ---------------------------------------------------------------------
+
+def _front_to_plus_y(ob):
+    """Built with the front on -Y; turn about Z so the front faces +Y, and bake it."""
+    ob.rotation_euler = (0, 0, math.pi)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return ob
+
+
+def typewriter():
+    """Origin at the floor under the body centre, front +Y. Keys sit on a tilted deck (front lower), platen roller
+    across the back with chrome knobs, a sheet of paper standing up from the roller."""
+    p = [B("body", (0.45, 0.38, 0.2), (0, 0, 0.1), "paint", bevel=0.015)]
+    th = math.radians(20)
+    c, s = math.cos(th), math.sin(th)
+    PY, PZ = -0.02, 0.25
+    p.append(B("deck", (0.42, 0.22, 0.02), (0, PY, PZ), "paint", bevel=0.006))
+    p[-1].rotation_euler = (th, 0, 0)
+    for row, v in enumerate((-0.075, -0.045, -0.015, 0.015)):  # 4 tiers of keys, staggered
+        n, off = (11, 0.0) if row % 2 == 0 else (10, 0.017)
+        for i in range(n):
+            x = -0.17 + i * 0.034 + off
+            k = kit.lathe("key", [(0, 0), (0.008, 0), (0.008, 0.005), (0, 0.005)], 8, mat="paint")
+            k.rotation_euler = (th, 0, 0)
+            # deck-local (x, v, 0.011) turned about X, in world space
+            k.location = (x, PY + v * c - 0.011 * s, PZ + v * s + 0.011 * c)
+            p.append(k)
+    roll = kit.lathe("platen", [(0, -0.2), (0.03, -0.2), (0.03, 0.2), (0, 0.2)], 16, mat="black")
+    roll.rotation_euler = (0, math.pi / 2, 0)
+    roll.location = (0, 0.14, 0.3)
+    p.append(roll)
+    for sx in (-1, 1):
+        p.append(B("arm", (0.02, 0.06, 0.14), (sx * 0.22, 0.14, 0.27), "paint", bevel=0.005))
+        knob = kit.lathe("knob", [(0, -0.02), (0.02, -0.02), (0.02, 0.02), (0, 0.02)], 12, mat="chrome")
+        knob.rotation_euler = (0, math.pi / 2, 0)
+        knob.location = (sx * 0.24, 0.14, 0.3)
+        p.append(knob)
+    p.append(kit.tube("lever", [(0.22, -0.02, 0.16), (0.28, -0.02, 0.2), (0.28, 0.12, 0.26)], 0.008, 6, mat="chrome"))
+    sheet = B("sheet", (0.32, 0.008, 0.24), (0, 0.1, 0.44), "paper", bevel=0.005)
+    sheet.rotation_euler = (math.radians(-8), 0, 0)
+    p.append(sheet)
+    _front_to_plus_y(kit.join("typewriter", p))
+
+
+def telephone():
+    """1940s cradle desk phone, origin at the base floor centre, dial toward +Y. Chrome forks and dial, paint body,
+    curved handset resting on the forks, finger holes as small black discs in a ring on the dial."""
+    p = [B("base", (0.22, 0.2, 0.07), (0, 0, 0.035), "paint", bevel=0.02)]
+    for sx in (-1, 1):
+        p.append(B("fork", (0.024, 0.03, 0.08), (sx * 0.07, 0.06, 0.11), "chrome", bevel=0.006))
+    dial = kit.lathe("dial", [(0, 0), (0.055, 0), (0.055, 0.006), (0, 0.006)], 24, mat="chrome")
+    dial.location = (0, -0.04, 0.07)
+    p.append(dial)
+    for k in range(10):
+        a = math.radians(30 * k + 60)
+        hole = kit.lathe("hole", [(0, 0), (0.008, 0), (0.008, 0.003), (0, 0.003)], 10, mat="black")
+        hole.location = (0.036 * math.cos(a), -0.04 + 0.036 * math.sin(a), 0.076)
+        p.append(hole)
+    p.append(kit.tube("handset", [(-0.12, 0, 0.19), (-0.07, 0, 0.166), (0, 0, 0.158), (0.07, 0, 0.166), (0.12, 0, 0.19)], 0.014, 8, mat="paint"))
+    for sx in (-1, 1):  # earpiece and mouthpiece cups
+        cup = kit.lathe("cup", [(0, 0), (0.03, 0), (0.035, 0.02), (0.02, 0.035), (0, 0.035)], 14, mat="paint")
+        cup.location = (sx * 0.12, 0, 0.19)
+        p.append(cup)
+    _front_to_plus_y(kit.join("telephone", p))
+
+
+def coat_stand():
+    """1.85 m turned pole (lathe) on three legs, four hooks; a trench coat on the east hook and a fedora
+    on the west one. Origin at the floor under the pole."""
+    prof = [(0.0, 0.0), (0.05, 0.0), (0.05, 0.03), (0.03, 0.07), (0.025, 0.12), (0.035, 0.2), (0.025, 0.3),
+            (0.02, 0.6), (0.035, 0.95), (0.02, 1.0), (0.02, 1.4), (0.04, 1.48), (0.02, 1.55), (0.02, 1.7),
+            (0.035, 1.78), (0.045, 1.8), (0.02, 1.84), (0.0, 1.85)]
+    p = [kit.lathe("pole", prof, 20, mat="wood")]
+    for a in (90, 210, 330):
+        r = math.radians(a)
+        p.append(kit.tube("leg", [(0, 0, 0.04), (0.26 * math.cos(r), 0.26 * math.sin(r), 0.018)], 0.018, 6, mat="wood"))
+    for a, z in ((0, 1.55), (90, 1.55), (180, 1.62), (270, 1.55)):
+        r = math.radians(a)
+        cr, sr = math.cos(r), math.sin(r)
+        pts = [(0.02 * cr, 0.02 * sr, z), (0.12 * cr, 0.12 * sr, z), (0.22 * cr, 0.22 * sr, z), (0.24 * cr, 0.24 * sr, z - 0.05)]
+        p.append(kit.tube("hook", pts, 0.008, 6, mat="iron"))
+    coat = kit.lathe("coat", [(0.0, 0.0), (0.2, 0.0), (0.21, 0.25), (0.19, 0.6), (0.17, 0.8), (0.12, 0.92), (0.05, 0.99), (0.0, 1.02)], 24, mat="coat")
+    coat.scale = (1.0, 0.35, 1.0)
+    coat.location = (0.23, 0.0, 0.49)
+    p.append(coat)
+    brim = kit.lathe("brim", [(0.0, 0.0), (0.17, 0.0), (0.18, 0.012), (0.1, 0.02), (0.0, 0.02)], 24, mat="hat")
+    brim.location = (-0.23, 0, 1.6)
+    p.append(brim)
+    crown = kit.lathe("crown", [(0.0, 0.02), (0.085, 0.02), (0.09, 0.05), (0.085, 0.1), (0.08, 0.12), (0.0, 0.125)], 24, mat="hat")
+    crown.location = (-0.23, 0, 1.6)
+    p.append(crown)
+    kit.join("coat_stand", p)
+
+
+def wall_clock():
+    """0.4 m school clock. Origin at the centre of its back so it mounts flat on a wall; face to +Y."""
+    p = []
+    case = kit.lathe("case", [(0, 0), (0.2, 0), (0.2, 0.08), (0, 0.08)], 32, mat="paint")
+    case.rotation_euler = (-math.pi / 2, 0, 0)  # lathe Z becomes +Y
+    p.append(case)
+    face = kit.lathe("face", [(0, 0), (0.18, 0), (0.18, 0.004), (0, 0.004)], 32, mat="paper")
+    face.rotation_euler = (-math.pi / 2, 0, 0)
+    face.location = (0, 0.08, 0)
+    p.append(face)
+    p.append(kit.torus("rim", 0.2, 0.014, 48, 10, mat="chrome", loc=(0, 0.08, 0), rot=(math.pi / 2, 0, 0)))
+    for i in range(12):
+        a = i * math.pi / 6
+        t = B("tick", (0.012, 0.012, 0.035), (0.16 * math.sin(a), 0.086, 0.16 * math.cos(a)), "black", bevel=0.005)
+        t.rotation_euler = (0, a, 0)
+        p.append(t)
+    ah = math.radians(60)  # hour hand at two
+    hour = B("hour", (0.016, 0.012, 0.11), (0.055 * math.sin(ah), 0.09, 0.055 * math.cos(ah)), "black", bevel=0.005)
+    hour.rotation_euler = (0, ah, 0)
+    p.append(hour)
+    am = math.radians(150)  # minute hand at twenty-five past
+    minute = B("minute", (0.012, 0.012, 0.16), (0.08 * math.sin(am), 0.1, 0.08 * math.cos(am)), "black", bevel=0.005)
+    minute.rotation_euler = (0, am, 0)
+    p.append(minute)
+    hub = kit.lathe("hub", [(0, 0), (0.014, 0), (0.014, 0.012), (0, 0.012)], 12, mat="chrome")
+    hub.rotation_euler = (-math.pi / 2, 0, 0)
+    hub.location = (0, 0.08, 0)
+    p.append(hub)
+    kit.join("wall_clock", p)
+
+
+def pinboard():
+    """1.2 x 0.9 m felt board in a wood frame, origin at the back centre (on the wall), face to +Y.
+    Ten pinned notes at fixed random spots (seeded); a red string runs between four of the pins."""
+    import random
+    rng = random.Random(11)
+    p = [B("board", (1.2, 0.03, 0.9), (0, 0.015, 0), "felt", bevel=0.008)]
+    p.append(B("frame_t", (1.3, 0.05, 0.05), (0, 0.025, 0.475), "wood", bevel=0.008))
+    p.append(B("frame_b", (1.3, 0.05, 0.05), (0, 0.025, -0.475), "wood", bevel=0.008))
+    for sx in (-1, 1):
+        p.append(B("frame_s", (0.05, 0.05, 0.9), (sx * 0.625, 0.025, 0), "wood", bevel=0.008))
+    pins = []
+    for i in range(10):
+        x = rng.uniform(-0.5, 0.5)
+        z = rng.uniform(-0.3, 0.3)
+        a = math.radians(rng.uniform(-9, 9))
+        w, h = rng.uniform(0.1, 0.14), rng.uniform(0.13, 0.17)
+        note = B("note", (w, 0.008, h), (x, 0.034, z), "card_red" if i in (2, 7) else "paper", bevel=0.005)
+        note.rotation_euler = (0, a, 0)
+        p.append(note)
+        lz = h / 2 - 0.02  # pin near the top edge of the note
+        px, pz = x + lz * math.sin(a), z + lz * math.cos(a)
+        pins.append((px, pz))
+        pin = kit.lathe("pin", [(0, 0), (0.006, 0), (0.006, 0.008), (0, 0.008)], 8, mat="card_red")
+        pin.rotation_euler = (-math.pi / 2, 0, 0)
+        pin.location = (px, 0.038, pz)
+        p.append(pin)
+    pts = [(pins[i][0], 0.047, pins[i][1]) for i in (0, 3, 6, 9)]
+    p.append(kit.tube("string", pts, 0.003, 6, mat="card_red"))
+    kit.join("pinboard", p)
+
+
+def frosted_door():
+    """0.95 x 2.15 m door in a sash frame, origin at the floor centre, front +Y. Wood door, upper frosted pane
+    (material glass_frosted, left plain), chrome rose and knob on the handle side at 1 m."""
+    p = [B("door", (0.95, 0.05, 2.15), (0, 0, 1.075), "wood", bevel=0.01)]
+    p.append(B("panel_low", (0.7, 0.02, 0.8), (0, -0.035, 0.5), "wood", bevel=0.008))
+    p.append(B("pane", (0.6, 0.01, 0.9), (0, -0.03, 1.6), "glass_frosted", bevel=0.005))
+    p.append(B("sash_t", (0.7, 0.03, 0.05), (0, -0.03, 2.075), "sash", bevel=0.008))
+    p.append(B("sash_b", (0.7, 0.03, 0.05), (0, -0.03, 1.125), "sash", bevel=0.008))
+    for sx in (-1, 1):
+        p.append(B("sash_s", (0.05, 0.03, 1.0), (sx * 0.325, -0.03, 1.6), "sash", bevel=0.008))
+        p.append(B("jamb", (0.06, 0.12, 2.2), (sx * 0.505, 0, 1.1), "sash", bevel=0.008))
+    p.append(B("head", (1.07, 0.12, 0.06), (0, 0, 2.18), "sash", bevel=0.008))
+    rose = kit.lathe("rose", [(0, 0), (0.03, 0), (0.03, 0.006), (0, 0.006)], 16, mat="chrome")
+    rose.rotation_euler = (math.pi / 2, 0, 0)
+    rose.location = (0.36, -0.025, 1.0)
+    p.append(rose)
+    knob = kit.lathe("knob", [(0, 0), (0.022, 0), (0.028, 0.012), (0.03, 0.025), (0.024, 0.04), (0, 0.045)], 16, mat="chrome")
+    knob.rotation_euler = (math.pi / 2, 0, 0)
+    knob.location = (0.36, -0.031, 1.0)
+    p.append(knob)
+    _front_to_plus_y(kit.join("frosted_door", p))
+
+
+def ceiling_fan():
+    """Canopy at the origin (the ceiling mount point), 0.4 m downrod, motor housing; hangs down -Z.
+    The hub the blades turn on is at (0, 0, -0.58), where ceiling_fan_blades' origin goes."""
+    p = [kit.lathe("canopy", [(0, -0.03), (0.07, -0.03), (0.07, 0), (0, 0)], 20, mat="paint")]
+    p.append(kit.tube("downrod", [(0, 0, -0.02), (0, 0, -0.4)], 0.012, 8, mat="iron"))
+    p.append(kit.lathe("housing", [(0, -0.56), (0.13, -0.56), (0.14, -0.5), (0.13, -0.46), (0.07, -0.42), (0.035, -0.4), (0, -0.4)], 24, mat="paint"))
+    kit.join("ceiling_fan", p)
+
+
+def ceiling_fan_blades():
+    """Four 0.6 m wooden blades, pitched, on an iron hub. Origin at the hub centre (spins about Z)."""
+    p = [kit.lathe("hub", [(0, -0.03), (0.075, -0.03), (0.09, -0.02), (0.09, 0.02), (0.075, 0.03), (0, 0.03)], 20, mat="iron")]
+    for k in range(4):
+        th = k * math.pi / 2
+        blade = B("blade", (0.6, 0.13, 0.012), (0.38 * math.cos(th), 0.38 * math.sin(th), 0), "wood", bevel=0.005)
+        blade.rotation_euler = (math.radians(12), 0, th)
+        p.append(blade)
+    kit.join("ceiling_fan_blades", p)
+
+
 PARTS = {n: globals()[n] for n in (
     "desk", "desk_lamp", "chair", "file_cabinet", "locker", "blind_window", "hanging_lamp", "switch_box",
     "wainscot", "door_frame", "seat_block", "proscenium", "curtain", "pilaster", "balcony", "pedestal_reel",
-    "cinema_gate", "projector", "film_shelf", "port_window", "pawn_ticket", "matchbook", "stub", "frame_stand")}
+    "cinema_gate", "projector", "film_shelf", "port_window", "pawn_ticket", "matchbook", "stub", "frame_stand",
+    "typewriter", "telephone", "coat_stand", "wall_clock", "pinboard", "frosted_door", "ceiling_fan", "ceiling_fan_blades")}
 
 
 def build(args):

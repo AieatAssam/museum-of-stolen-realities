@@ -16,6 +16,7 @@ extends Wing
 ## lands 13(n-1)+9 m+ out and 4 m down.
 
 const SilkMode := preload("res://wings/chitin/silk_mode.gd")
+const Look := preload("res://wings/chitin/chitin_look.gd")
 const Strand := preload("res://wings/chitin/strand.gd")
 const AUDIO := "res://wings/chitin/audio/"
 const ACQ := "Acq. No. 340"
@@ -36,8 +37,12 @@ const KEY_TICKS := 60          # on the key's line this long turns it (0.5 s)
 const CUT_ON_TICKS := 540      # heist: the courtiers' cut line, 4.5 s up ...
 const CUT_OFF_TICKS := 180     # ... 1.5 s cut
 const BLINK_EVERY := 9.0
+const DOME_E := 0.55         # the eye-sky: bright, but under the practicals that mark the route
 
 var silk: MovementMode
+var env: Environment
+var key_light: DirectionalLight3D
+var look: Look
 var _mat := {}
 var _sfx := {}
 
@@ -167,31 +172,71 @@ func _ready() -> void:
 	_build_heist(_group(areas, "Heist"))
 	_build_checkpoints()
 	_build_marks()
+	look = Look.new()
+	add_child(look)
+	look.call("dress", self, env, key_light)
+	_dress()
 	_restore()
 
 
+## Lighting recipe: the amber eye overhead is the key (one shadowed directional, steep, honey);
+## practicals are fungus and comb (unshadowed omnis, volumetric); depth comes from green-black
+## volumetric haze that eats the shaft; SSR on the polished chitin floors, SSAO in the ribs; filmic
+## with per-area exposure (chitin_look.gd). No SDFGI: the hive is 240 m deep and lit by practicals.
 func _build_environment() -> void:
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("1a0d04")
+	env.background_color = Color("060806")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("8a5a2a")
-	env.ambient_light_energy = 0.55
-	env.fog_enabled = true
-	env.fog_light_color = Color("3a2210")
-	env.fog_density = 0.006
+	env.ambient_light_color = Color("2c3c34")
+	env.ambient_light_energy = 1.4
+	# reflections only (the background stays the dark hive): teal above, honey at the horizon,
+	# so the beetle-shell film has colours to throw back
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color("1d4a52")
+	sky_mat.sky_horizon_color = Color("c98a3a")
+	sky_mat.ground_horizon_color = Color("5a3c1a")
+	sky_mat.ground_bottom_color = Color("0a1410")
+	sky_mat.sky_energy_multiplier = 0.8
+	env.sky = Sky.new()
+	env.sky.sky_material = sky_mat
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.volumetric_fog_enabled = true
+	env.volumetric_fog_density = 0.008
+	env.volumetric_fog_albedo = Color("7c8470")
+	env.volumetric_fog_emission = Color(0.004, 0.007, 0.006)
+	env.volumetric_fog_anisotropy = 0.6
+	env.volumetric_fog_length = 90.0
+	env.volumetric_fog_ambient_inject = 0.15
+	env.ssr_enabled = true
+	env.ssr_max_steps = 32
+	env.ssr_fade_in = 0.1
+	env.ssr_fade_out = 2.0
+	env.ssao_enabled = true
+	env.ssao_radius = 1.6
+	env.ssao_intensity = 2.2
 	env.glow_enabled = true
-	env.glow_bloom = 0.15
+	env.glow_intensity = 0.9
+	env.glow_bloom = 0.08
+	env.glow_hdr_threshold = 0.9
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_white = 6.0
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 1.1
 	Quality.apply(env)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.light_color = Color("ffc070")
-	sun.light_energy = 0.6
-	sun.rotation_degrees = Vector3(-70, 20, 0)
-	add_child(sun)
+	key_light = DirectionalLight3D.new()
+	key_light.light_color = Color("ffbe6a")
+	key_light.light_energy = 1.4
+	key_light.rotation_degrees = Vector3(-78, 28, 0)  # steep: the eye is overhead, the shaft floor gets it
+	key_light.shadow_enabled = true
+	key_light.directional_shadow_max_distance = 110.0
+	key_light.light_volumetric_fog_energy = 0.8
+	add_child(key_light)
 
 
 # --- Outer gate: arrival, the molted gate, the first swing -----------------------------------
@@ -288,9 +333,10 @@ func _build_shaft(area: Node3D) -> void:
 	sm.radial_segments = 48
 	sm.rings = 16
 	dome.mesh = sm
-	_dome_mat = _glow(C_AMBER, 1.6, false)
+	_dome_mat = _glow(C_AMBER, DOME_E, false)
 	_dome_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	dome.material_override = _dome_mat
+	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # it is the sky, not a lid
 	dome.position = Vector3(115, 20, -8)
 	area.add_child(dome)
 	_placard(area, Vector3(78.5, -1.6, 13.4), Vector3(0, 0, -1), "The abyssal hive shaft", "Unmeasured", "Air, amber light",
@@ -317,6 +363,7 @@ func _build_foundry(area: Node3D) -> void:
 	track.mesh = tm
 	track.material_override = wall
 	track.position = Vector3(130, -16.5, 56)
+	track.name = "Track"
 	area.add_child(track)
 	_clock_anchor = _anchor(area, Vector3(130, -18, 56))
 	_clock_anchor.name = "ClockworkAnchor"
@@ -468,6 +515,7 @@ func _build_hall(area: Node3D) -> void:
 	thread.material_override = _glow(C_AMBER, 3.0, false)
 	thread.position = Vector3(67.5, -55.0 + 1.0, -13.4)
 	thread.rotation.z = atan2(25.0, 28.0)
+	thread.name = "Thread"
 	stair.add_child(thread)
 	# the curtain: a dark membrane across the stair's foot that parts after a held breath
 	_curtain = _box(area, Vector3(0.3, 3.6, 3.0), Vector3(80.2, -68.2, -12), _mat["membrane"])
@@ -487,6 +535,7 @@ func _build_hall(area: Node3D) -> void:
 	shard.mesh = pm
 	shard.material_override = _mat["goal"]
 	shard.position.y = 1.0
+	shard.name = "Shard"
 	_fragment_spot.add_child(shard)
 	_cage = _box(area, Vector3(1.6, 2.2, 1.6), Vector3(115, -68.6, -8), _glow(Color(1.0, 0.7, 0.2, 0.35), 0.8, true))
 	_cage.name = "DaisCase"
@@ -535,6 +584,7 @@ func _build_hall(area: Node3D) -> void:
 	pin.mesh = pc
 	pin.material_override = _mat["int"]
 	pin.position = Vector3(138, -5, 4)
+	pin.name = "Pin"
 	area.add_child(pin)
 	_placard(area, Vector3(108.6, -68.6, -8), Vector3(-1, 0, 0), "Queen (type specimen)", "Collected", "Specimen under dome",
 		"Pinned for the collection as the reference for her species. Her court reports that she is resting, and asks visitors to lower their voices. The sky over this hall was not part of the acquisition.")
@@ -573,6 +623,7 @@ func _lift(area: Node3D, path: Array, speed: float) -> Dictionary:
 	cog.mesh = cm
 	cog.material_override = _mat["int"]
 	cog.position.y = 0.4
+	cog.name = "Cog"
 	a.add_child(cog)
 	return {"node": a, "path": path, "speed": speed, "i": 0, "run": false}
 
@@ -606,17 +657,17 @@ func _build_marks() -> void:
 	var holder := _group(self, "ShotMarks")
 	var marks := [
 		["gate", Vector3(-20, 2.0, 6), Vector3(6, 6, 0)],
-		["first_swing", Vector3(-2, 3, 8), Vector3(10, 4, -2)],
-		["usher", Vector3(20, -1, 6), Vector3(28, -2, 0)],
-		["light_well", Vector3(37, -1, 5), Vector3(52, -3, 0)],
 		["perch", Vector3(60, -1, 4), Vector3(76, 1, -6)],
 		["shaft_rim", Vector3(76, -1, 2), Vector3(110, 5, 0)],
-		["shaft_down", Vector3(128, -6, -4), Vector3(131, -24, 19)],
+		["shaft_down", Vector3(129, -5.5, -6), Vector3(100, -14, -20)],
 		["foundry", Vector3(130, -26, 45), Vector3(130, -18, 60)],
-		["guild_door", Vector3(118, -29, 70), Vector3(130, -29, 80)],
 		["gallery", Vector3(92, -29.5, 91), Vector3(62, -27, 91)],
 		["arena", Vector3(40, -29, 105), Vector3(40, -32, 60)],
 		["eye_reveal", Vector3(84, -68.3, -12), Vector3(118, 30, -8)],
+		["general", Vector3(45, -36, -5), Vector3(40, -36, -16)],
+		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
+		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
+		["harp", Vector3(19, -0.8, 9.5), Vector3(24, -1.4, 13.3)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
@@ -625,6 +676,171 @@ func _build_marks() -> void:
 		mk.transform = Transform3D(Basis.looking_at((m[2] as Vector3) - pos, Vector3.UP), pos)
 		mk.add_to_group(&"shot_marks")
 		holder.add_child(mk)
+
+
+## Art pass: modelled stand-ins for every gameplay primitive (the boxes keep their colliders and
+## stay where they were; only their meshes hide) and the hand-placed dressing. Visual only.
+func _dress() -> void:
+	var L := look
+	var areas := get_node("Areas")
+	# the molted gate: the shed husk replaces its three membrane boxes
+	for b: Node in areas.get_node("OuterGate/Geometry").get_children():
+		var p := (b as Node3D).position
+		if p.x > -13.5 and p.x < -10.5:
+			_hide_mesh(b)
+	L.put("gate", Transform3D(Basis.IDENTITY, Vector3(-12, 0, 0)))
+	# the usher, the doors, the curtain, the case, the dais: models in their boxes
+	_skin(_usher, "usher", Basis(Vector3.UP, -PI / 2.0))
+	_skin(_guild_door, "door_guild")
+	_skin(_vault_door, "door_vault")
+	_skin(_curtain, "curtain")
+	_skin(_cage, "case")
+	for b: Node in areas.get_node("CoronationHall/Geometry").get_children():
+		if (b as Node3D).position.distance_to(Vector3(115, -69.85, -8)) < 0.2:
+			_skin(b as Node3D, "dais")
+	for gate: Node3D in [_gallery_gate, _dais_gate]:
+		_hide_mesh(gate)
+		var curtain_xf := Transform3D(Basis.from_scale(Vector3(1.0, 1.6 if gate == _gallery_gate else 1.1, 2.6 if gate == _gallery_gate else 1.1)), Vector3.ZERO)
+		L.put("curtain", curtain_xf, gate)
+	# ancestors: tapestries instead of membrane boxes
+	var tap_b: Material = (MaterialLib.lookup("tapestry", [Look.MATS]) as ShaderMaterial).duplicate()
+	tap_b.set_shader_parameter(&"albedo_tex", load("res://wings/chitin/textures/tapestry_b/tapestry_b_albedo.png"))
+	var k := 0
+	for b: Node in areas.get_node("TapestryGallery/Geometry").get_children():
+		var mi := b.get_child(0) as MeshInstance3D
+		if mi and mi.mesh is BoxMesh and (mi.mesh as BoxMesh).size.is_equal_approx(Vector3(3.0, 6.5, 0.2)):
+			mi.visible = false
+			var p := (b as Node3D).position
+			var t := L.put("tapestry", Transform3D(Basis(Vector3.UP, 0.0 if p.z < 90.0 else PI), Vector3(p.x, -23.0, p.z)))
+			if t and k % 2 == 1:
+				for m: MeshInstance3D in t.find_children("*", "MeshInstance3D", true, false):
+					for i in m.mesh.get_surface_count():
+						if m.get_active_material(i) and m.get_active_material(i).resource_name == "tapestry":
+							m.set_surface_override_material(i, tap_b)
+			k += 1
+	# the wrap post: a silk-wound chitin column
+	for b: Node in areas.get_node("TapestryGallery").get_children():
+		if b.is_in_group(&"silk_posts"):
+			((b as Node3D).get_child(0) as MeshInstance3D).material_override = MaterialLib.lookup("carapace", [Look.MATS])
+			L.put("rib", Transform3D(Basis.from_scale(Vector3(0.9, 6.0, 0.9)), (b as Node3D).position + Vector3(0, -3.0, -0.3)))
+			L.put("rib", Transform3D(Basis(Vector3.UP, PI) * Basis.from_scale(Vector3(0.9, 6.0, 0.9)), (b as Node3D).position + Vector3(0, -3.0, 0.3)))
+	# the court, the General, the queen and her moulted throne
+	for f: Node3D in _court_figs:
+		for c: Node in f.get_children():
+			c.free()
+		L.put("courtier_a" if f.get_index() % 2 == 0 else "courtier_b", Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO), f)
+	for c: Node in _general.get_children():
+		c.free()
+	L.put("general", Transform3D.IDENTITY, _general)
+	for side: float in [-1.0, 1.0]:
+		var limb := Node3D.new()
+		limb.name = "Forelimb"
+		limb.position = Vector3(side * 1.6, 5.0, 0.0)
+		_general.add_child(limb)
+		L.put("general_arm", Transform3D.IDENTITY, limb)
+	L.put("throne", Transform3D(Basis.IDENTITY, Vector3(115, -69.7, -12.6)))
+	var pin := areas.get_node("CoronationHall/Pin") as Node3D
+	pin.visible = false
+	L.put("pin", Transform3D(Basis.IDENTITY, pin.position))
+	L.put("queen", Transform3D(Basis(Vector3.UP, 0.4), Vector3(138, -58, 4)))
+	_dome_mat.albedo_texture = load("res://wings/chitin/textures/eye/eye_albedo.png")
+	_dome_mat.emission_texture = _dome_mat.albedo_texture
+	_dome_mat.uv1_scale = Vector3(14, 7, 1)
+	# keys, lifts, the clockwork anchor, the moth: models on the same anchors
+	for key_node: Node3D in _keys:
+		for c: Node in key_node.get_children():
+			if c is MeshInstance3D:
+				c.free()
+		_swap_visual(key_node, "key", 1.6)
+	for l: Dictionary in _lifts:
+		var a: Node3D = l["node"]
+		a.get_node("Cog").free()
+		_swap_visual(a, "lift", 1.6)
+	_swap_visual(_clock_anchor, "carriage", 1.2)
+	var track := areas.get_node("Foundry/Track") as Node3D
+	track.visible = false
+	L.put("track", Transform3D(Basis.IDENTITY, track.position + Vector3(0, -0.15, 0)))
+	_swap_visual(_moth, "moth", 1.4)
+	var shard := _fragment_spot.get_node("Shard") as MeshInstance3D
+	shard.mesh = null
+	L.put("fragment", Transform3D(Basis.from_scale(Vector3.ONE * 1.2), Vector3.ZERO), shard)
+	var thread := areas.get_node("CoronationHall/ProcessionalStair/Thread") as MeshInstance3D
+	thread.material_override = _silk_mat()
+	thread.set_instance_shader_parameter(&"len", (thread.mesh as CylinderMesh).height)
+	thread.set_instance_shader_parameter(&"beads", 40.0)
+	# vaults: insect-leg ribs arching over the gate approach, the districts and the gallery
+	for x: float in [-23.0, -17.0, -5.0]:
+		L.put("vault_rib", Transform3D(Basis(Vector3.UP, PI / 2.0) * Basis.from_scale(Vector3(1.75, 1.3, 1.0)), Vector3(x, 0, 0)))
+	for x: float in range(17, 80, 8):
+		L.put("vault_rib", Transform3D(Basis(Vector3.UP, PI / 2.0) * Basis.from_scale(Vector3(2.4, 1.45, 1.2)), Vector3(x, -3, 0)))
+	for x: float in range(63, 95, 7):
+		L.put("vault_rib", Transform3D(Basis(Vector3.UP, PI / 2.0) * Basis.from_scale(Vector3(1.65, 1.0, 1.0)), Vector3(x, -31, 90.5)))
+	# silk: cocoons, swags, honey; the districts hang thick with them
+	var cocoons := [Vector3(20, 6, -10), Vector3(33, 7, 9), Vector3(45, 6.5, -9), Vector3(57, 7, 10), Vector3(70, 6, 9), Vector3(-20, 8, -7),
+		Vector3(-8, 8, 7), Vector3(84, -6, -26), Vector3(146, -8, -20), Vector3(146, -10, 10), Vector3(90, -14, -28), Vector3(66, -23.5, 84), Vector3(88, -23.5, 97)]
+	for i: int in cocoons.size():
+		L.put("cocoon_a" if i % 2 == 0 else "cocoon_b", Transform3D(Basis(Vector3.UP, i * 1.3), cocoons[i]))
+	for p: Vector3 in [Vector3(22, 4.5, -13.4), Vector3(36, 4.0, 13.4), Vector3(60, 4.5, -13.4), Vector3(70, 4.2, 13.4), Vector3(-14, 5.0, -9.4), Vector3(-14, 5.0, 9.4)]:
+		L.put("drape", Transform3D(Basis(Vector3.UP, PI if p.z > 0 else 0.0), p))
+	for p: Vector3 in [Vector3(40.2, -4.4, -6), Vector3(40.2, -4.4, 5), Vector3(51.8, -4.4, 3), Vector3(0.2, -1.4, -5), Vector3(0.2, -1.4, 4), Vector3(122, -8.4, -8.2), Vector3(118, -8.4, 8.2), Vector3(13.2, -4.4, 0)]:
+		L.put("honey_drip", Transform3D(Basis(Vector3.UP, p.x), p))
+	for x: float in range(64, 93, 7):
+		L.put("lamp", Transform3D(Basis.IDENTITY, Vector3(x, -22.2, 91)))
+		L.light(Vector3(x, -24.5, 91), Color("9affdc"), 1.4, 9.0, 2.0)
+	# practicals that lead the eye along the route (the path is the brightest thing in view)
+	var warm := Color("ffb45a")
+	L.light(Vector3(-12, 5, 0), warm, 2.5, 14.0, 2.0)            # through the husk
+	L.light(Vector3(6, 7, 0), warm, 2.0, 10.0, 1.5)              # the first hook
+	L.light(Vector3(46, -8, 0), Color("ffc060"), 4.0, 14.0, 3.0)  # the light-well glows up
+	L.light(Vector3(30, 0, 0), warm, 1.5, 10.0)                  # the usher's door
+	L.light(Vector3(77, 2, -6), Color("ffd27a"), 1.6, 8.0)       # the perch
+	L.light(Vector3(122, -5, 0), warm, 2.0, 14.0)                # the balcony
+	L.light(Vector3(130, -20, 56), Color("ff7a2a"), 3.0, 16.0, 2.0)   # the foundry forge glow
+	L.light(Vector3(130, -27, 76), Color("ff9a40"), 5.0, 12.0)   # the guild door
+	L.light(Vector3(100, -27, 76), Color("ff9a40"), 1.6, 9.0)    # the vault
+	L.light(Vector3(100, -28, 68), Color("ffc060"), 1.5, 7.0)    # inside the vault
+	for kn: Node3D in _keys:
+		L.light(kn.global_position + Vector3(0, 1.5, 0), Color("ffc060"), 2.5, 10.0, 2.0)
+	L.light(Vector3(40, -36, -14), Color("9affdc"), 3.0, 14.0, 1.5)   # rim on the General
+	L.light(Vector3(43, -33, -8), Color("ff9a30"), 5.0, 14.0, 2.0)    # brazier glow before the General
+	# a crescent of lit comb behind her dais, so she reads in silhouette against honey
+	for i: int in 7:
+		var a := -0.9 + i * 0.3
+		L.put("comb", Transform3D(Basis(Vector3.UP, a) * Basis.from_scale(Vector3.ONE * 2.5), Vector3(40 + sin(a) * 11.0, -40.0 + (i % 2) * 2.5, -16 - cos(a) * 11.0)))
+	L.light(Vector3(40, -34, -24), Color("ffa040"), 4.0, 14.0, 1.5)
+	L.light(Vector3(115, -66, -8), Color("ffb040"), 7.0, 18.0, 2.0)   # the case on the dais
+	L.light(Vector3(67, -55, -12), Color("ffb040"), 1.2, 8.0)         # halfway down the stair
+	L.light(Vector3(95, -38, -22), warm, 3.0, 12.0)                   # heist ledge H1
+	L.light(Vector3(116, -41, -22), warm, 3.0, 12.0)                  # heist ledge H2
+	L.light(Vector3(117, 0, -35), warm, 2.0, 14.0)                    # the rim
+	# the eye's gaze: a shadowed shaft of honey light from the sky onto the dais, god rays in the haze
+	var gaze := SpotLight3D.new()
+	gaze.position = Vector3(115, 12, -8)
+	gaze.rotation_degrees = Vector3(-90, 0, 0)
+	gaze.spot_range = 95.0
+	gaze.spot_angle = 16.0
+	gaze.light_energy = 14.0
+	gaze.light_color = Color("ffc070")
+	gaze.light_volumetric_fog_energy = 2.5
+	gaze.shadow_enabled = false  # 16 ms budget in the hall; the fog shaft still reads
+	L.add_child(gaze)
+
+
+func _hide_mesh(b: Node) -> void:
+	for c: Node in b.get_children():
+		if c is MeshInstance3D:
+			(c as MeshInstance3D).visible = false
+
+
+## A gameplay box keeps its collider; its mesh hides and a model takes its place inside it, so
+## moving, opening or hiding the box moves, opens or hides the model.
+func _skin(b: Node3D, model: String, basis: Basis = Basis.IDENTITY) -> void:
+	_hide_mesh(b)
+	look.call("put", model, Transform3D(basis, Vector3.ZERO), b)
+
+
+func _silk_mat() -> Material:
+	return load("res://wings/chitin/materials/silk_line.tres")
 
 
 ## Resuming: beats already done stay done.
@@ -651,6 +867,11 @@ func _restore() -> void:
 	if Quest.is_step_done(&"court", &"dais"):
 		_open(_cage)
 	_update_fragment()
+	# resumed mid-heist: the fragment is hers but she is not out; the lifts must still run
+	if Quest.has_fragment(wing_id) and not Quest.is_step_done(&"court", &"escape"):
+		_heist_on = true
+		for l: Dictionary in _lifts:
+			_set_active(l["node"], true)
 
 
 # --- runtime -----------------------------------------------------------------------------------
@@ -862,7 +1083,7 @@ func _blink() -> void:
 	t.tween_property(_dome_mat, "emission_energy_multiplier", 0.02, 0.18)
 	t.parallel().tween_property(_dome_mat, "albedo_color", Color("150a02"), 0.18)
 	t.tween_interval(0.12)
-	t.tween_property(_dome_mat, "emission_energy_multiplier", 1.6, 0.45)
+	t.tween_property(_dome_mat, "emission_energy_multiplier", DOME_E, 0.45)
 	t.parallel().tween_property(_dome_mat, "albedo_color", C_AMBER, 0.45)
 
 
@@ -948,20 +1169,20 @@ func _anchor(parent: Node3D, pos: Vector3, active: bool = true) -> Node3D:
 	a.name = "Hook"
 	a.position = pos
 	parent.add_child(a)
-	var m := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.3
-	s.height = 0.6
-	m.mesh = s
-	m.material_override = _mat["int"]
+	# child 0 is the visual (_peg scales it); the amber bead plus a soft glint reads at 30 m
+	var m: Node3D = Look.model("hook")
 	a.add_child(m)
-	var h := MeshInstance3D.new()
+	var g := _halo(1.1, Color(1.0, 0.72, 0.32, 0.55))
+	g.name = "Glint"
+	m.add_child(g)
+	# the picked anchor: a brighter halo and a little light on the hook
+	var h := _halo(2.4, Color(1.0, 0.85, 0.5, 0.9))
 	h.name = "Highlight"
-	var hs := SphereMesh.new()
-	hs.radius = 0.75
-	hs.height = 1.5
-	h.mesh = hs
-	h.material_override = _mat["hi"]
+	var hl := OmniLight3D.new()
+	hl.light_color = Color("ffc878")
+	hl.light_energy = 1.5
+	hl.omni_range = 4.0
+	h.add_child(hl)
 	h.visible = false
 	a.add_child(h)
 	_set_active(a, active)
@@ -972,9 +1193,48 @@ func _anchor(parent: Node3D, pos: Vector3, active: bool = true) -> Node3D:
 func _peg(parent: Node3D, pos: Vector3) -> Node3D:
 	var a := _anchor(parent, pos)
 	a.name = "Peg"
-	(a.get_child(0) as Node3D).scale = Vector3.ONE * 0.5
+	_swap_visual(a, "peg")
 	(a.get_node(^"Highlight") as Node3D).scale = Vector3.ONE * 0.6
 	return a
+
+
+## Replace an anchor's visual (child 0) with another model, keeping it first.
+func _swap_visual(a: Node3D, model: String, glint: float = 0.7) -> Node3D:
+	a.get_child(0).free()
+	var m: Node3D = Look.model(model)
+	a.add_child(m)
+	a.move_child(m, 0)
+	if glint > 0.0:
+		var g := _halo(glint, Color(1.0, 0.72, 0.32, 0.5))
+		g.name = "Glint"
+		m.add_child(g)
+	return m
+
+
+## A soft additive billboard glow (a radial gradient), the way a lamp reads through haze.
+func _halo(size: float, col: Color) -> Sprite3D:
+	var s := Sprite3D.new()
+	var gt := GradientTexture2D.new()
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 64
+	gt.height = 64
+	var gr := Gradient.new()
+	gr.set_color(0, col)
+	gr.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	gr.add_point(0.25, Color(col.r, col.g, col.b, col.a * 0.45))
+	gt.gradient = gr
+	s.texture = gt
+	s.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	s.pixel_size = size / 64.0
+	s.shaded = false
+	s.double_sided = true
+	s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+	s.render_priority = 1
+	s.modulate = Color(1, 1, 1, 1)
+	s.no_depth_test = false
+	return s
 
 
 func _set_active(a: Node3D, on: bool) -> void:
@@ -1021,13 +1281,18 @@ func _provenance(parent: Node3D, id: String, pos: Vector3) -> void:
 	marker.name = "Provenance_" + id
 	marker.position = pos
 	parent.add_child(marker)
-	var mesh := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.25, 0.3, 0.25)
-	mesh.mesh = pm
-	mesh.material_override = _mat["int"]
+	var mesh := Node3D.new()
 	mesh.position.y = 0.4
 	marker.add_child(mesh)
+	var item: Node3D = Look.model({"bell": "bell", "guild_key": "guild_key", "tapestry": "hem"}[id])
+	item.scale = Vector3.ONE * 1.6
+	mesh.add_child(item)
+	mesh.add_child(_halo(0.9, Color(1.0, 0.8, 0.45, 0.6)))
+	var gl := OmniLight3D.new()
+	gl.light_color = Color("ffd08a")
+	gl.light_energy = 0.8
+	gl.omni_range = 3.0
+	mesh.add_child(gl)
 	var pick := Pickup.new()
 	pick.kind = &"provenance"
 	pick.item_id = StringName(id)
