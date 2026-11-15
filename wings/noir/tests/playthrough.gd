@@ -287,7 +287,7 @@ func _run() -> void:
 	check(Quest.has_provenance(&"noir", &"matchbook"), "the matchbook is recorded")
 
 	print("[noir] precinct: desk lamp off, swing lamp away, locker")
-	await _tp(Vector3(3.2, 0.05, -57.8), Vector3(4.8, 1.2, -57.8))
+	await _tp(Vector3(4.2, 0.05, -57.4), Vector3(5.5, 1.2, -58.8))
 	await frames(4)
 	_tap(&"interact")
 	await frames(6)

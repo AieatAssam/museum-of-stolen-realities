@@ -31,6 +31,7 @@ var _silhouette: MeshInstance3D
 var _traverse: Tween
 var _near_roof: StaticBody3D
 var _far_roof: StaticBody3D
+var _dress: Node3D
 
 
 func objectives() -> Array[Dictionary]:
@@ -118,7 +119,13 @@ func load_state(state: Dictionary) -> void:
 	_better_mode = String(state.get("better", ""))
 
 
+func on_exit() -> void:
+	get_tree().root.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED  # the next wing's Quality.apply restores MSAA
+	_dress.exit_quality()
+
+
 func on_enter(first_time: bool) -> void:
+	_dress.enter_quality(get_tree().root)
 	$Placard.set_label(Placard.fields("The Long Shadow", "", "Untitled (City at Night)", "Acquisition No. 501",
 		"Light is a room you can stand in only once. Keep to the dark. Anything lit will put you back where you last hid."), false)
 	if first_time:
@@ -145,6 +152,12 @@ func _ready() -> void:
 	_build_cinema()
 	_build_booth()
 	_build_shot_marks()
+	var steps: Array[AudioStream] = []
+	for i in [1, 2, 3]:
+		steps.append(load("res://wings/noir/audio/step_wet_%d.ogg" % i))
+	Audio.register_footsteps(&"wet", steps)
+	_dress = preload("res://wings/noir/noir_dress.gd").new()
+	_dress.build(self)
 	Quest.objective_completed.connect(func(_w: StringName, _o: StringName) -> void: _update_fragment())
 
 
@@ -180,6 +193,12 @@ func _mat(key: String, col: Color, rough := 0.9, glow := false) -> StandardMater
 	return _mats[key]
 
 
+## A noir material (wings/noir/materials/<key>.tres) when one exists, else a flat colour.
+func _surface(key: String, col: Color) -> Material:
+	var path := "res://wings/noir/materials/%s.tres" % key
+	return load(path) if ResourceLoader.exists(path) else _mat(key, col)
+
+
 func _area(area_name: String) -> Node3D:
 	var n := Node3D.new()
 	n.name = area_name
@@ -200,8 +219,10 @@ func _solid(parent: Node, pos: Vector3, size: Vector3, key := "wall", col := Col
 	var bm := BoxMesh.new()
 	bm.size = size
 	mi.mesh = bm
-	mi.material_override = _mat(key, col)
+	mi.material_override = _surface(key, col)
 	body.add_child(mi)
+	if key.begins_with("wet_"):
+		body.set_meta(&"surface", &"wet" if key != "wet_floorboards" and key != "wet_carpet" else (&"wood" if key == "wet_floorboards" else &"carpet"))
 	parent.add_child(body)
 	return body
 
@@ -233,6 +254,7 @@ func _model(parent: Node, path: String, pos: Vector3, yaw_deg := 0.0) -> Node3D:
 		var n := (res as PackedScene).instantiate() as Node3D
 		n.position = pos
 		n.rotation_degrees.y = yaw_deg
+		MaterialLib.apply(n, ["res://wings/noir/materials", MaterialLib.CORE_DIR])
 		parent.add_child(n)
 		return n
 	return null
@@ -241,13 +263,14 @@ func _model(parent: Node, path: String, pos: Vector3, yaw_deg := 0.0) -> Node3D:
 func _provenance(parent: Node, id: String, at: Vector3) -> void:
 	if Quest.has_provenance(wing_id, StringName(id)):
 		return
-	var mesh := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.25, 0.3, 0.25)
-	mesh.mesh = pm
-	mesh.material_override = _mat("glint", Color("f2f2f2"), 0.3, true)
-	mesh.position = at
-	parent.add_child(mesh)
+	var props := {"pawn": "pawn_ticket", "matchbook": "matchbook", "stub": "stub"}
+	var mesh := _model(parent, "res://wings/noir/models/%s.glb" % props[id], at)
+	mesh.scale = Vector3.ONE * 2.2
+	var glint := OmniLight3D.new()
+	glint.light_color = Color(1.0, 0.92, 0.8)
+	glint.light_energy = 0.35
+	glint.omni_range = 0.9
+	mesh.add_child(glint)
 	var pick := Pickup.new()
 	pick.kind = &"provenance"
 	pick.item_id = StringName(id)
@@ -296,11 +319,13 @@ func _update_fragment() -> void:
 
 func _build_alley() -> void:
 	var a := _area("Alley")
-	_solid(a, Vector3(0, -0.5, -10), Vector3(9, 1, 22), "floor", Color("111113"))
-	_solid(a, Vector3(-4.5, 3, -10), Vector3(1, 6, 22))
-	_solid(a, Vector3(4.5, 3, -10), Vector3(1, 6, 22))
+	_solid(a, Vector3(0, -0.5, -10), Vector3(9, 1, 22), "wet_cobble", Color("111113"))
+	_solid(a, Vector3(-4.5, 3, -10), Vector3(1, 6, 22), "brick_dark")
+	_solid(a, Vector3(4.5, 3, -10), Vector3(1, 6, 22), "brick_dark")
+	# north end: the alley is closed behind the entry
+	_solid(a, Vector3(0, 3, 1.5), Vector3(9, 6, 1), "brick_dark")
 	# back wall: the dark face the latch targets; the passage to the street is the gap on the east side
-	_solid(a, Vector3(-1.0, 3, -21), Vector3(7.0, 6, 1))
+	_solid(a, Vector3(-1.0, 3, -21), Vector3(7.0, 6, 1), "brick")
 	_solid(a, Vector3(-3.2, 0.4, -12), Vector3(1.2, 0.8, 1.2), "cover", Color("5c5c5c"))
 	_provenance(a, "pawn", Vector3(-3.2, 1.1, -12))
 	_plaque(a, Vector3(-3.95, 1.6, -16.0), 90.0, "Gelatin silver print, 1938", "The alley, after rain", "Acquisition No. 501.1",
@@ -312,11 +337,11 @@ func _build_alley() -> void:
 
 func _build_diner_street() -> void:
 	var s := _area("DinerStreet")
-	_solid(s, Vector3(0, -0.5, -36), Vector3(9, 1, 32), "floor", Color("111113"))
-	_solid(s, Vector3(4.5, 3, -36), Vector3(1, 6, 32))
+	_solid(s, Vector3(0, -0.5, -36), Vector3(9, 1, 32), "wet_asphalt", Color("111113"))
+	_solid(s, Vector3(4.5, 3, -36), Vector3(1, 6, 32), "brick_dark")
 	# west wall with a 4 m opening where the elevated ramp comes down
-	_solid(s, Vector3(-4.5, 3, -23.25), Vector3(1, 6, 6.5))
-	_solid(s, Vector3(-4.5, 3, -41.25), Vector3(1, 6, 21.5))
+	_solid(s, Vector3(-4.5, 3, -23.25), Vector3(1, 6, 6.5), "brick_dark")
+	_solid(s, Vector3(-4.5, 3, -41.25), Vector3(1, 6, 21.5), "brick_dark")
 	# covers: alternate sides so the lit gaps and shadows form a route
 	for i in 4:
 		var z := -26.0 - i * 6.0
@@ -366,8 +391,8 @@ func _build_diner_street() -> void:
 
 
 func _build_plaza(s: Node3D) -> void:
-	_solid(s, Vector3(0, -0.5, -59), Vector3(10, 1, 14), "floor", Color("111113"))
-	_solid(s, Vector3(-5.5, 3, -59), Vector3(1, 6, 14))
+	_solid(s, Vector3(0, -0.5, -59), Vector3(10, 1, 14), "wet_cobble", Color("111113"))
+	_solid(s, Vector3(-5.5, 3, -59), Vector3(1, 6, 14), "brick_dark")
 	# one pool of light over the two figures; the approach stays in shade
 	_spot(s, Vector3(0, 5, -59), 7.0, 9.0, 20.0)
 	_model(s, PATH_FIGURE, Vector3(-1.4, 0, -58), 90.0)
@@ -410,16 +435,16 @@ func _build_elevated_line() -> void:
 	var slope := atan2(5.0, 8.5)
 	var down := Vector3(cos(slope), -sin(slope), 0)
 	var up_n := Vector3(sin(slope), cos(slope), 0)
-	var ramp := _solid(e, Vector3(-13, 5, -28.5) + down * 5.5 - up_n * 0.2, Vector3(11, 0.4, 3.4), "metal", Color("3d3d40"))
+	var ramp := _solid(e, Vector3(-13, 5, -28.5) + down * 5.5 - up_n * 0.2, Vector3(11, 0.4, 3.4), "iron", Color("3d3d40"))
 	ramp.rotation.z = -slope
 	# threshold under the wall gap, and the stair's side rails (no walking off into the yard)
-	_solid(e, Vector3(-5.0, -0.5, -28.4), Vector3(1.0, 1.0, 4.2), "floor", Color("111113"))
+	_solid(e, Vector3(-5.0, -0.5, -28.4), Vector3(1.0, 1.0, 4.2), "wet_asphalt", Color("111113"))
 	for zr in [-26.75, -30.25]:
-		var rail := _solid(e, Vector3(-8.75, 2.5, zr) + up_n * 0.5, Vector3(9.9, 1.0, 0.1), "metal", Color("3d3d40"))
+		var rail := _solid(e, Vector3(-8.75, 2.5, zr) + up_n * 0.5, Vector3(9.9, 1.0, 0.1), "iron", Color("3d3d40"))
 		rail.rotation.z = -slope
-	_near_roof = _solid(e, Vector3(-16.3, 2.5, -29.0), Vector3(6.6, 5, 8), "roof", Color("2a2a2c"))
+	_near_roof = _solid(e, Vector3(-16.3, 2.5, -29.0), Vector3(6.6, 5, 8), "brick_dark", Color("2a2a2c"))
 	# the far roof: its east face is the dark wall across the gap, taller than the roof we stand on
-	_far_roof = _solid(e, Vector3(-26.25, 3.5, -29.0), Vector3(7.5, 7, 8), "roof", Color("2a2a2c"))
+	_far_roof = _solid(e, Vector3(-26.25, 3.5, -29.0), Vector3(7.5, 7, 8), "brick", Color("2a2a2c"))
 	_checkpoint_at("roof", Vector3(-14.5, 5.05, -29.0))
 	_checkpoint_at("ramp_foot", Vector3(-2.0, 0.05, -28.5))
 	_plaque(e, Vector3(-16.3, 5.35, -32.6), 0.0, "Gelatin silver print, 1955", "Elevated line, last train", "Acquisition No. 501.4",
@@ -446,15 +471,15 @@ func _build_elevated_line() -> void:
 func _build_precinct() -> void:
 	var p := _area("Precinct")
 	# plaza east wall with a 4 m opening into the precinct
-	_solid(p, Vector3(5.5, 3, -53.5), Vector3(1, 6, 3))
-	_solid(p, Vector3(5.5, 3, -62.5), Vector3(1, 6, 7))
-	_solid(p, Vector3(9.25, -0.5, -59), Vector3(6.5, 1, 14), "floor", Color("111113"))
+	_solid(p, Vector3(5.5, 3, -53.5), Vector3(1, 6, 3), "plaster")
+	_solid(p, Vector3(5.5, 3, -62.5), Vector3(1, 6, 7), "plaster")
+	_solid(p, Vector3(9.25, -0.5, -59), Vector3(6.5, 1, 14), "wet_floorboards", Color("111113"))
 	# threshold floor under the wall line: without it the 4 m opening drops the player out of the wing
-	_solid(p, Vector3(5.5, -0.5, -59), Vector3(1, 1, 14), "floor", Color("111113"))
+	_solid(p, Vector3(5.5, -0.5, -59), Vector3(1, 1, 14), "wet_floorboards", Color("111113"))
 	_checkpoint_at("precinct", Vector3(8.5, 0.05, -60))
-	_solid(p, Vector3(12.5, 3, -59), Vector3(1, 6, 14))
-	_solid(p, Vector3(9.25, 3, -52.5), Vector3(6.5, 6, 1))
-	_solid(p, Vector3(9.25, 3, -66.5), Vector3(6.5, 6, 1))
+	_solid(p, Vector3(12.5, 3, -59), Vector3(1, 6, 14), "plaster")
+	_solid(p, Vector3(9.25, 3, -52.5), Vector3(6.5, 6, 1), "plaster")
+	_solid(p, Vector3(9.25, 3, -66.5), Vector3(6.5, 6, 1), "plaster")
 	# blinds hanging from the east wall
 	for i in 5:
 		_solid(p, Vector3(11.9, 2.4, -53.2 - i * 0.4), Vector3(0.1, 2.6, 0.12), "blind", Color("8a8a84"))
@@ -466,7 +491,7 @@ func _build_precinct() -> void:
 	p.add_child(_swing_pivot)
 	_spot(_swing_pivot, Vector3.ZERO, 8.0, 5.0, 40.0)
 	var lamp_switch := Interactable.make_box(Vector3(0.4, 0.8, 0.4), "Switch off the desk lamp")
-	lamp_switch.position = Vector3(4.8, 1.2, -57.8)
+	lamp_switch.position = Vector3(5.5, 1.2, -58.8)  # on the doorway's south jamb, outside the room
 	lamp_switch.once = true
 	lamp_switch.interacted.connect(func(_p: Player) -> void: _dim_lamp())
 	p.add_child(lamp_switch)
@@ -519,9 +544,9 @@ func _sync_gate() -> void:
 
 func _build_cinema() -> void:
 	var c := _area("Cinema")
-	_solid(c, Vector3(0, -0.5, -78), Vector3(12, 1, 24), "floor", Color("111113"))
-	_solid(c, Vector3(-6.5, 3, -78), Vector3(1, 6, 24))
-	_solid(c, Vector3(6.5, 3, -78), Vector3(1, 6, 24))
+	_solid(c, Vector3(0, -0.5, -78), Vector3(12, 1, 24), "wet_carpet", Color("111113"))
+	_solid(c, Vector3(-6.5, 3, -78), Vector3(1, 6, 24), "velvet")
+	_solid(c, Vector3(6.5, 3, -78), Vector3(1, 6, 24), "velvet")
 	# locked gate across the cinema mouth; the precinct key opens it
 	_gate = StaticBody3D.new()
 	_gate.position = Vector3(0, 2.0, -66.0)
@@ -540,8 +565,8 @@ func _build_cinema() -> void:
 	c.add_child(_gate)
 	_sync_gate()
 	# back wall with a doorway into the booth
-	_solid(c, Vector3(-3.5, 3, -90.5), Vector3(5, 6, 1))
-	_solid(c, Vector3(3.5, 3, -90.5), Vector3(5, 6, 1))
+	_solid(c, Vector3(-3.5, 3, -90.5), Vector3(5, 6, 1), "plaster")
+	_solid(c, Vector3(3.5, 3, -90.5), Vector3(5, 6, 1), "plaster")
 	for row in 6:
 		for col in 3:
 			_solid(c, Vector3(-3.0 + col * 3.0, 0.4, -69.0 - row * 3.0), Vector3(1.6, 0.8, 1.6), "cover", Color("5c5c5c"))
@@ -582,10 +607,10 @@ func _build_cinema() -> void:
 
 func _build_booth() -> void:
 	var b := _area("Booth")
-	_solid(b, Vector3(0, -0.5, -95), Vector3(8, 1, 8), "floor", Color("111113"))
-	_solid(b, Vector3(-4.5, 2, -95), Vector3(1, 4, 8))
-	_solid(b, Vector3(4.5, 2, -95), Vector3(1, 4, 8))
-	_solid(b, Vector3(0, 2, -99.5), Vector3(10, 4, 1))
+	_solid(b, Vector3(0, -0.5, -95), Vector3(8, 1, 8), "wet_floorboards", Color("111113"))
+	_solid(b, Vector3(-4.5, 2, -95), Vector3(1, 4, 8), "brick_dark")
+	_solid(b, Vector3(4.5, 2, -95), Vector3(1, 4, 8), "brick_dark")
+	_solid(b, Vector3(0, 2, -99.5), Vector3(10, 4, 1), "brick_dark")
 	_zone(b, Vector3(0, 1.5, -94), Vector3(6, 3, 2), func(_p: Player) -> void:
 		complete_step(&"heist", &"reach_projection"))
 	_fragment = Pickup.new()
@@ -600,10 +625,13 @@ func _build_booth() -> void:
 	spot.position = Vector3(0, 1.2, -97)
 	b.add_child(spot)
 	spot.add_child(_fragment)
-	var shard := CSGBox3D.new()
-	shard.size = Vector3(0.5, 0.7, 0.1)
-	shard.material = _mat("glint", Color("f2f2f2"), 0.3, true)
-	spot.add_child(shard)
+	var shard := _model(spot, "res://wings/noir/models/frame_stand.glb", Vector3(0, -0.06, 0))
+	var glow := OmniLight3D.new()
+	glow.position = Vector3(0, 0.1, 0.3)
+	glow.light_color = Color(1.0, 0.85, 0.6)
+	glow.light_energy = 0.8
+	glow.omni_range = 2.0
+	shard.add_child(glow)
 	_fragment.visual = shard
 	_fragment.picked.connect(_on_fragment)
 	_plaque(b, Vector3(0, 1.6, -98.9), 0.0, "Film reel frame, 1938, colour", "The Long Shadow, frame 3", "Acquisition No. 501.11",
@@ -617,24 +645,30 @@ func _on_fragment() -> void:
 	colour.saturation = 1.6
 	colour.aberration = 0.0
 	Post.apply(colour, 0.5)
+	var mono: ShaderMaterial = _dress.get("mono")
+	create_tween().tween_method(func(v: float) -> void: mono.set_shader_parameter(&"amount", v), 1.0, 0.0, 0.8)
 	await get_tree().create_timer(11.0).timeout
+	mono.set_shader_parameter(&"amount", 1.0)
 	Post.apply(grade, 0.0)
 	finish()
 
 
 func _build_shot_marks() -> void:
-	# twelve camera marks for the art team, one per view worth a screenshot
+	# one camera mark per area view worth a screenshot: [name, position, look-at]
+	var root := Node3D.new()
+	root.name = "ShotMarks"
+	add_child(root)
 	var marks := [
-		["alley_entry", Vector3(0, 1.4, -2)], ["alley_latch", Vector3(-1.0, 1.4, -18)],
-		["alley_crate", Vector3(-3.0, 1.2, -12)], ["street_lamps", Vector3(0, 1.4, -24)],
-		["diner_window", Vector3(0, 1.4, -36)], ["roof_gap", Vector3(-19.0, 5.6, -29)],
-		["roof_train", Vector3(-16.0, 5.6, -26)], ["plaza_figures", Vector3(0, 1.6, -52)],
-		["precinct_desk", Vector3(7.0, 1.4, -56)], ["precinct_locker", Vector3(6.5, 1.4, -60)],
-		["cinema_lattice", Vector3(0, 1.6, -72)], ["booth_frame", Vector3(0, 1.4, -92)],
+		["alley_entry", Vector3(0.6, 1.7, -1.0), Vector3(0.0, 2.2, -20.0)], ["alley_latch", Vector3(0.5, 1.5, -14.5), Vector3(-2.0, 2.0, -20.5)],
+		["alley_crate", Vector3(-1.4, 1.4, -15.8), Vector3(-2.6, 0.8, -10.5)], ["street_lamps", Vector3(1.6, 1.7, -21.5), Vector3(-1.2, 1.6, -46.0)],
+		["diner_window", Vector3(-2.2, 1.6, -29.0), Vector3(3.8, 2.0, -37.0)], ["roof_gap", Vector3(-14.5, 6.4, -30.5), Vector3(-25.0, 7.6, -28.5)],
+		["roof_train", Vector3(-14.2, 6.3, -26.2), Vector3(-28.0, 9.0, -31.0)], ["plaza_figures", Vector3(-1.5, 1.7, -51.0), Vector3(0.3, 1.1, -59.0)],
+		["precinct_desk", Vector3(6.6, 1.6, -60.5), Vector3(10.0, 0.9, -55.5)], ["precinct_locker", Vector3(10.6, 1.6, -58.0), Vector3(6.8, 1.0, -63.2)],
+		["cinema_lattice", Vector3(-2.0, 2.4, -67.5), Vector3(0.5, 2.6, -89.0)], ["booth_frame", Vector3(2.6, 1.6, -92.5), Vector3(0.0, 1.0, -97.4)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
 		mk.name = m[0]
-		mk.position = m[1]
+		root.add_child(mk)
+		mk.look_at_from_position(m[1], m[2], Vector3.UP)
 		mk.add_to_group(&"shot_marks")
-		_world.add_child(mk)
