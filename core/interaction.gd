@@ -23,6 +23,8 @@ func _physics_process(delta: float) -> void:
 			var it := hit.collider as Interactable
 			if it.enabled and from.distance_to(hit.position) <= it.max_distance:
 				found = it
+	if not is_instance_valid(target):
+		target = null  # freed (e.g. a Pickup) since the last tick
 	if found != target:
 		target = found
 		hold_progress = 0.0
@@ -38,6 +40,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not is_instance_valid(target):
+		target = null
 	if event.is_action_pressed(&"interact"):
 		_holding = true
 		if target and target.hold_time <= 0.0:

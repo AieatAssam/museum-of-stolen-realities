@@ -47,13 +47,26 @@ extends Node3D
 ##    `player.add_mode(&"name", YourMode.new())` (extend MovementMode, see core/modes/). Built-ins:
 ##    walk, swim, silhouette, rail, grapple, seated. `start_mode` picks the initial one.
 ##    Verbs: connect `player.primary` / `player.secondary`, or handle `on_verb` in your mode.
+##    Anything that holds the player (rope, pendulum, rail, ladder, ledge) extends ConstrainedMode
+##    (core/modes/constrained_mode.gd): write `attach()` and `step(delta)`; jump lets go for you.
+##    Demo: the zipline in wings/_template (RailMode on a Path3D, grabbed with interact).
+##    Stairs need no ramp: the player steps up risers up to Player.STEP_HEIGHT (0.4 m).
 ##
 ## 10. HOOKS. `on_enter(first_time)` after the player is placed and state restored (start your
 ##    intro cinematic here with `Cinematics.play`), `on_exit()` before leaving.
-##    Use `toast(text)` for the Curator's placards; in-world plaques are `Placard` nodes.
-##    Placard voice: one idea, <= 40 words, institutional deadpan, one deliberate gap.
+##    Curator's placards use the museum tombstone: build a label with
+##    `Placard.fields(title, date, medium, acquisition, body)` and pass it to `toast(label)` (lower-
+##    left card, queued) or `Placards.read(label)` (reading view); `toast("text")` still works.
+##    In-world plaques are `Placard` nodes: `$Placard.set_label(label)`. Sentence case, no dots or
+##    dashes as ornament. Voice: one idea, <= 40 words, institutional deadpan, one deliberate gap.
 ##    Before a big reveal: `await Audio.reveal(stinger)` (music to near-silence, then stinger).
 ##    Camera shake: `Game.player.add_trauma(0..1)` (respects accessibility settings).
+##
+## 11. TESTS & CREDITS. Write `wings/<id>/tests/playthrough.gd` (extends Playthrough, ~100 lines,
+##    real input only; see the template's) and run `tests/run_playthrough.sh <id>`. Add a
+##    `ShotMarks` node of Marker3Ds for `tests/shots.tscn -- --wing=<id>`. Third-party files go in
+##    `wings/<id>/CREDITS.md` (tools/fetch_cc.sh writes it); the end credits merge it automatically.
+##    Pitfalls (freed coroutines, quitting, iCloud copies, .import files): tools/README.md §7.
 ##
 ## NEVER: edit files outside `wings/<id>/`; add autoloads; change project.godot, the input map,
 ## physics layer names, audio buses or core/; instance the Player yourself; call
@@ -132,15 +145,17 @@ func finish() -> void:
 	var f := fragment()
 	toast(String(f.get("line", "A fragment of Exhibit 0 has been recovered.")), String(f.get("name", "Fragment")))
 	await get_tree().create_timer(3.0).timeout
-	exit_to_hub()
+	if Game.wing == self and not Transitions.busy:  # the player may already have left by a door
+		exit_to_hub()
 
 
 func exit_to_hub() -> void:
 	Game.return_to_hub()
 
 
-func toast(text: String, heading: String = "Addendum to the catalogue") -> void:
-	Placards.toast(text, heading)
+## A placard toast: `toast("text")`, `toast("text", "Title")` or `toast(Placard.fields(...))`.
+func toast(text_or_label: Variant, heading: String = "") -> void:
+	Placards.toast(text_or_label, heading)
 
 
 func set_gravity(g: Vector3) -> void:

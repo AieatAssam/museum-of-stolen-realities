@@ -1,21 +1,25 @@
 class_name GrappleMode
-extends MovementMode
+extends ConstrainedMode
 ## Pendulum swing from an anchor point (chitin SILKSPINNING). Set `anchor` (world position) before
 ## switching in. Forward/back reel in/out, strafe pumps the swing, jump or secondary releases.
 
 var anchor: Vector3
-var exit_mode: StringName = &"walk"
 var rope_length: float = 8.0
 var reel_speed: float = 4.0
 var pump: float = 6.0
 var min_length: float = 1.5
 
 
-func enter(_from: MovementMode) -> void:
+func _init() -> void:
+	release_verbs = [&"jump", &"secondary"]
+
+
+func attach() -> bool:
 	rope_length = maxf(player.global_position.distance_to(anchor), min_length)
+	return true
 
 
-func physics(delta: float) -> void:
+func step(delta: float) -> void:
 	var p := player
 	var mi := p.move_input()
 	rope_length = maxf(rope_length + mi.y * reel_speed * delta, min_length)
@@ -30,15 +34,3 @@ func physics(delta: float) -> void:
 			p.velocity -= n * outward
 		p.global_position = anchor + n * rope_length
 	p.move_and_slide()
-
-
-func on_verb(verb: StringName, pressed: bool) -> bool:
-	if pressed and (verb == &"jump" or verb == &"secondary"):
-		player.velocity += player.up_direction * 3.0
-		player.set_mode(exit_mode)
-		return true
-	return false
-
-
-func bob_scale() -> float:
-	return 0.0

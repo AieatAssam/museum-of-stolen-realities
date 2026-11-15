@@ -1,24 +1,82 @@
 class_name Placard
 extends Node3D
-## An in-world museum plaque: ink plate in a brass bezel with gilt lettering. Readable at a glance
-## from ~2 m; [interact] opens the full reading view. The text faces local +Z.
-## `set_text()` rewrites it live (the atrium's placards rewrite themselves to address you).
+## An in-world museum label ("tombstone"): ink plate in a brass bezel, left-aligned:
+##   title / date / medium / acquisition number / one short paragraph (<= 40 words)
+## The same format is used by the reading view (`Placards.read`) and toasts (`Placards.toast`);
+## all three take a label Dictionary made by `Placard.fields(...)`. [interact] opens the reader.
+## The text faces local +Z.
+##
+##   $Plaque.set_label(Placard.fields("The Conservation Studio", "Undated", "Staff only",
+##       "Acq. No. 000-T", "Every rule of a gallery, in miniature."))
+##
+## Old API, still accepted: `heading`, `catalog_line` and `set_text(heading, title, catalog, body)`.
+## The catalog line is split on "·" into the tombstone lines ("Acq…" -> acquisition,
+## "Medium: …" -> medium, anything else -> date line); a dash or numeral heading is dropped.
 
-@export var heading: String = "I"           ## Big line (numeral / name), display serif
-@export var title: String = "Untitled"      ## Second line, display serif
-@export var catalog_line: String = ""       ## Small caps line (acquisition no. etc.)
-@export_multiline var body: String = ""     ## Reading text
+@export var title: String = "Untitled"
+@export var date: String = ""
+@export var medium: String = ""
+@export var acquisition: String = ""
+@export_multiline var body: String = ""
 @export var size: Vector2 = Vector2(0.9, 0.62)
 @export var readable: bool = true
+## Legacy fields (see the header). Setting them re-derives date/medium/acquisition.
+@export var heading: String = ""
+@export var catalog_line: String = "":
+	set(v):
+		catalog_line = v
+		if v != "":
+			var f := fields_from_legacy(title, v, body)
+			date = f["date"]
+			medium = f["medium"]
+			acquisition = f["acquisition"]
 
-var _l_head: Label3D
 var _l_title: Label3D
-var _l_cat: Label3D
+var _l_meta: Label3D
 var _l_body: Label3D
 var _built: bool = false
 
 static var _plate_mat: StandardMaterial3D
 static var _bezel_mat: StandardMaterial3D
+
+const PX_TITLE := 64
+const PX_META := 40
+const PX_BODY := 44
+
+
+## A label Dictionary for any placard surface. Empty lines are skipped when shown.
+static func fields(t: String, date_: String = "", medium_: String = "", acquisition_: String = "", body_: String = "") -> Dictionary:
+	return {"title": t, "date": date_, "medium": medium_, "acquisition": acquisition_, "body": body_}
+
+
+## Old (title, "Acq. No. 002  ·  Medium: oil, regret", body) strings -> a label Dictionary.
+static func fields_from_legacy(t: String, catalog: String, body_: String) -> Dictionary:
+	var f := fields(Style.clean(t, ", "), "", "", "", body_)
+	var rest: PackedStringArray = []
+	for part in Style.clean(catalog).split("\n", false):
+		var p := part.strip_edges()
+		if p.begins_with("Acq"):
+			f["acquisition"] = p
+		elif p.to_lower().begins_with("medium:"):
+			var m := p.substr(7).strip_edges()
+			f["medium"] = m.left(1).to_upper() + m.substr(1)
+		elif p != "":
+			rest.append(p.left(1).to_upper() + p.substr(1))
+	f["date"] = ", ".join(rest)
+	return f
+
+
+## date, medium, acquisition: the non-empty ones, in order.
+static func meta_lines(f: Dictionary) -> PackedStringArray:
+	var out: PackedStringArray = []
+	for k: String in ["date", "medium", "acquisition"]:
+		if String(f.get(k, "")) != "":
+			out.append(String(f[k]))
+	return out
+
+
+func get_label() -> Dictionary:
+	return fields(title, date, medium, acquisition, body)
 
 
 func _ready() -> void:
@@ -26,17 +84,18 @@ func _ready() -> void:
 	_refresh()
 
 
-func set_text(new_heading: String, new_title: String, new_catalog: String, new_body: String, animate: bool = true) -> void:
-	heading = new_heading
-	title = new_title
-	catalog_line = new_catalog
-	body = new_body
+func set_label(f: Dictionary, animate: bool = true) -> void:
+	title = String(f.get("title", ""))
+	date = String(f.get("date", ""))
+	medium = String(f.get("medium", ""))
+	acquisition = String(f.get("acquisition", ""))
+	body = String(f.get("body", ""))
 	if not _built:
 		return
 	if not animate:
 		_refresh()
 		return
-	var labels: Array[Label3D] = [_l_head, _l_title, _l_cat, _l_body]
+	var labels: Array[Label3D] = [_l_title, _l_meta, _l_body]
 	var t := create_tween()
 	for l in labels:
 		t.parallel().tween_property(l, "modulate:a", 0.0, 1.2)
@@ -45,14 +104,28 @@ func set_text(new_heading: String, new_title: String, new_catalog: String, new_b
 		t.parallel().tween_property(l, "modulate:a", 1.0, 2.0)
 
 
+## Legacy: (heading, title, catalog line, body). The heading is not shown (tombstone format).
+func set_text(new_heading: String, new_title: String, new_catalog: String, new_body: String, animate: bool = true) -> void:
+	heading = new_heading
+	set_label(fields_from_legacy(new_title, new_catalog, new_body), animate)
+
+
 func _refresh() -> void:
-	_l_head.text = heading
+	var w := _l_body.width
 	_l_title.text = title
-	_l_cat.text = catalog_line.to_upper()
+	_l_meta.text = "\n".join(meta_lines(get_label()))
 	_l_body.text = body
+	# stack the three blocks from the top edge
+	var y := size.y * 0.5 - 0.05
+	_l_title.position.y = y
+	y -= Style.DISPLAY.get_multiline_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, w, PX_TITLE).y * _l_title.pixel_size + 0.012
+	_l_meta.position.y = y
+	if _l_meta.text != "":
+		y -= Style.TEXT.get_multiline_string_size(_l_meta.text, HORIZONTAL_ALIGNMENT_LEFT, w, PX_META).y * _l_meta.pixel_size + 0.022
+	_l_body.position.y = y
 
 
-func _mk_label(font: Font, px: int, color: Color, y: float, width_px: int = 0) -> Label3D:
+func _mk_label(font: Font, px: int, color: Color, width_px: int) -> Label3D:
 	var l := Label3D.new()
 	l.font = font
 	l.font_size = px
@@ -63,11 +136,11 @@ func _mk_label(font: Font, px: int, color: Color, y: float, width_px: int = 0) -
 	l.double_sided = false
 	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	l.alpha_cut = Label3D.ALPHA_CUT_DISABLED
-	l.position = Vector3(0, y, 0.012)
+	l.position = Vector3(-size.x * 0.43, 0, 0.012)  # left-aligned text starts at the origin
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	if width_px > 0:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.width = width_px
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.width = width_px
 	add_child(l)
 	return l
 
@@ -98,14 +171,12 @@ func _build() -> void:
 	plate.material_override = _plate_mat
 	plate.position.z = 0.0085
 	add_child(plate)
-	var top := size.y * 0.5 - 0.045
-	var w := int(size.x * 0.84 / (0.0011 * size.x / 0.9 * 0.5))
-	_l_cat = _mk_label(Style.spaced(Style.CATALOG, 6), 44, Style.GOLD, top)
-	_l_head = _mk_label(Style.DISPLAY, 110, Color(Style.GOLD, 1.0) * Color(1.1, 1.1, 1.1), top - 0.05)
-	_l_title = _mk_label(Style.DISPLAY, 70, Style.IVORY, top - 0.155, w)
-	_l_body = _mk_label(Style.ITALIC, 46, Color(Style.IVORY, 0.85), top - 0.26, w)
+	var w := int(size.x * 0.86 / (0.0011 * size.x / 0.9 * 0.5))
+	_l_title = _mk_label(Style.DISPLAY, PX_TITLE, Style.IVORY, w)
+	_l_meta = _mk_label(Style.TEXT, PX_META, Style.IVORY_DIM, w)
+	_l_body = _mk_label(Style.TEXT, PX_BODY, Color(Style.IVORY, 0.92), w)
 	if readable:
 		var it := Interactable.make_box(Vector3(size.x, size.y, 0.3), "Read")
 		it.max_distance = 3.5
-		it.interacted.connect(func(_p: Player) -> void: Placards.read(heading + "  ·  " + title, catalog_line, body))
+		it.interacted.connect(func(_p: Player) -> void: Placards.read(get_label()))
 		add_child(it)

@@ -7,8 +7,7 @@ signal closed
 func _ready() -> void:
 	add_theme_constant_override(&"separation", 14)
 	custom_minimum_size.x = 620
-	add_child(Style.catalog("Settings", 18, Style.GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	add_child(Style.rule(200))
+	add_child(Style.label("Settings", Style.DISPLAY, Style.SIZE_HEADING, Style.IVORY))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override(&"h_separation", 32)
@@ -17,7 +16,7 @@ func _ready() -> void:
 
 	var q := OptionButton.new()
 	for p: String in Quality.PRESETS:
-		q.add_item(p.capitalize())
+		q.add_item(p.capitalize().left(1) + p.capitalize().substr(1).to_lower())
 	q.selected = Quality.level()
 	q.item_selected.connect(func(i: int) -> void: Save.set_setting("quality", Quality.PRESETS[i]))
 	_row(grid, "Quality", q)
@@ -48,7 +47,7 @@ func _ready() -> void:
 
 
 func _row(grid: GridContainer, text: String, ctl: Control) -> void:
-	grid.add_child(Style.label(text, Style.BODY, 22, Style.IVORY_DIM))
+	grid.add_child(Style.label(text, Style.TEXT, Style.SIZE_META, Style.IVORY))
 	ctl.custom_minimum_size.x = 300
 	ctl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(ctl)

@@ -2,15 +2,12 @@
 
 Third-party files shipped with the game. One row per file. Only CC0 and CC-BY are accepted.
 Rows are appended by `tools/fetch_cc.sh`; CC-BY rows are also shown on the in-game credits card
-(the atrium reads this table at the end of the game).
+(core/credits.gd merges this table with every wings/<id>/CREDITS.md at the end of the game).
 
 | Path | Title | Author | Source | Licence |
 |---|---|---|---|---|
-| assets/fonts/Gloock-Regular.ttf | Gloock | The Gloock Project Authors | https://fonts.google.com/specimen/Gloock | OFL-1.1 |
-| assets/fonts/Italiana-Regular.ttf | Italiana | Santiago Orozco | https://fonts.google.com/specimen/Italiana | OFL-1.1 |
-| assets/fonts/CrimsonPro-Regular.ttf | Crimson Pro | The Crimson Pro Project Authors | https://fonts.google.com/specimen/Crimson+Pro | OFL-1.1 |
-| assets/fonts/CrimsonPro-Italic.ttf | Crimson Pro Italic | The Crimson Pro Project Authors | https://fonts.google.com/specimen/Crimson+Pro | OFL-1.1 |
-| assets/fonts/ArsenalSC-Regular.ttf | Arsenal SC | The Arsenal Project Authors | https://fonts.google.com/specimen/Arsenal+SC | OFL-1.1 |
+| assets/fonts/Newsreader-Variable.ttf | Newsreader | The Newsreader Project Authors (Production Type) | https://fonts.google.com/specimen/Newsreader | OFL-1.1 |
+| assets/fonts/LibreFranklin-Variable.ttf | Libre Franklin | The Libre Franklin Project Authors | https://fonts.google.com/specimen/Libre+Franklin | OFL-1.1 |
 | assets/audio/cc/step_marble_hall_1.ogg | male-foot-walk-marble-stereo (single step excerpt) | ragamuffin | https://freesound.org/people/ragamuffin/sounds/118985/ | CC0-1.0 |
 | assets/audio/cc/step_marble_hall_2.ogg | male-foot-walk-marble-stereo (single step excerpt) | ragamuffin | https://freesound.org/people/ragamuffin/sounds/118985/ | CC0-1.0 |
 | assets/audio/cc/step_marble_hall_3.ogg | male-foot-walk-marble-stereo (single step excerpt) | ragamuffin | https://freesound.org/people/ragamuffin/sounds/118985/ | CC0-1.0 |
