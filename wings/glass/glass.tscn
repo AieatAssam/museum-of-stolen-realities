@@ -1,0 +1,26 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://wings/glass/glass.gd" id="1"]
+[ext_resource type="Script" path="res://core/post/post_grade.gd" id="2"]
+[ext_resource type="AudioStream" path="res://wings/glass/audio/nave_0.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://wings/glass/audio/amb_glass.ogg" id="4"]
+
+[sub_resource type="Resource" id="grade"]
+script = ExtResource("2")
+tint = Color(0.98, 0.98, 1.04, 1)
+saturation = 1.12
+contrast = 1.08
+lift = Color(0.012, 0.014, 0.035, 1)
+grain = 0.035
+aberration = 0.7
+vignette = 0.6
+grain_fps = 24.0
+
+[node name="Glass" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"glass"
+spawn_checkpoint = &"start"
+start_mode = &"lightwalk"
+grade = SubResource("grade")
+ambience = ExtResource("4")
+void_height = -12.0

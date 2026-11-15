@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3]
+
+[ext_resource type="Shader" path="res://wings/glass/shaders/leaded_glass.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_wall_albedo.png" id="2"]
+[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_wall_normal.png" id="3"]
+[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_wall_roughness.png" id="4"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/albedo_tex = ExtResource("2")
+shader_parameter/normal_tex = ExtResource("3")
+shader_parameter/rough_tex = ExtResource("4")
+shader_parameter/scale = 0.3
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/backlight = 0.55
+shader_parameter/lead_cut = 0.13
+shader_parameter/dark = 0.0
+shader_parameter/shimmer = 0.15
