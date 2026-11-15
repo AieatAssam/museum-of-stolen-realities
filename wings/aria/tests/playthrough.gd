@@ -35,6 +35,11 @@ func frames(n: int) -> void:
 		await get_tree().physics_frame
 
 
+## Waits t seconds of game time: the physics tick rate is fixed, the wall clock is not.
+func phys(t: float) -> void:
+	await frames(roundi(t * Engine.physics_ticks_per_second))
+
+
 func seconds(t: float) -> void:
 	await get_tree().create_timer(t, true, false, true).timeout
 
@@ -61,8 +66,6 @@ func _send(action: StringName, pressed: bool) -> void:
 ## Stand at `at` (eye height 1.5 m) and face `target`, then wait for the camera to settle.
 func _stand(at: Vector3, target: Vector3) -> void:
 	Game.debug_teleport(at, target)
-	# a respawn resets the mode to walk; the wing's mechanics only exist in song mode
-	Game.player.set_mode(&"song")
 	await frames(8)
 
 
@@ -89,18 +92,16 @@ func _run() -> void:
 		Cinematics.skip()
 	await _until(func() -> bool: return not Cinematics.playing, 10.0)
 	check(Quest.provenances.size() == 3, "aria declares 3 provenances")
-	Game.player.set_mode(&"song")
 	await frames(4)
-	check(Game.player.mode_name() == &"song", "song mode active")
+	check(Game.player.mode_name() == &"song", "the wing starts her in song mode (start_mode)")
 
 	print("[aria] foyer: the demo horn lifts, the stair climbs to the gallery, the route leads back into the auditorium")
 	var demo := Game.wing.find_child("DemoHorn", true, false) as Node3D
-	var fy0 := Game.player.global_position.y
 	await _stand(demo.global_position + Vector3(0, 0, 0.8), demo.global_position + Vector3(0, 1.5, 0))
+	var fy0 := Game.player.global_position.y
 	_tap(&"primary")
 	var fy_max := fy0
-	var f_end := Time.get_ticks_msec() + 1600
-	while Time.get_ticks_msec() < f_end:
+	for _i in roundi(1.6 * Engine.physics_ticks_per_second):
 		await frames(1)
 		fy_max = maxf(fy_max, Game.player.global_position.y)
 	check(fy_max - fy0 > 1.0, "the foyer's demo horn lifts her (%.2f m)" % (fy_max - fy0))
@@ -123,12 +124,11 @@ func _run() -> void:
 		if inst and inst.note_id == &"note_horn":
 			horns.append(inst)
 	check(horns.size() == 3, "three horns in the hall")
-	var y0 := Game.player.global_position.y
 	await _stand(horns[0].global_position + Vector3(0, 0, 0.8), horns[0].global_position + Vector3(0, 1.5, 0))
+	var y0 := Game.player.global_position.y
 	_tap(&"primary")
 	var y_max := y0
-	var t_end := Time.get_ticks_msec() + 1600
-	while Time.get_ticks_msec() < t_end:
+	for _i in roundi(1.6 * Engine.physics_ticks_per_second):
 		await frames(1)
 		y_max = maxf(y_max, Game.player.global_position.y)
 	check(Quest.is_step_done(&"brass", &"horn_a"), "striking the west horn completes its step")
@@ -166,7 +166,7 @@ func _run() -> void:
 	var drop_silent := await _measure_drop(well)
 	await _stand(well.global_position + Vector3(0, 0, 1.0), well.global_position + Vector3(0, 1.5, 0))
 	_tap(&"primary")
-	await seconds(1.4)
+	await phys(1.4)
 	var drop_sink := await _measure_drop(well)
 	print("  drop with the well sounding %.2f m, silent %.2f m" % [drop_sink, drop_silent])
 	check(drop_sink > drop_silent + 0.3, "the sink well draws her down faster (%.2f m vs %.2f m over 0.6 s)" % [drop_sink, drop_silent])
@@ -179,7 +179,7 @@ func _run() -> void:
 	await frames(3)
 	var breath0: float = song.get("breath")
 	_send(&"secondary", true)
-	await seconds(1.0)
+	await phys(1.0)
 	_send(&"secondary", false)
 	var breath1: float = song.get("breath")
 	check(breath1 < breath0 - 0.5, "holding a note spends breath (%.2f -> %.2f)" % [breath0, breath1])
@@ -192,24 +192,33 @@ func _run() -> void:
 	check(Game.player.global_position.y < -2.5 and Game.player.global_position.x < -18.0, "the ramp walks her down into the pit (x %.1f, y %.2f)" % [Game.player.global_position.x, Game.player.global_position.y])
 	var pit_a := _instrument("Instrument_pit_a")
 	var pit_b := _instrument("Instrument_pit_b")
-	var py0 := Game.player.global_position.y
 	await _stand(pit_a.global_position + Vector3(0, 0, 0.8), pit_a.global_position + Vector3(0, 1.5, 0))
+	var py0 := Game.player.global_position.y
 	_tap(&"primary")
 	var py_one := py0
-	var pt_end := Time.get_ticks_msec() + 1600
-	while Time.get_ticks_msec() < pt_end:
+	for _i in roundi(1.6 * Engine.physics_ticks_per_second):
 		await frames(1)
 		py_one = maxf(py_one, Game.player.global_position.y)
 	check(py_one < 0.9, "pit_a alone does not reach the gantry top (peak y %.2f, top 1.00)" % py_one)
 	# both pipes sound: stand between them (1 m from each axis) and strike pit_b while pit_a still sounds
 	await _stand(Vector3(-28, -3, -12), Vector3(-28, -1.5, -11))
 	_tap(&"primary")
+	await frames(2)
+	# still lifted: steer for the gantry's centre; success means standing on its top inside the footprint
+	Game.debug_teleport(Game.player.global_position, Vector3(-22, 1.0, -17))
 	var py_two := py0
-	pt_end = Time.get_ticks_msec() + 1600
-	while Time.get_ticks_msec() < pt_end:
+	var on_gantry := false
+	_send(&"move_forward", true)
+	for _i in 300:  # up to 5 s of physics frames
+		if on_gantry:
+			break
 		await frames(1)
-		py_two = maxf(py_two, Game.player.global_position.y)
-	check(py_two > 0.9, "pit_a and pit_b together lift her onto the gantry (peak y %.2f)" % py_two)
+		var gp := Game.player.global_position
+		py_two = maxf(py_two, gp.y)
+		on_gantry = Game.player.is_on_floor() and gp.y > 0.8 and gp.x > -26.0 and gp.x < -18.0 and gp.z > -19.5 and gp.z < -14.5
+	_send(&"move_forward", false)
+	var gpos := Game.player.global_position
+	check(on_gantry, "pit_a and pit_b together lift her, and she lands on the gantry (peak y %.2f, at x %.1f z %.1f y %.2f)" % [py_two, gpos.x, gpos.z, gpos.y])
 
 	print("[aria] fly-loft: the tuning-fork statue rings its note and lifts her")
 	var fork := Game.wing.find_child("TuningForkStatue", true, false) as Node3D
@@ -217,8 +226,7 @@ func _run() -> void:
 	var fk0 := Game.player.global_position.y
 	_tap(&"primary")
 	var fk_max := fk0
-	pt_end = Time.get_ticks_msec() + 1600
-	while Time.get_ticks_msec() < pt_end:
+	for _i in roundi(1.6 * Engine.physics_ticks_per_second):
 		await frames(1)
 		fk_max = maxf(fk_max, Game.player.global_position.y)
 	check(fk_max - fk0 > 1.0, "the fork statue lifts her (%.2f m)" % (fk_max - fk0))
@@ -236,12 +244,17 @@ func _run() -> void:
 	# the respawn runs through a transition that puts her back at the checkpoint: wait it out before the next run
 	await _until(func() -> bool: return not Transitions.busy, 6.0)
 	await seconds(0.5)
-	await _stand(Vector3(21, 2.8, 39), Vector3(30, 2.8, 39))
-	await _until(func() -> bool: return SongMode.flipping, 7.0)
+	# the crossing, from the gallery: walk the approach, hold short of the box until a downbeat, then cross into the loft
+	await _stand(Vector3(0, 2.8, 39), Vector3(30, 2.8, 39))
 	_send(&"move_forward", true)
-	await _until(func() -> bool: return Game.player.global_position.x > 31.0, 6.0)
+	await _until(func() -> bool: return Game.player.global_position.x >= 19.0, 10.0)
 	_send(&"move_forward", false)
-	check(Game.player.global_position.x > 31.0 and Game.player.global_position.y > 2.0, "crossing during a flip reaches the far floor (x %.1f, y %.2f)" % [Game.player.global_position.x, Game.player.global_position.y])
+	await _until(func() -> bool: return SongMode.flipping, 10.0)
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.x > 47.0, 12.0)
+	_send(&"move_forward", false)
+	var cx := Game.player.global_position
+	check(cx.x > 47.0 and cx.y > 2.0, "walking the gallery, then crossing on a downbeat, reaches the fly-loft (x %.1f, y %.2f)" % [cx.x, cx.y])
 
 	print("[aria] provenances by interact")
 	var pickups: Array[Node] = Game.wing.find_children("*", "Pickup", true, false)

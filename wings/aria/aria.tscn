@@ -21,6 +21,7 @@ grain_fps = 24.0
 script = ExtResource("1")
 wing_id = &"aria"
 spawn_checkpoint = &"start"
+start_mode = &"song"
 grade = SubResource("grade")
 music_layers = Array[AudioStream]([ExtResource("3"), ExtResource("4")])
 ambience = ExtResource("5")

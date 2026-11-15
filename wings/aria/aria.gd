@@ -250,6 +250,9 @@ func _build_pit(areas: Node3D) -> void:
 	ramp_body.rotation.z = a
 	geo.add_child(ramp_body)
 	_slab(ramp_body, Vector3(len_, 0.4, 8), walk)
+	# the loft's west edge over the pit of the corridor's end: walls where the floor is open
+	_box(geo, Vector3(1, 14, 8), Vector3(45.5, 7, 33), wall)
+	_box(geo, Vector3(1, 14, 4), Vector3(45.5, 7, 44), wall)
 	# the gantry: a platform reached only by lifting on both pipes at once
 	# kept clear of the ramp (z -14..-6): the ramp would otherwise pass through the block
 	_box(geo, Vector3(8, GANTRY_TOP + 3, 5), Vector3(-22, (GANTRY_TOP - 3) * 0.5, -17), walk)
