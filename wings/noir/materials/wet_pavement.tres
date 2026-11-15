@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3]
+
+[ext_resource type="Shader" path="res://wings/noir/shaders/wet_ground.gdshader" id="s"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/pavement_albedo.png" id="a"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/pavement_normal.png" id="n"]
+[ext_resource type="Texture2D" path="res://wings/noir/textures/pavement_roughness.png" id="r"]
+
+[resource]
+resource_name = "wet_pavement"
+shader = ExtResource("s")
+shader_parameter/albedo_tex = ExtResource("a")
+shader_parameter/normal_tex = ExtResource("n")
+shader_parameter/rough_tex = ExtResource("r")
+shader_parameter/uv_scale = 0.33
+shader_parameter/tint = Color(0.7, 0.7, 0.7, 1)
+shader_parameter/puddles = 0.45
+shader_parameter/wetness = 0.7
