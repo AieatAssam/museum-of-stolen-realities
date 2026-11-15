@@ -221,20 +221,26 @@ func _build() -> void:
 		var bump := _kick_bump(s)
 		var rag := 0.05 * sin(s * 2.3 + phase) + 0.04 * sin(s * 5.7 + phase * 2.0)
 		var prof: Array = []   # [across offset, normal offset, v]
+		# an upright stroke is a daub stood on end: its crest rolls and its ends round off (visual only)
+		var top := width
+		if upright:
+			var ends := sqrt(minf(clampf(s / 1.2, 0.0, 1.0), clampf((length - s) / 1.2, 0.0, 1.0)))
+			var crest := maxf(0.0, 0.05 + 0.05 * sin(s * 1.9 + phase) + 0.035 * sin(s * 4.7 + phase * 1.3))
+			top = width * (0.78 + 0.22 * ends + crest * ends)
 		for k in TOP + 1:
 			var u := float(k) / TOP
 			var groove := 0.022 * sin(u * PI * 13.0 + s * 0.4 + phase) * sin(PI * u)
 			if upright:
 				var h := thick * 0.5 + (RIDGE * 0.6) * sin(PI * u) + groove
-				prof.append([u * width, h, u])
+				prof.append([u * top, h, u])
 			else:
 				var hh := ((RIDGE + bump) * pow(sin(PI * u), 0.6) + groove) * taper
 				prof.append([(u - 0.5) * width * taper * load * (1.0 + rag * (1.0 if u > 0.5 else -1.0) * 0.6), hh, u])
 		if upright:
-			prof.append([width + 0.06, 0.0, 1.0])
+			prof.append([top + 0.06, 0.0, 1.0])
 			for k in range(TOP, -1, -1):
 				var u := float(k) / TOP
-				prof.append([u * width, -(thick * 0.5 + RIDGE * 0.6 * sin(PI * u)), u])
+				prof.append([u * top,-(thick * 0.5 + RIDGE * 0.6 * sin(PI * u)), u])
 			prof.append([-0.04, 0.0, 0.0])
 		else:
 			var hw := width * 0.5 * taper * load

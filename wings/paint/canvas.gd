@@ -87,11 +87,12 @@ func add_varnish(id: String, a: Vector3, b: Vector3, parent: Node3D = null) -> S
 	bs.size = size
 	cs.shape = bs
 	sb.add_child(cs)
-	var mi := MeshInstance3D.new()
-	mi.name = "Visual"
-	mi.mesh = Art.slab_mesh(size, (a + b) * 0.5, 0.6, 0.25, 0.08)
-	mi.material_override = Art.mat("g_varnish")  # hazard/blocker: yellowed, cracked varnish
-	sb.add_child(mi)
+	var fm := Art.model("torn_mass")   # a torn, crusted mass stretched over the box, never a slab
+	fm.name = "Visual"
+	fm.scale = size
+	for g: MeshInstance3D in fm.find_children("*", "MeshInstance3D", true, false):
+		g.material_override = Art.mat("g_varnish")  # hazard/blocker: yellowed, cracked varnish
+	sb.add_child(fm)
 	sb.position = (a + b) * 0.5
 	(parent if parent else self).add_child(sb)
 	varnish[id] = sb
