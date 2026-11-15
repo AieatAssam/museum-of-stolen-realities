@@ -170,7 +170,7 @@ func _camera(s: Dictionary) -> void:
 	var path: Array = s["cam"]
 	if path.is_empty() or get_tree().current_scene == null:
 		return
-	if _cam == null:
+	if not is_instance_valid(_cam):
 		_cam = Camera3D.new()
 		_cam.name = "CinematicCamera"
 		_cam.far = 800.0
@@ -181,7 +181,8 @@ func _camera(s: Dictionary) -> void:
 	if _cam_tween:
 		_cam_tween.kill()
 	_cam_tween = create_tween()
-	_cam_tween.tween_method(func(u: float) -> void: _cam.global_transform = _sample(path, u),
+	_cam_tween.tween_method(func(u: float) -> void:
+		if is_instance_valid(_cam): _cam.global_transform = _sample(path, u),
 		0.0, 1.0, float(s["t"])).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
