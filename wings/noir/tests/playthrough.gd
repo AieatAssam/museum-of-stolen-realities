@@ -1,0 +1,218 @@
+extends Node
+## Noir playthrough. Real input for walking and pressing; teleports only to puzzle positions
+## (a latch face, an interactable's approach, a pickup, the reel pedestal). Never calls debug_complete_*.
+## Run:  Godot --headless --path . wings/noir/tests/playthrough.tscn
+
+var _fails := 0
+
+
+func _ready() -> void:
+	if get_tree().current_scene == self:
+		var runner: Node = (get_script() as GDScript).new()
+		runner.name = "NoirPlaythrough"
+		get_tree().root.add_child.call_deferred(runner)
+		queue_free()
+		return
+	Save.save_path = "user://noir_playthrough.json"
+	_run.call_deferred()
+
+
+func check(cond: bool, what: String) -> void:
+	if cond:
+		print("  ok   ", what)
+	else:
+		_fails += 1
+		push_error("NOIR FAIL: " + what)
+		print("  FAIL ", what)
+
+
+func seconds(t: float) -> void:
+	await get_tree().create_timer(t, true, false, true).timeout
+
+
+func frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+
+func _tap(action: StringName) -> void:
+	var down := InputEventAction.new()
+	down.action = action
+	down.pressed = true
+	Input.parse_input_event(down)
+	var up := InputEventAction.new()
+	up.action = action
+	up.pressed = false
+	Input.parse_input_event.call_deferred(up)
+
+
+func _until(cond: Callable, timeout: float) -> void:
+	var end := Time.get_ticks_msec() + int(timeout * 1000)
+	while not cond.call() and Time.get_ticks_msec() < end:
+		await get_tree().process_frame
+
+
+func _tp(pos: Vector3, look: Vector3) -> void:
+	Game.debug_teleport(pos, look)
+	await frames(2)
+	Game.player.look_at_point(look)
+	await frames(2)
+
+
+func _cinema_try(pos: Vector3, look: Vector3, hold: float, done: Callable) -> void:
+	for attempt in 12:
+		await _until(func() -> bool: return not Transitions.busy, 10.0)
+		if done.call():
+			return
+		await _tp(pos, look)
+		if hold > 0.0:
+			var down := InputEventAction.new()
+			down.action = &"interact"
+			down.pressed = true
+			Input.parse_input_event(down)
+			await seconds(hold)
+			var up := InputEventAction.new()
+			up.action = &"interact"
+			up.pressed = false
+			Input.parse_input_event(up)
+		else:
+			_tap(&"interact")
+		await _until(done, 3.0)
+		if not done.call():
+			print("  beam caught the attempt, retrying")
+
+
+func _walk_to(target: Vector3, timeout: float) -> void:
+	var end := Time.get_ticks_msec() + int(timeout * 1000)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	while Time.get_ticks_msec() < end and Game.player and Game.player.global_position.distance_to(target) > 0.8:
+		var p := Game.player
+		if p == null:
+			break
+		var to := target - p.global_position
+		to.y = 0
+		var want_yaw := atan2(-to.x, -to.z)
+		var err := wrapf(want_yaw - p.yaw, -PI, PI)
+		var mm := InputEventMouseMotion.new()
+		mm.relative = Vector2(-err / deg_to_rad(float(Save.settings["mouse_sensitivity"])) * 0.5, 0)
+		mm.screen_relative = mm.relative
+		Input.parse_input_event(mm)
+		if absf(err) < 0.5:
+			Input.action_press(&"move_forward")
+		else:
+			Input.action_release(&"move_forward")
+		await get_tree().physics_frame
+	Input.action_release(&"move_forward")
+
+
+func _in_noir() -> bool:
+	return Game.wing != null and Game.wing.wing_id == &"noir"
+
+
+func _run() -> void:
+	print("[noir] new game, real input to the Gallery of Stolen Realities")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
+	Save.load_game()
+	get_tree().change_scene_to_file(Game.TITLE_SCENE)
+	await seconds(1.0)
+	await _until(func() -> bool: return not Transitions.busy, 10.0)
+	await seconds(0.5)
+	_tap(&"ui_accept")
+	await _until(func() -> bool: return Game.wing != null and Game.wing.wing_id == Game.HUB_ID, 20.0)
+	await seconds(0.5)
+	if Cinematics.playing:
+		Cinematics.skip()
+	await _until(func() -> bool: return not Cinematics.playing, 10.0)
+	await _until(func() -> bool: return not Transitions.busy, 10.0)
+
+	var hub := Game.wing
+	await _walk_to(hub.call("entry_point", &"noir"), 40.0)
+	await _until(_in_noir, 20.0)
+	await _until(func() -> bool: return not Transitions.busy, 15.0)
+	check(_in_noir(), "walking into the noir door enters The Long Shadow")
+	if Cinematics.playing:
+		Cinematics.skip()
+	await _until(func() -> bool: return not Cinematics.playing, 10.0)
+	var w := Game.wing
+	check(Quest.provenances.size() == 3, "noir declares 3 provenances")
+	check(Quest.objectives.size() == 3, "noir declares 3 objectives")
+	check(Game.player.mode_name() == &"shadowstep", "player starts in shadowstep")
+
+	print("[noir] alley: walk into the shade, latch onto the dark wall")
+	await _walk_to(Vector3(0, 0.05, -7), 15.0)
+	await frames(4)
+	check(Quest.is_step_done(&"learn_dark", &"enter_shade"), "walking into the alley completes enter_shade")
+	await _tp(Vector3(-1.0, 0.05, -18.0), Vector3(-1.0, 1.2, -21.0))
+	await frames(10)
+	_tap(&"secondary")
+	await frames(6)
+	check(Quest.is_step_done(&"learn_dark", &"latch_wall"), "latching onto the dark wall completes latch_wall")
+	_tap(&"secondary")
+	await frames(4)
+
+	print("[noir] pawn ticket")
+	await _tp(Vector3(-1.0, 0.05, -12.0), Vector3(-3.2, 1.1, -12.0))  # clear of the crate top; eye height is 0.55 in shadowstep
+	await frames(4)
+	_tap(&"interact")
+	await _until(func() -> bool: return Quest.has_provenance(&"noir", &"pawn"), 4.0)
+	check(Quest.has_provenance(&"noir", &"pawn"), "the pawn ticket is recorded")
+
+	print("[noir] the lit street")
+	# the lit street: the centre is lit by three lamps; the east edge past the passage is in shade
+	await _walk_to(Vector3(3.2, 0.05, -15.0), 15.0)
+	await _walk_to(Vector3(3.2, 0.05, -24.0), 15.0)
+	await _walk_to(Vector3(3.5, 0.05, -51.0), 45.0)
+	await frames(10)
+	check(Quest.is_step_done(&"cross_lit", &"cross_street"), "crossing the street completes cross_street")
+
+	print("[noir] the Better Half")
+	await _tp(Vector3(0, 0.05, -55.5), Vector3(-1.4, 0.9, -58.0))
+	await frames(6)
+	_tap(&"interact")
+	await frames(10)
+	check(Quest.is_step_done(&"cross_lit", &"better_half"), "reuniting the figures completes better_half")
+
+	print("[noir] matchbook")
+	await _tp(Vector3(3.6, 0.05, -61.0), Vector3(4.2, 0.6, -63.0))
+	await frames(4)
+	_tap(&"interact")
+	await _until(func() -> bool: return Quest.has_provenance(&"noir", &"matchbook"), 4.0)
+	check(Quest.has_provenance(&"noir", &"matchbook"), "the matchbook is recorded")
+
+	print("[noir] the cinema and the reel")
+	await _walk_to(Vector3(3.5, 0.05, -64.5), 15.0)
+	await _walk_to(Vector3(3.5, 0.05, -68.0), 15.0)
+	await frames(6)
+	check(Quest.is_step_done(&"heist", &"enter_cinema"), "entering the cinema completes enter_cinema")
+	# the searchlights sweep the room; a beam that catches Vesper sends her back, so each take
+	# retries from the puzzle position until the beam is off it
+	await _cinema_try(Vector3(1.5, 0.05, -86.0), Vector3(0, 0.6, -86.0), 2.0,
+		func() -> bool: return Quest.is_step_done(&"heist", &"steal_reel"))
+	check(Quest.is_step_done(&"heist", &"steal_reel"), "holding interact takes the reel")
+	await _cinema_try(Vector3(1.5, 0.05, -84.0), Vector3(3.0, 1.1, -84.0), 0.0,
+		func() -> bool: return Quest.has_provenance(&"noir", &"stub"))
+	check(Quest.has_provenance(&"noir", &"stub"), "the cinema stub is recorded")
+
+	print("[noir] the booth")
+	for attempt in 12:
+		if Quest.is_step_done(&"heist", &"reach_projection"):
+			break
+		await _until(func() -> bool: return not Transitions.busy, 10.0)
+		await _walk_to(Vector3(1.5, 0.05, -88.0), 10.0)
+		await _walk_to(Vector3(0, 0.05, -89.0), 10.0)
+		await _walk_to(Vector3(0, 0.05, -95.0), 15.0)
+	await frames(6)
+	check(Quest.is_step_done(&"heist", &"reach_projection"), "reaching the booth completes reach_projection")
+	check(Quest.main_objectives_done(), "all three objectives are done")
+	await _tp(Vector3(0, 0.05, -95.5), Vector3(0, 1.2, -97.0))
+	await frames(6)
+	_tap(&"interact")
+	var t0 := Time.get_ticks_msec()
+	await _until(func() -> bool: return Game.wing != null and Game.wing.wing_id == Game.HUB_ID, 40.0)
+	var back_after := (Time.get_ticks_msec() - t0) / 1000.0
+	check(Quest.has_fragment(&"noir"), "the fragment is recorded")
+	check(back_after >= 11.0, "the colour reveal holds for eleven seconds (%.1f s)" % back_after)
+	check(Game.wing != null and Game.wing.wing_id == Game.HUB_ID, "finish() returns to the atrium")
+
+	print("[noir] done, %d failure(s)" % _fails)
+	get_tree().quit(1 if _fails > 0 else 0)
