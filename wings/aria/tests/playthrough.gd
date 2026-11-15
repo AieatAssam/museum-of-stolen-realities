@@ -235,6 +235,8 @@ func _run() -> void:
 	await _stand(Vector3(17, 2.8, 39), Vector3(30, 2.8, 39))
 	await frames(10)
 	await _stand(Vector3(21, 2.8, 39), Vector3(30, 2.8, 39))
+	# wait for a fresh quiet window: the flip must start and end before she walks
+	await _until(func() -> bool: return SongMode.flipping, 7.0)
 	await _until(func() -> bool: return not SongMode.flipping, 7.0)
 	_send(&"move_forward", true)
 	await _until(func() -> bool: return Game.player.global_position.y < -1.0 or Game.player.global_position.x < 18.5, 6.0)
@@ -249,7 +251,8 @@ func _run() -> void:
 	_send(&"move_forward", true)
 	await _until(func() -> bool: return Game.player.global_position.x >= 19.0, 10.0)
 	_send(&"move_forward", false)
-	await _until(func() -> bool: return SongMode.flipping, 10.0)
+	await _until(func() -> bool: return not SongMode.flipping, 7.0)
+	await _until(func() -> bool: return SongMode.flipping, 7.0)
 	_send(&"move_forward", true)
 	await _until(func() -> bool: return Game.player.global_position.x > 47.0, 12.0)
 	_send(&"move_forward", false)
