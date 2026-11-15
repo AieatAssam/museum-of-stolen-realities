@@ -28,6 +28,7 @@ var _swing_pivot: Node3D
 var _train: Node3D
 var _caster: DelayedCaster
 var _silhouette: MeshInstance3D
+var _traverse: Tween
 
 
 func objectives() -> Array[Dictionary]:
@@ -68,13 +69,35 @@ func register_modes(player: Player) -> void:
 			return
 		# the roof face is the only latch above street height
 		if _player.global_position.y > 4.0:
-			complete_step(&"cross_lit", &"latch_gap")
+			_cross_gap(m)
 		else:
 			complete_step(&"learn_dark", &"latch_wall"))
 	m.ejected.connect(func() -> void:
+		# a train lamp that catches the traversal drops the player back to the last dark point
+		if _traverse and _traverse.is_running():
+			_traverse.kill()
+			m.release()
 		if _in_cinema:
 			Game.respawn())
 	player.add_mode(&"shadowstep", m)
+
+
+## Latching the far roof's dark face carries the player across the gap. The train's lamp cuts the path:
+## the traversal is refused while the gap is lit, and a lamp that catches it mid-air drops the player back.
+func _cross_gap(m: ShadowstepMode) -> void:
+	var ex: Array[RID] = [_player.get_rid()]
+	if ShadowField.lit(_player, Vector3(-21.0, 6.0, -29.0), ex):
+		m.release()
+		toast("The train's lamp is across the gap. Wait for it to pass.", "Elevated line")
+		return
+	complete_step(&"cross_lit", &"latch_gap")
+	# from the near roof the latch carries you to the far roof; from the far roof, back to the near one
+	var to := Vector3(-25.2, 7.05, -29.0) if _player.global_position.x > -21.0 else Vector3(-16.6, 5.05, -29.0)
+	_player.gravity_vector = Vector3.ZERO
+	_player.velocity = Vector3.ZERO
+	_traverse = create_tween()
+	_traverse.tween_property(_player, "global_position", to, 1.2).set_trans(Tween.TRANS_SINE)
+	_traverse.tween_callback(m.release)
 
 
 func save_state() -> Dictionary:
@@ -372,12 +395,14 @@ func _resolve_better(how: String) -> void:
 func _build_elevated_line() -> void:
 	var e := _area("ElevatedLine")
 	# fire-escape ramp up from the street's west wall to the roof
-	var ramp := _solid(e, Vector3(-8.85, 2.5, -28.5), Vector3(10, 0.4, 3), "metal", Color("3d3d40"))
+	# one continuous slab at 30 degrees: its high corner (x -13.7, y 5.0) sits inside the roof, so there is no lip
+	var ramp := _solid(e, Vector3(-9.5, 2.33, -28.5), Vector3(10, 0.4, 3.4), "metal", Color("3d3d40"))
 	ramp.rotation_degrees.z = -30.0
 	_solid(e, Vector3(-16.3, 2.5, -29.0), Vector3(6.6, 5, 8), "roof", Color("2a2a2c"))
 	# the far roof: its east face is the dark wall across the gap, taller than the roof we stand on
 	_solid(e, Vector3(-26.25, 3.5, -29.0), Vector3(7.5, 7, 8), "roof", Color("2a2a2c"))
 	_checkpoint_at("roof", Vector3(-14.5, 5.05, -29.0))
+	_checkpoint_at("ramp_foot", Vector3(-2.0, 0.05, -28.5))
 	_plaque(e, Vector3(-16.3, 5.35, -32.6), 0.0, "Gelatin silver print, 1955", "Elevated line, last train", "Acquisition No. 501.4",
 		"A train crosses the roofs every twelve seconds. Its lamp falls on the parapet and not the gap. Two photographs show the same parapet; one has been cropped at the edge.")
 	# the train runs on a rail above the roofs; its lamp is the rhythm that cuts the shadow path
@@ -405,6 +430,9 @@ func _build_precinct() -> void:
 	_solid(p, Vector3(5.5, 3, -53.5), Vector3(1, 6, 3))
 	_solid(p, Vector3(5.5, 3, -62.5), Vector3(1, 6, 7))
 	_solid(p, Vector3(9.25, -0.5, -59), Vector3(6.5, 1, 14), "floor", Color("111113"))
+	# threshold floor under the wall line: without it the 4 m opening drops the player out of the wing
+	_solid(p, Vector3(5.5, -0.5, -59), Vector3(1, 1, 14), "floor", Color("111113"))
+	_checkpoint_at("precinct", Vector3(8.5, 0.05, -60))
 	_solid(p, Vector3(12.5, 3, -59), Vector3(1, 6, 14))
 	_solid(p, Vector3(9.25, 3, -52.5), Vector3(6.5, 6, 1))
 	_solid(p, Vector3(9.25, 3, -66.5), Vector3(6.5, 6, 1))

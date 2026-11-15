@@ -127,6 +127,29 @@ func _train_x() -> float:
 	return t.position.x if t else 0.0
 
 
+## true while the train's lamp reaches the gap midpoint
+func _gap_lit() -> bool:
+	var ex: Array[RID] = [Game.player.get_rid()]
+	return ShadowField.lit(Game.player, Vector3(-21.0, 6.0, -29.0), ex)
+
+
+var _sampling := false
+var _t0 := 0.0
+
+
+## Once a second: position, mode, and whether the head is lit. Logs are the evidence for stuck and ejected steps.
+func _sampler() -> void:
+	while _sampling:
+		await seconds(1.0)
+		var p := Game.player
+		if p == null or not _in_noir():
+			continue
+		var ex: Array[RID] = [p.get_rid()]
+		var lit := ShadowField.lit(p, p.head.global_position, ex)
+		var v := p.global_position
+		print("  t=%5.1f pos=(%.2f, %.2f, %.2f) mode=%s head_lit=%s" % [Time.get_ticks_msec() / 1000.0 - _t0, v.x, v.y, v.z, p.mode_name(), lit])
+
+
 func _run() -> void:
 	print("[noir] new game, real input to the Gallery of Stolen Realities")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
@@ -158,6 +181,9 @@ func _run() -> void:
 	var placards := w.find_children("*", "Placard", true, false)
 	check(placards.size() <= 12, "placards: %d (limit 12)" % placards.size())
 
+	_t0 = Time.get_ticks_msec() / 1000.0
+	_sampling = true
+	_sampler()
 	print("[noir] alley: walk into the shade, latch onto the dark wall")
 	await _walk_to(Vector3(0, 0.05, -7), 15.0)
 	await frames(4)
@@ -194,15 +220,20 @@ func _run() -> void:
 	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
 	await _walk_to(Vector3(-12.0, 4.0, -29.0), 15.0)
 	await _walk_to(Vector3(-18.0, 5.05, -29.0), 15.0)
-	# the train's lamp cuts the shadow path while it is over the gap; wait until it is well west of the gap
-	await _until(func() -> bool: return _train_x() < -40.0 or _train_x() > -2.0, 14.0)
+	# the train's lamp cuts the shadow path while it is over the gap; the latch only carries you while the gap is dark
+	await _until(func() -> bool: return not _gap_lit(), 14.0)
 	await _tp(Vector3(-19.0, 5.05, -29.0), Vector3(-22.5, 5.55, -29.0))
 	await frames(10)
 	_tap(&"secondary")
-	await frames(8)
+	await _until(func() -> bool: return Game.player.global_position.x < -21.0, 5.0)
 	check(Quest.is_step_done(&"cross_lit", &"latch_gap"), "latching across the rooftop gap completes latch_gap")
+	check(Game.player.global_position.x < -21.0, "the latch carries the player to the far roof (at %.2f)" % Game.player.global_position.x)
+	await _tp(Vector3(-22.8, 7.05, -29.0), Vector3(-19.5, 7.05, -29.0))
+	await frames(10)
+	await _until(func() -> bool: return not _gap_lit(), 14.0)
 	_tap(&"secondary")
-	await frames(4)
+	await _until(func() -> bool: return Game.player.global_position.x > -18.0, 5.0)
+	check(Game.player.global_position.x > -18.0, "the latch carries the player back to the near roof (at %.2f)" % Game.player.global_position.x)
 	await _walk_to(Vector3(-13.0, 4.0, -29.0), 15.0)
 	await _walk_to(Vector3(-2.0, 0.05, -28.5), 15.0)
 	await _walk_to(Vector3(3.2, 0.05, -28.5), 15.0)
@@ -282,5 +313,6 @@ func _run() -> void:
 	check(back_after >= 11.0, "the colour reveal holds for eleven seconds (%.1f s)" % back_after)
 	check(Game.wing != null and Game.wing.wing_id == Game.HUB_ID, "finish() returns to the atrium")
 
+	_sampling = false
 	print("[noir] done, %d failure(s)" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
