@@ -9,7 +9,7 @@ const N := 81
 const HALF := 40.0
 const MIN_H := -2.4
 const MAX_H := 4.2
-const SHADER := preload("res://wings/clay/shaders/clay_terrain.gdshader")
+const MATERIAL := preload("res://wings/clay/materials/ground.tres")
 
 var h := PackedFloat32Array()     # index = iz * N + ix, world x = ix - HALF, z = iz - HALF
 var mark := PackedFloat32Array()  # 0..1: shaped by the player (raw clay, fingerprints show)
@@ -27,9 +27,7 @@ func setup(base_fn: Callable) -> void:
 			h[iz * N + ix] = float(base_fn.call(ix - HALF, iz - HALF))
 	mark.fill(0.0)
 	_mesh_inst = MeshInstance3D.new()
-	var mat := ShaderMaterial.new()
-	mat.shader = SHADER
-	_mesh_inst.material_override = mat
+	_mesh_inst.material_override = MATERIAL
 	add_child(_mesh_inst)
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1

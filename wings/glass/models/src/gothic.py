@@ -18,9 +18,8 @@ def pointed(span, rise, n=24):
     for i in range(n + 1):          # right half, springer -> apex
         a = a0 * i / n
         pts.append((c + r * math.cos(a), r * math.sin(a)))
-    right = pts
-    left = [(-h, y) for h, y in reversed(right)]
-    return left + right[1:]
+    left = [(-h, y) for h, y in pts]           # left springer -> apex
+    return left + list(reversed(pts))[1:]      # apex -> right springer
 
 
 def sweep(name, section, path2d, mat, place=lambda h, y, v: (h, v, y), close=True, smooth=50.0):

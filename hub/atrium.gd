@@ -591,10 +591,8 @@ func _build_thief() -> void:
 		plq.position = Vector3(2.5, 1.2, 1.9)
 		plq.rotation.x = deg_to_rad(-20)
 		plq.size = Vector2(0.8, 0.56)
-		plq.heading = "The thief, acquired"
-		plq.title = "Acquired this week"
-		plq.catalog_line = "Flesh, grief, intent\nAcq. no. 007"
-		plq.body = "Acquired in the act. Displayed in the round. The subject appears to be looking for something it lost; the Curator has declined to say what. Please do not feed the exhibit."
+		plq.set_label(Placard.fields("The thief, acquired", "Acquired this week", "Flesh, grief, intent", "Acq. no. 007",
+			"Acquired in the act. Displayed in the round. The subject appears to be looking for something it lost; the Curator has declined to say what. Please do not feed the exhibit."), false)
 		_thief.add_child(plq)
 	if n >= 4:  # stage 4: gallery lighting
 		var spot := SpotLight3D.new()
@@ -815,30 +813,30 @@ func _refresh_placards(animate: bool) -> void:
 	for id: StringName in _frames:
 		var f: Dictionary = _frames[id]
 		var info: WingInfo = f["info"]
-		var cat := "%s\nAcq. no. %s" % [MEDIUM[id], info.acquisition_no]
+		var medium: String = MEDIUM[id]
 		var body: String = BODY[id]
 		if Quest.has_fragment(id):
 			body = "You went in and came back with a piece of yourself. This label has been amended in your hand. The Curator has not yet noticed the handwriting."
 		elif not info.scene_exists():
-			cat = "Gallery closed for restoration\nAcq. no. %s" % info.acquisition_no
-		# tombstone order: title / date / medium + acquisition no. / one short paragraph
-		(f["placard"] as Placard).set_text(info.title, DATE[id], cat, body, anim)
+			medium = "Gallery closed for restoration"
+		# tombstone order: title / date / medium / acquisition no. / one short paragraph
+		(f["placard"] as Placard).set_label(Placard.fields(info.title, DATE[id], medium, "Acq. no. %s" % info.acquisition_no, body), anim)
 	var e: String = ["Closed for the duration of your stay.",
 		"Closed for the duration of your stay. Your stay has been extended.",
 		"Closed for the duration of your stay. You have stopped trying it. Thank you.",
 		"You could leave now. The door has noticed."][0 if n == 0 else (1 if n < 3 else (2 if n < 6 else 3))]
-	(_plaques["entrance"] as Placard).set_text("Entrance", "Date of your arrival", "Oak, brass, a lock\nWay out, not in use", e, anim)
+	(_plaques["entrance"] as Placard).set_label(Placard.fields("Entrance", "Date of your arrival", "Oak, brass, a lock. Way out, not in use.", "", e), anim)
 	var d: String = ["A world, damaged in transit. Six pieces are missing. They are on display elsewhere in the building, which is the same thing as being safe.",
 		"A world, damaged in transit. Someone is repairing it without permission. The Curator is aware.",
 		"A world, damaged in transit. You are repairing it without permission. Please continue; it is the most interesting thing in the building.",
 		"Complete. You did this. The Curator would like a word, and has prepared two."][0 if n == 0 else (1 if n < 3 else (2 if n < 6 else 3))]
-	(_plaques["dais"] as Placard).set_text("Exhibit 0", "Acquired the night you were taken", "Everything you had\nAcq. no. 000", d, anim)
+	(_plaques["dais"] as Placard).set_label(Placard.fields("Exhibit 0", "Acquired the night you were taken", "Everything you had", "Acq. no. 000", d), anim)
 	var provs := 0
 	for k: String in Save.data["provenances"]:
 		provs += (Save.data["provenances"][k] as Array).size()
 	var a := "Not on public view. You are not the public." if provs == 0 else \
 		"Items recovered by you, held by us. %d of 18. The arrangement is temporary on one side." % provs
-	(_plaques["alcove"] as Placard).set_text("The private collection", "Ongoing", "Things you brought back\nBy appointment", a, anim)
+	(_plaques["alcove"] as Placard).set_label(Placard.fields("The private collection", "Ongoing", "Things you brought back. By appointment.", "", a), anim)
 
 
 # --- per frame --------------------------------------------------------------------------------
@@ -1119,20 +1117,7 @@ func _orbit(radius: float, height: float, from_a: float, to_a: float, n: int = 6
 
 
 func _credits() -> Array:
-	var cc: PackedStringArray = []
-	var f := FileAccess.open("res://CREDITS.md", FileAccess.READ)
-	if f:
-		for line in f.get_as_text().split("\n"):
-			var cols := line.split("|")
-			if cols.size() >= 6 and cols[5].strip_edges().begins_with("CC-BY"):
-				cc.append("%s — %s (%s)" % [cols[2].strip_edges(), cols[3].strip_edges(), cols[5].strip_edges()])
-	var steps: Array = [
-		{"card": "Museum of Stolen Realities", "sub": "Credits", "t": 4.0, "style": "display"},
-		{"card": "Made with Godot Engine (MIT).\nType: Gloock, Italiana, Crimson Pro, Arsenal SC (SIL Open Font License).", "sub": "With thanks", "t": 5.0, "style": "body"},
-	]
-	if not cc.is_empty():
-		steps.append({"card": "\n".join(cc), "sub": "Sound and music under Creative Commons Attribution", "t": 6.0, "style": "body"})
-	return steps
+	return Credits.cards()
 
 
 
