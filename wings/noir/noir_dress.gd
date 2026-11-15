@@ -451,9 +451,9 @@ func _alley() -> void:
 	steam(Vector3(0.6, 0.05, -14.0))
 	model(self, "lamp_bracket", Vector3(4.0, 3.6, -5.0), -90.0)
 	omni(Vector3(3.15, 3.35, -5.0), Color(1.0, 0.9, 0.7), 2.4, 5.5)
-	# a second bracket over the cover crate: a pool on the crates and the wet cobbles
-	model(self, "lamp_bracket", Vector3(-4.0, 3.3, -11.0), 90.0)
-	omni(Vector3(-3.15, 3.05, -11.0), Color(1.0, 0.9, 0.7), 2.0, 5.0)
+	# a second bracket across from the cover crate: the crate stays in the dark, the cobbles shine
+	model(self, "lamp_bracket", Vector3(4.0, 3.3, -10.0), -90.0)
+	omni(Vector3(3.15, 3.05, -10.0), Color(1.0, 0.9, 0.7), 3.4, 6.0)
 
 
 func _street() -> void:
