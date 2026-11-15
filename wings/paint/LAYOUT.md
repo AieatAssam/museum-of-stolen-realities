@@ -33,12 +33,12 @@ The ids are `start`, `windfall`, `terrace`, `corrections`, `pentimento` and `edg
 
 There is no guidance and no comment. The `pentimento` checkpoint stands at the arena mouth.
 
-1. Six hills ring a crack where a 60 m figure stands. They are one-way umber ramps rising from the rim towards the figure, and they heave more with each layer.
+1. Six hills ring a crack where a 60 m figure stands. They are one-way umber ramps, 16 m long, rising from the rim towards the figure. They sit between the spokes, so the causeway meets the rim between two of them. They heave more with each layer.
 2. Layer 1: three of the hills carry a dark seal near the crest. Ride up a hill and scrape the seal in passing (secondary), then crouch off.
 3. When all three seals are gone, the layer peels. The figure sinks 7 m, the ground warms towards green, the camera shakes, and the next layer's seals appear on the other hills.
-4. If a layer is left half-scraped for 45 s, its seals regrow. Peeled layers are saved and never regrow.
+4. If a layer is left half-scraped for 90 s, its seals regrow. Peeled layers are saved and never regrow.
 5. After three layers, the hills settle. The Old Tree's trunk is blue underneath now, the kinder road appears (rim → Windfall), and so does the hidden pear well.
-6. Failure is a fall into the crack or off a hill. She is back at the arena mouth in about 1.5 s with peeled layers kept, so the worst case (one regrowth) costs under 1 minute.
+6. Failure is a fall into the crack or off a hill. She is back at the arena mouth in about 1.5 s with peeled layers kept, so the worst case (one regrowth) costs about 1.5 minutes.
 
 ## Heist: the drying stroke
 

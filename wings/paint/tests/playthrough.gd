@@ -326,6 +326,25 @@ func _arena(angle: float, r: float) -> Vector3:
 	return w.PENT_C + Vector3(sin(angle), 0, cos(angle)) * r
 
 
+## Walk the arena by its free inner ring (inside the hills' raised ends, outside the crack), then
+## out along a clear spoke, then along the rim onto hill k's foot.
+func _to_hill(k: int) -> void:
+	var a: float = w.hill_angle(k)
+	var d: Vector3 = _p().global_position - w.PENT_C
+	var ang := atan2(d.x, d.z)
+	if Vector2(d.x, d.z).length() > 14.0:
+		await walk_to(_arena(ang, 11.0), 20.0, 1.0)
+	var spoke := a - TAU / 12.0 if absf(wrapf(a - TAU / 12.0 - ang, -PI, PI)) < absf(wrapf(a + TAU / 12.0 - ang, -PI, PI)) else a + TAU / 12.0
+	var left := wrapf(spoke - ang, -PI, PI)
+	while absf(left) > 0.05:
+		var step := clampf(left, -0.5, 0.5)
+		ang += step
+		left -= step
+		await walk_to(_arena(ang, 11.0), 10.0, 1.0)
+	await walk_to(_arena(spoke, 31.5), 20.0, 1.0)
+	await steer(_arena(a, 33.4), 900, func() -> bool: return surfing())
+
+
 func _pentimento() -> void:
 	var tries := 0
 	var t0 := Engine.get_physics_frames()
@@ -342,26 +361,20 @@ func _pentimento() -> void:
 			continue
 		var k := int(String(target.sid).get_slice("_", 2))
 		var hid := "hill_%d" % k
-		var a := k * TAU / 6.0
 		if not surfing():
-			if tries > 1:
-				# round by the inner ring (under the raised ends), out along the sector, along the rim
-				await walk_to(_arena(a + 0.52, 8.0), 20.0, 1.0)
-				await walk_to(_arena(a + 0.52, 33.0), 20.0, 1.0)
-			await steer(_arena(a + 0.17, 33.4), 600, func() -> bool: return surfing() or (_p().global_position - _arena(a + 0.17, 33.4)).length() < 1.0)
-			await steer(_arena(a, 33.4), 600, func() -> bool: return surfing())
-		print("  [dbg] try %d layer %d hill %d at %s surf %s" % [tries, layer, k, _p().global_position, _mode()])
+			await _to_hill(k)
 		if not surfing(hid):
+			print("  missed hill %d at %s (%s)" % [k, _p().global_position, _mode()])
 			if surfing():
 				await tap(&"crouch")
 			await ticks(240, on_floor)
 			continue
-		await steer(w.PENT_C, 900, func() -> bool: return not surfing(hid) or w.surf.s > 14.5)
+		await steer(w.PENT_C, 900, func() -> bool: return not surfing(hid) or w.surf.s > 10.5)
 		if surfing(hid):
 			await look_at(target.centre() + Vector3(0, 0.75, 0), 30)
 			await tap(&"secondary")
 			check(not target.enabled, "scraped a seal riding the buckling hill (layer %d)" % layer)
-			# ride on: the hill throws her off its raised end onto the arena floor
+		# ride on: the hill throws her off its raised end onto the inner ring
 		await ticks(600, func() -> bool: return on_floor() and not w._respawning)
 	var mins := (Engine.get_physics_frames() - t0) / 120.0 / 60.0
 	check(w.pent == 3, "three layers removed: the first composition (%d tries, %.1f min)" % [tries, mins])

@@ -481,7 +481,7 @@ const W_ID := &"paint"
 const PENT_C := Vector3(0, 0, -385)
 const PENT_R := 33.0
 const LAYERS := 3
-const REGROW := 45.0
+const REGROW := 90.0
 const DRY_SPEED := 9.0
 const DRY_GRACE := 3.0
 const HEIST_IDS := ["heist_0", "heist_red_1", "heist_red_2", "heist_blue_1", "heist_final"]
@@ -763,11 +763,11 @@ func _build_pentimento() -> void:
 	figure = _block(A, "Figure", C + Vector3(-4, -40, 4), C + Vector3(4, 22, -4), "figure")
 	# six hills, pivoting at the rim, heaving; the seals of the earlier layers ride on them
 	for k in 6:
-		var a := k * TAU / 6.0
+		var a := hill_angle(k)
 		var rim := C + Vector3(sin(a), 0, cos(a)) * PENT_R
 		var xf := Transform3D(Basis.looking_at((C - rim).normalized(), Vector3.UP), rim)
 		var holder := _area(A + "/Hill_%d" % k)
-		var st: Node3D = canvas.add(Stroke.make("hill_%d" % k, [Vector3(0, 0.25, 0), Vector3(0, 2.8, -11), Vector3(0, 5.5, -22)], "umber", 2.0, {"oneway": true}), holder)
+		var st: Node3D = canvas.add(Stroke.make("hill_%d" % k, [Vector3(0, 0.25, 0), Vector3(0, 2.6, -8), Vector3(0, 4.6, -16)], "umber", 2.0, {"oneway": true}), holder)
 		st.set_meta(&"unsafe", true)
 		st.transform = xf
 		hills.append([st, xf, k])
@@ -776,15 +776,20 @@ func _build_pentimento() -> void:
 		for j in 3:
 			var k := (j * 2 + layer) % 6
 			var h: Node3D = hills[k][0]
-			var sd: Node3D = canvas.add(Stroke.make("seal_%d_%d" % [layer, k], [Vector3(2.4, 4.4, -19.4), Vector3(2.4, 4.4, -21.6)], "fury", 1.5,
+			var sd: Node3D = canvas.add(Stroke.make("seal_%d_%d" % [layer, k], [Vector3(2.4, 3.8, -12.9), Vector3(2.4, 3.8, -15.1)], "fury", 1.5,
 				{"up": true, "t": 0.5, "k": "seal", "hidden": true}), h)
 			row.append(sd)
 		seals.append(row)
 	pts["rim"] = Vector3(0, 0, -349)
 
 
+## Hills sit between the spokes, so the causeway (angle 0) meets the rim between two of them.
+static func hill_angle(k: int) -> float:
+	return (k + 0.5) * TAU / 6.0
+
+
 func _hill_start(k: int) -> Vector3:
-	var a := k * TAU / 6.0
+	var a := hill_angle(k)
 	return PENT_C + Vector3(sin(a), 0, cos(a)) * (PENT_R + 0.6)
 
 
