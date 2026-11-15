@@ -662,15 +662,15 @@ func _build_marks() -> void:
 		["light_well", Vector3(37, -1, 5), Vector3(52, -3, 0)],
 		["perch", Vector3(60, -1, 4), Vector3(76, 1, -6)],
 		["shaft_rim", Vector3(76, -1, 2), Vector3(110, 5, 0)],
-		["shaft_down", Vector3(128, -6, -4), Vector3(131, -24, 19)],
+		["shaft_down", Vector3(129, -5.5, -6), Vector3(100, -14, -20)],
 		["foundry", Vector3(130, -26, 45), Vector3(130, -18, 60)],
 		["guild_door", Vector3(118, -29, 70), Vector3(130, -29, 80)],
 		["gallery", Vector3(92, -29.5, 91), Vector3(62, -27, 91)],
 		["arena", Vector3(40, -29, 105), Vector3(40, -32, 60)],
 		["eye_reveal", Vector3(84, -68.3, -12), Vector3(118, 30, -8)],
-		["general", Vector3(46, -37, 2), Vector3(40, -36, -16)],
+		["general", Vector3(45, -36, -5), Vector3(40, -36, -16)],
 		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
-		["heist_lift", Vector3(92, -33.5, -18), Vector3(108, -50, -24)],
+		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
 		["harp", Vector3(19, -0.8, 9.5), Vector3(24, -1.4, 13.3)],
 	]
 	for m: Array in marks:
@@ -800,16 +800,22 @@ func _dress() -> void:
 	L.light(Vector3(77, 2, -6), Color("ffd27a"), 1.6, 8.0)       # the perch
 	L.light(Vector3(122, -5, 0), warm, 2.0, 14.0)                # the balcony
 	L.light(Vector3(130, -20, 56), Color("ff7a2a"), 3.0, 16.0, 2.0)   # the foundry forge glow
-	L.light(Vector3(130, -27, 77), Color("ff9a40"), 2.0, 10.0)   # the guild door
+	L.light(Vector3(130, -27, 76), Color("ff9a40"), 5.0, 12.0)   # the guild door
 	L.light(Vector3(100, -27, 76), Color("ff9a40"), 1.6, 9.0)    # the vault
 	L.light(Vector3(100, -28, 68), Color("ffc060"), 1.5, 7.0)    # inside the vault
 	for kn: Node3D in _keys:
 		L.light(kn.global_position + Vector3(0, 1.5, 0), Color("ffc060"), 2.5, 10.0, 2.0)
 	L.light(Vector3(40, -36, -14), Color("9affdc"), 3.0, 14.0, 1.5)   # rim on the General
-	L.light(Vector3(115, -66, -8), Color("ffb040"), 4.0, 16.0, 2.0)   # the case on the dais
+	L.light(Vector3(43, -33, -8), Color("ff9a30"), 5.0, 14.0, 2.0)    # brazier glow before the General
+	# a crescent of lit comb behind her dais, so she reads in silhouette against honey
+	for i: int in 7:
+		var a := -0.9 + i * 0.3
+		L.put("comb", Transform3D(Basis(Vector3.UP, a) * Basis.from_scale(Vector3.ONE * 2.5), Vector3(40 + sin(a) * 11.0, -40.0 + (i % 2) * 2.5, -16 - cos(a) * 11.0)))
+	L.light(Vector3(40, -34, -24), Color("ffa040"), 4.0, 14.0, 1.5)
+	L.light(Vector3(115, -66, -8), Color("ffb040"), 7.0, 18.0, 2.0)   # the case on the dais
 	L.light(Vector3(67, -55, -12), Color("ffb040"), 1.2, 8.0)         # halfway down the stair
-	L.light(Vector3(95, -38, -22), warm, 1.6, 10.0)                   # heist ledge H1
-	L.light(Vector3(116, -41, -22), warm, 1.6, 10.0)                  # heist ledge H2
+	L.light(Vector3(95, -38, -22), warm, 3.0, 12.0)                   # heist ledge H1
+	L.light(Vector3(116, -41, -22), warm, 3.0, 12.0)                  # heist ledge H2
 	L.light(Vector3(117, 0, -35), warm, 2.0, 14.0)                    # the rim
 	# the eye's gaze: a shadowed shaft of honey light from the sky onto the dais, god rays in the haze
 	var gaze := SpotLight3D.new()
@@ -820,7 +826,7 @@ func _dress() -> void:
 	gaze.light_energy = 14.0
 	gaze.light_color = Color("ffc070")
 	gaze.light_volumetric_fog_energy = 2.5
-	gaze.shadow_enabled = true
+	gaze.shadow_enabled = false  # 16 ms budget in the hall; the fog shaft still reads
 	L.add_child(gaze)
 
 

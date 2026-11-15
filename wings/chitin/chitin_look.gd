@@ -12,13 +12,13 @@ const MATS := "res://wings/chitin/materials"
 ## The light arc: warm honey at the gate and districts, cold and dark down the shaft, hot foundry,
 ## hushed gallery, a black arena under rim light, then the amber blaze of the hall.
 const AREAS := {
-	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 1.4},
-	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.15},
-	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 10, "lamp": Color(0.55, 1.0, 0.85), "exp": 2.2},
-	"Foundry": {"wall": "carapace_dull", "fungus": 10, "comb": 8, "lamp": Color(1.0, 0.55, 0.22), "exp": 1.9},
-	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 1.9},
-	"GeneralArena": {"wall": "carapace", "fungus": 10, "comb": 0, "lamp": Color(0.55, 1.0, 0.85), "exp": 2.1},
-	"CoronationHall": {"wall": "carapace", "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.7},
+	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 2.4},
+	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.35},
+	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 10, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.0},
+	"Foundry": {"wall": "comb_dim", "fungus": 14, "comb": 8, "lamp": Color(1.0, 0.55, 0.22), "exp": 1.9},
+	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 2.3},
+	"GeneralArena": {"wall": "comb_dim", "fungus": 18, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 2.8},
+	"CoronationHall": {"wall": "carapace", "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 3.0},
 	"Heist": {"wall": "carapace", "fungus": 4, "comb": 0, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.8},
 }
 
@@ -30,7 +30,7 @@ var _xf := {}                      # model name -> Array[Transform3D]
 var _lights := 0
 var _rope: Array[MeshInstance3D] = []
 var _rope_mat: Material
-var _exp := 1.0
+var _exp := -1.0
 
 
 func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void:
@@ -142,7 +142,7 @@ func _scatter_floor(b: AABB, cfg: Dictionary) -> void:
 		var s := _rng.randf_range(0.7, 1.5)
 		_add("fungus_cap", Transform3D(Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3.ONE * s), p))
 		if i % 3 == 0:
-			light(p + Vector3.UP * 1.2, cfg["lamp"], 0.9, 9.0)
+			light(p + Vector3.UP * 1.2, cfg["lamp"], 0.9, 7.0, 0.0)  # no fog cost for the scatter
 
 
 # --- instancing --------------------------------------------------------------------------------
@@ -275,5 +275,5 @@ func _expose(c: Vector3) -> void:
 		e = AREAS["HiveShaft"]["exp"]
 	elif c.x > 13.0:
 		e = AREAS["SilkDistricts"]["exp"]
-	_exp = lerpf(_exp, e, 0.05)
+	_exp = e if _exp < 0.0 else lerpf(_exp, e, 0.05)
 	env.tonemap_exposure = _exp

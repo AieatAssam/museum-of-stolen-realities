@@ -10,12 +10,12 @@ AMBER = "res://wings/chitin/shaders/amber.gdshader"
 
 # hive.gdshader: name: texture set, params
 HIVE_MATS = {
-    "carapace":      ("carapace", dict(tint="Color(0.55, 0.7, 0.6, 1)", scale=0.45, normal_depth=1.2, rough_lo=0.08, rough_hi=0.35, iridescence=0.55, film=1.1)),
+    "carapace":      ("carapace", dict(tint="Color(0.55, 0.7, 0.6, 1)", scale=0.45, normal_depth=1.2, rough_lo=0.08, rough_hi=0.35, iridescence=0.85, film=1.1)),
     "carapace_dull": ("carapace", dict(tint="Color(0.32, 0.36, 0.3, 1)", scale=0.6, normal_depth=1.0, rough_lo=0.45, rough_hi=0.85, iridescence=0.08, film=0.8)),
     "floor":         ("floor", dict(tint="Color(0.3, 0.42, 0.36, 1)", scale=0.22, normal_depth=1.0, rough_lo=0.04, rough_hi=0.4, iridescence=0.3, film=0.9,
                                     glow_color="Color(1, 0.58, 0.16, 1)", glow=0.08, glow_cut=0.25)),
     "comb":          ("comb", dict(tint="Color(1, 0.9, 0.75, 1)", scale=0.32, normal_depth=1.4, rough_lo=0.2, rough_hi=0.6,
-                                   glow_color="Color(1, 0.55, 0.14, 1)", glow=0.9, glow_cut=0.45)),
+                                   glow_color="Color(1, 0.55, 0.14, 1)", glow=0.6, glow_cut=0.45)),
     "comb_dim":      ("comb", dict(tint="Color(0.6, 0.5, 0.38, 1)", scale=0.32, normal_depth=1.4, rough_lo=0.2, rough_hi=0.6,
                                    glow_color="Color(1, 0.5, 0.12, 1)", glow=0.45, glow_cut=0.45)),
     "silk":          ("silk", dict(tint="Color(1, 0.96, 0.88, 1)", scale=1.2, normal_depth=0.8, rough_lo=0.35, rough_hi=0.7)),
@@ -24,7 +24,7 @@ HIVE_MATS = {
 # amber.gdshader: name: texture, use_uv, scale, tint, core, through, rim, rough, pulse
 AMBER_MATS = {
     "amber":    ("amber", False, 0.9, "Color(1, 0.75, 0.35, 1)", "Color(1, 0.66, 0.25, 1)", 1.0, 0.6, 0.08, 0.0),
-    "molt":     ("membrane", False, 0.35, "Color(0.55, 0.42, 0.26, 1)", "Color(0.8, 0.55, 0.25, 1)", 0.22, 0.45, 0.25, 0.0),
+    "molt":     ("membrane", False, 0.35, "Color(0.4, 0.36, 0.26, 1)", "Color(0.6, 0.45, 0.25, 1)", 0.15, 0.45, 0.25, 0.0),
     "wax":      ("comb", False, 0.6, "Color(1, 0.85, 0.55, 1)", "Color(1, 0.7, 0.3, 1)", 0.25, 0.3, 0.35, 0.0),
     "membrane": ("membrane", True, 1.0, "Color(0.85, 0.6, 0.35, 1)", "Color(0.9, 0.5, 0.18, 1)", 0.9, 0.4, 0.3, 0.0),
     "fungus":   ("silk", False, 1.5, "Color(0.7, 1, 0.95, 1)", "Color(0.45, 1, 0.85, 1)", 2.4, 1.4, 0.4, 0.12),

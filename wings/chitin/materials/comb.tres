@@ -19,5 +19,5 @@ shader_parameter/normal_depth = 1.4
 shader_parameter/rough_lo = 0.2
 shader_parameter/rough_hi = 0.6
 shader_parameter/glow_color = Color(1, 0.55, 0.14, 1)
-shader_parameter/glow = 0.9
+shader_parameter/glow = 0.6
 shader_parameter/glow_cut = 0.45

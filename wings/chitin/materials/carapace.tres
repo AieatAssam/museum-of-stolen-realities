@@ -18,5 +18,5 @@ shader_parameter/scale = 0.45
 shader_parameter/normal_depth = 1.2
 shader_parameter/rough_lo = 0.08
 shader_parameter/rough_hi = 0.35
-shader_parameter/iridescence = 0.55
+shader_parameter/iridescence = 0.85
 shader_parameter/film = 1.1

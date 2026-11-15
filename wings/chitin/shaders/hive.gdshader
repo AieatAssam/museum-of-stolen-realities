@@ -59,12 +59,12 @@ void fragment() {
 	vec3 base = alb * tint.rgb * g;
 	float ndv = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	// thin film: a cosine palette indexed by optical path, green -> blue -> violet -> bronze
-	float path = film * (1.6 - ndv) + h * 0.35;
+	float path = film * (1.6 - ndv) + h * 0.35 + vnoise(wpos.xy * 0.23 + wpos.zx * 0.17) * 0.7;
 	vec3 tf = 0.5 + 0.5 * cos(6.2832 * (path + vec3(0.0, 0.33, 0.67)));
 	tf = tf * tf;
 	// the film tints both the diffuse (a sheen readable in any light) and the reflections
 	float fres = 0.35 + 0.65 * pow(1.0 - ndv, 1.5);
-	ALBEDO = mix(base, base * 0.5 + tf * 0.4, iridescence * fres);
+	ALBEDO = mix(base, base * 0.4 + tf * 0.6, iridescence * fres);
 	METALLIC = clamp(metal + iridescence * 0.45, 0.0, 1.0);
 	ROUGHNESS = mix(rough_lo, rough_hi, r);
 	SPECULAR = 0.5;
