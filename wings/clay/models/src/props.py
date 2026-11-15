@@ -517,7 +517,7 @@ def B_lamp():
 def B_apron():
     """The workbench's own edge, seen from the set below: a thick front board with a routed lip and a
     drawer with a brass pull, side boards and two chunky legs, sized to the plateau (12 x 10 m, top
-    2.6 m). Origin = plateau centre at ground level. No colliders: the clay plateau is the solid."""
+    2.6 m). Origin = plateau centre at ground level. Collider only under the top board behind z=-40, where the terrain ends."""
     sd = 121
     parts = []
     # front board (faces +Y = Godot -Z? no: the set lies at Godot +Z of the bench, Blender -Y)
@@ -531,7 +531,10 @@ def B_apron():
         parts.append(S.slab("leg%d" % s, (1.0, 1.0, 2.0), (s * 5.7, -4.7, 0.95), "wood", sd + 2 + s, lump=0.006, bevel=0.08, cuts=4))
         parts.append(S.slab("legb%d" % s, (1.0, 1.0, 2.0), (s * 5.7, 4.7, 0.95), "wood", sd + 4 + s, lump=0.006, bevel=0.08, cuts=4))
     parts.append(S.slab("back", (12.6, 0.5, 0.75), (0, 5.25, 2.25), "wood", sd + 7, lump=0.006, bevel=0.06, cuts=12))
+    # the terrain stops at Godot z=-40, so the back of the bench top (z -46..-40) is a board, flush under the clay
+    parts.append(S.slab("top", (12.2, 6.3, 0.4), (0, 2.1, 2.38), "wood", sd + 8, lump=0.0, bevel=0.03, cuts=12))
     kit.join("apron", parts).name = "apron"
+    kit.collision_box("top", (12.2, 6.3, 0.4), (0, 2.1, 2.38))
 
 
 # --- set dressing ----------------------------------------------------------------------------------
