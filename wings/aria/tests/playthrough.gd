@@ -6,6 +6,7 @@ extends Node
 ## Run:  Godot --headless --path . wings/aria/tests/playthrough.tscn
 
 const Instrument := preload("res://wings/aria/instrument.gd")
+const SongMode := preload("res://wings/aria/song_mode.gd")
 
 var _fails: int = 0
 
@@ -60,6 +61,8 @@ func _send(action: StringName, pressed: bool) -> void:
 ## Stand at `at` (eye height 1.5 m) and face `target`, then wait for the camera to settle.
 func _stand(at: Vector3, target: Vector3) -> void:
 	Game.debug_teleport(at, target)
+	# a respawn resets the mode to walk; the wing's mechanics only exist in song mode
+	Game.player.set_mode(&"song")
 	await frames(8)
 
 
@@ -180,6 +183,65 @@ func _run() -> void:
 	_send(&"secondary", false)
 	var breath1: float = song.get("breath")
 	check(breath1 < breath0 - 0.5, "holding a note spends breath (%.2f -> %.2f)" % [breath0, breath1])
+
+	print("[aria] orchestra pit: walk down the ramp, one pipe stays below the gantry, two together reach it")
+	await _stand(Vector3(-11, 0.5, -10), Vector3(-30, 0.5, -10))
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.y < -2.5, 12.0)
+	_send(&"move_forward", false)
+	check(Game.player.global_position.y < -2.5 and Game.player.global_position.x < -18.0, "the ramp walks her down into the pit (x %.1f, y %.2f)" % [Game.player.global_position.x, Game.player.global_position.y])
+	var pit_a := _instrument("Instrument_pit_a")
+	var pit_b := _instrument("Instrument_pit_b")
+	var py0 := Game.player.global_position.y
+	await _stand(pit_a.global_position + Vector3(0, 0, 0.8), pit_a.global_position + Vector3(0, 1.5, 0))
+	_tap(&"primary")
+	var py_one := py0
+	var pt_end := Time.get_ticks_msec() + 1600
+	while Time.get_ticks_msec() < pt_end:
+		await frames(1)
+		py_one = maxf(py_one, Game.player.global_position.y)
+	check(py_one < 0.9, "pit_a alone does not reach the gantry top (peak y %.2f, top 1.00)" % py_one)
+	# both pipes sound: stand between them (1 m from each axis) and strike pit_b while pit_a still sounds
+	await _stand(Vector3(-28, -3, -12), Vector3(-28, -1.5, -11))
+	_tap(&"primary")
+	var py_two := py0
+	pt_end = Time.get_ticks_msec() + 1600
+	while Time.get_ticks_msec() < pt_end:
+		await frames(1)
+		py_two = maxf(py_two, Game.player.global_position.y)
+	check(py_two > 0.9, "pit_a and pit_b together lift her onto the gantry (peak y %.2f)" % py_two)
+
+	print("[aria] fly-loft: the tuning-fork statue rings its note and lifts her")
+	var fork := Game.wing.find_child("TuningForkStatue", true, false) as Node3D
+	await _stand(Vector3(56, 2.8, 40.8), fork.global_position + Vector3(0, 1.5, 0))
+	var fk0 := Game.player.global_position.y
+	_tap(&"primary")
+	var fk_max := fk0
+	pt_end = Time.get_ticks_msec() + 1600
+	while Time.get_ticks_msec() < pt_end:
+		await frames(1)
+		fk_max = maxf(fk_max, Game.player.global_position.y)
+	check(fk_max - fk0 > 1.0, "the fork statue lifts her (%.2f m)" % (fk_max - fk0))
+
+	print("[aria] scored corridor: a fall outside the flip sends her to the corridor checkpoint; a crossing inside it succeeds")
+	await _stand(Vector3(17, 2.8, 39), Vector3(30, 2.8, 39))
+	await frames(10)
+	await _stand(Vector3(21, 2.8, 39), Vector3(30, 2.8, 39))
+	await _until(func() -> bool: return not SongMode.flipping, 7.0)
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.y < -1.0 or Game.player.global_position.x < 18.5, 6.0)
+	_send(&"move_forward", false)
+	await _until(func() -> bool: return Game.player.global_position.x < 18.5, 6.0)
+	check(Game.player.global_position.x <= 18.5, "a jump outside the flip window respawns her at the corridor checkpoint (x %.1f)" % Game.player.global_position.x)
+	# the respawn runs through a transition that puts her back at the checkpoint: wait it out before the next run
+	await _until(func() -> bool: return not Transitions.busy, 6.0)
+	await seconds(0.5)
+	await _stand(Vector3(21, 2.8, 39), Vector3(30, 2.8, 39))
+	await _until(func() -> bool: return SongMode.flipping, 7.0)
+	_send(&"move_forward", true)
+	await _until(func() -> bool: return Game.player.global_position.x > 31.0, 6.0)
+	_send(&"move_forward", false)
+	check(Game.player.global_position.x > 31.0 and Game.player.global_position.y > 2.0, "crossing during a flip reaches the far floor (x %.1f, y %.2f)" % [Game.player.global_position.x, Game.player.global_position.y])
 
 	print("[aria] provenances by interact")
 	var pickups: Array[Node] = Game.wing.find_children("*", "Pickup", true, false)

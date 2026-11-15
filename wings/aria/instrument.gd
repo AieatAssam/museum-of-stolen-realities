@@ -12,10 +12,6 @@ const ATTACK := 1.4    # seconds for the envelope to reach full field
 const RELEASE := 2.2   # seconds for it to die away
 const GROUP := &"aria_instruments"
 
-## Set by the wing: during a downbeat, fields inside flip_box invert for the flip's duration.
-static var flip_active: bool = false
-static var flip_box: AABB = AABB()
-
 @export var note_id: StringName = &""
 @export var kind: StringName = &"lift"
 @export var radius: float = 2.2
@@ -74,5 +70,4 @@ func field_at(p: Vector3) -> float:
 		if h < -height or h > height:
 			return 0.0
 		a = -strength
-	var sgn := -1.0 if (flip_active and flip_box.has_point(p)) else 1.0
-	return a * rad * env * sgn
+	return a * rad * env

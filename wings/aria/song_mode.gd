@@ -7,6 +7,10 @@ extends MovementMode
 
 const Instrument := preload("res://wings/aria/instrument.gd")
 
+## Set by the wing on each downbeat. While flipping, gravity reverses inside flip_box.
+static var flipping: bool = false
+static var flip_box: AABB = AABB()
+
 var walk_speed: float = 4.2
 var ground_accel: float = 12.0
 var air_accel: float = 2.6
@@ -49,6 +53,8 @@ func physics(delta: float) -> void:
 		vertical *= drag
 	# the singing-gravity field is acceleration on top of the constant wing gravity
 	vertical += (p.gravity_vector + up * _field_at(p.global_position)) * delta
+	if flipping and flip_box.has_point(p.global_position):
+		vertical -= 2.0 * p.gravity_vector * delta  # reverses gravity: net pull is now upward
 
 	if _jump_pressed and (on_floor or _since_floor < 0.1):
 		vertical = up * jump_speed
