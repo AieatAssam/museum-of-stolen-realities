@@ -14,7 +14,7 @@ const MATS := "res://wings/chitin/materials"
 const AREAS := {
 	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 2.4},
 	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.35},
-	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 10, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.0},
+	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 10, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
 	"Foundry": {"wall": "comb_dim", "fungus": 14, "comb": 8, "lamp": Color(1.0, 0.55, 0.22), "exp": 1.9},
 	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 2.3},
 	"GeneralArena": {"wall": "comb_dim", "fungus": 18, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 2.8},
