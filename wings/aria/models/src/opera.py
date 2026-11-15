@@ -176,17 +176,60 @@ def fluted_column(name, h, r, mat, base=True, flutes=20):
 
 
 def lamp(name, loc, scale=1.0):
-    """Wall sconce: gilt bracket arm and an etched glass tulip (emissive)."""
+    """Wall sconce on the wall plane y = loc[1], projecting toward -Y: a gilt oval backplate with a moulded
+    rim, two S-scrolled gilt arms to bobeche cups, a wax candle with a teardrop flame in each, a pleated
+    silk shade over each candle, and three crystal drops. Every size is multiplied by scale."""
     x, y, z = loc
     s = scale
-    arm = kit.tube(name + "_arm", [(x, y, z - 0.25 * s), (x, y - 0.12 * s, z - 0.1 * s), (x, y - 0.26 * s, z), (x, y - 0.3 * s, z + 0.06 * s)], 0.022 * s, 6, "gilt")
-    cup = kit.lathe(name + "_cup", [(0.0, 0.0), (0.05, 0.01), (0.06, 0.04), (0.03, 0.06)], segments=10, mat="gilt")
-    cup.location = (x, y - 0.3 * s, z + 0.05 * s)
-    cup.scale = (s, s, s)
-    glass = kit.lathe(name + "_glass", [(0.03, 0.0), (0.07, 0.06), (0.09, 0.14), (0.08, 0.2), (0.05, 0.22), (0.0, 0.22)], segments=12, mat="lamp_glow")
-    glass.location = (x, y - 0.3 * s, z + 0.1 * s)
-    glass.scale = (s, s, s)
-    return [arm, cup, glass]
+    P = []
+
+    # backplate: a flat oval cartouche 0.16 x 0.30, moulded rim swept round its edge
+    plate = kit.lathe(name + "_plate", [(1.0, -0.5), (1.0, 0.5)], segments=24, mat="gilt")
+    plate.rotation_euler = (math.pi / 2, 0, 0)
+    plate.scale = (0.08 * s, 0.15 * s, 0.02 * s)
+    plate.location = (x, y, z)
+    P.append(plate)
+    rim_path = [(x + 0.08 * s * math.cos(TAU * i / 20), y - 0.02 * s, z + 0.15 * s * math.sin(TAU * i / 20)) for i in range(20)]
+    P.append(sweep(name + "_rim", [(-0.008 * s, 0.0), (-0.006 * s, 0.007 * s), (0.0, 0.011 * s), (0.006 * s, 0.007 * s),
+                                   (0.008 * s, 0.0), (0.0, -0.004 * s)], rim_path, "gilt", closed_path=True, axis=(0, -1, 0)))
+
+    def shade_r(zz, th):
+        # 12 pleats: a sin on the radius, widening from 0.05 to 0.08 over the height
+        return s * (0.05 + 0.03 * zz / (0.1 * s)) * (1 + 0.04 * math.sin(12 * th))
+
+    for k in (-1, 1):
+        cx, cy, cz = x + k * 0.085 * s, y - 0.2 * s, z + 0.1 * s
+        # S-scroll arm: out from the plate, down-and-up in an S, ending under the cup
+        arm = []
+        for i in range(7):
+            t = i / 6
+            sm = t * t * (3 - 2 * t)
+            arm.append((x + k * s * (0.01 + 0.075 * t), y - s * (0.02 + 0.18 * t), z - s * (0.09 - 0.17 * sm) + 0.025 * s * math.sin(TAU * t)))
+        P.append(kit.tube(name + "_arm", arm, 0.011 * s, 8, "gilt"))
+        P.append(kit.lathe(name + "_drop_arm", [(0.0, 0.0), (0.006 * s, -0.012 * s), (0.008 * s, -0.03 * s), (0.004 * s, -0.045 * s), (0.0, -0.05 * s)],
+                           segments=6, mat="crystal", smooth_angle=None))
+        P[-1].location = (arm[3][0], arm[3][1], arm[3][2] - 0.006 * s)
+        # bobeche dish, candle, flame and pleated shade
+        cup = kit.lathe(name + "_cup", [(0.0, 0.0), (0.02 * s, 0.0), (0.03 * s, 0.006 * s), (0.05 * s, 0.016 * s),
+                                        (0.045 * s, 0.02 * s), (0.035 * s, 0.012 * s), (0.0, 0.012 * s)], segments=20, mat="gilt")
+        cup.location = (cx, cy, cz)
+        P.append(cup)
+        candle = kit.lathe(name + "_candle", [(0.0, 0.0), (0.012 * s, 0.0), (0.012 * s, 0.12 * s), (0.0, 0.12 * s)], segments=12, mat="wax")
+        candle.location = (cx, cy, cz + 0.012 * s)
+        P.append(candle)
+        flame = kit.lathe(name + "_flame", [(0.0, 0.0), (0.005 * s, 0.01 * s), (0.007 * s, 0.025 * s), (0.003 * s, 0.04 * s), (0.0, 0.045 * s)],
+                          segments=8, mat="flame", smooth_angle=None)
+        flame.location = (cx, cy, cz + 0.132 * s)
+        P.append(flame)
+        shade = lathe_fn(name + "_shade", [q * s for q in (0.0, 0.02, 0.04, 0.06, 0.08, 0.1)], shade_r, 36, "lamp_glow", cap=False)
+        shade.location = (cx, cy, cz + 0.02 * s)
+        P.append(shade)
+
+    # three crystal drops: one under each arm and one under the plate
+    P.append(kit.lathe(name + "_drop", [(0.0, 0.0), (0.006 * s, -0.012 * s), (0.008 * s, -0.03 * s), (0.004 * s, -0.045 * s), (0.0, -0.05 * s)],
+                       segments=6, mat="crystal", smooth_angle=None))
+    P[-1].location = (x, y - 0.13 * s, z - 0.12 * s)
+    return P
 
 
 def drape(name, x0, x1, z_top, sag, y=0.0, depth=0.25, folds=7, mat="velvet_drape", tassel=True):
@@ -453,21 +496,124 @@ def ceiling():
 # --- props ----------------------------------------------------------------------------------------
 
 def seat():
-    """A stalls fauteuil: gilt cabriole legs and frame, a curved buttoned velvet back and seat."""
+    """An opera fauteuil (stalls armchair), about 0.6 wide x 0.6 deep, seat 0.42, back top about 1.0.
+    Origin on the floor between the legs, front toward -Y. Four gilt cabriole legs on scroll feet, a bowed
+    moulded seat rail with a carved shell, a domed velvet cushion over a velvet underside panel, a
+    10-degree-leaning oval back of buttoned velvet in a closed gilt moulding with a rear skin, and scrolled
+    arms on curved supports. Every part is closed so it reads from below (chairs hang upside down)."""
+    Matrix = kit.Matrix
+    BACK = Matrix.Translation((0.0, 0.19, 0.36)) @ Matrix.Rotation(math.radians(-10), 4, "X")
     P = []
+
+    def curve_tube(name, pts, radii, sides, mat):
+        # tube with parallel-transport frames: no twist at vertical or reversing runs; capped ends
+        V = [Vector(p) for p in pts]
+        n = len(V)
+        bm = bmesh.new()
+        rings = []
+        x = None
+        for i, p in enumerate(V):
+            d = (V[min(i + 1, n - 1)] - V[max(i - 1, 0)]).normalized()
+            if x is None:
+                up = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))
+                x = d.cross(up).normalized()
+            else:
+                x = (x - d * x.dot(d)).normalized()
+            y = d.cross(x)
+            rings.append([bm.verts.new(p + (x * math.cos(TAU * k / sides) + y * math.sin(TAU * k / sides)) * radii[i]) for k in range(sides)])
+        for i in range(n - 1):
+            for k in range(sides):
+                bm.faces.new((rings[i][k], rings[i + 1][k], rings[i + 1][(k + 1) % sides], rings[i][(k + 1) % sides]))
+        bm.faces.new(rings[0])
+        bm.faces.new(list(reversed(rings[-1])))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        return kit._obj(name, bm, mat, 60.0)
+
+    def at_back(ob, loc=(0.0, 0.0, 0.0), rot=0.0):
+        # back parts are built in back-local space (origin at the rear rail pivot) and leaned here
+        ob.matrix_world = BACK @ Matrix.Translation(loc) @ Matrix.Rotation(rot, 4, "X")
+        return ob
+
+    # legs: the knee bows out, the ankle pulls in, a small torus scroll foot
     for sx in (-1, 1):
         for sy in (-1, 1):
-            leg = kit.tube("leg", [(sx * 0.28, sy * 0.24, 0.0), (sx * 0.31, sy * 0.27, 0.15), (sx * 0.29, sy * 0.25, 0.32), (sx * 0.27, sy * 0.23, 0.4)], 0.03, 6, "gilt")
-            P.append(leg)
-    # front edge at y -0.3, curving back at the sides; the cushion runs 0.5 m back from it
-    seat_path = [(x, y + 1.13, z) for x, y, z in arc(0, 0, 1.45, math.radians(256), math.radians(284), 8)]
-    P.append(sweep("seat_cushion", [(-0.5, 0.0), (0.0, 0.0), (0.04, 0.05), (0.02, 0.14), (-0.5, 0.14)], [(x, y, 0.38) for x, y, _ in seat_path], "velvet"))
-    back_path = [(x, y + 1.62, z) for x, y, z in arc(0, 0, 1.45, math.radians(254), math.radians(286), 10)]
-    P.append(sweep("seat_back", [(-0.12, 0.0), (0.0, 0.0), (0.02, 0.4), (0.0, 0.7), (-0.12, 0.72)], [(x, y, 0.5) for x, y, _ in back_path], "velvet"))
-    P.append(sweep("back_frame", [(-0.14, 0.7), (0.02, 0.7), (0.04, 0.76), (-0.14, 0.78)], [(x, y, 0.5) for x, y, _ in back_path], "gilt"))
+            cx, cy = sx * 0.225, sy * 0.16
+            pts = [(cx, cy, 0.31), (cx + sx * 0.01, cy + sy * 0.01, 0.26), (cx + sx * 0.03, cy + sy * 0.03, 0.19),
+                   (cx + sx * 0.005, cy + sy * 0.005, 0.13), (cx - sx * 0.012, cy - sy * 0.012, 0.08),
+                   (cx - sx * 0.008, cy - sy * 0.008, 0.035), (cx, cy, 0.02)]
+            P.append(curve_tube("leg", pts, [0.024, 0.024, 0.028, 0.021, 0.016, 0.017, 0.02], 8, "gilt"))
+            P.append(kit.torus("leg_scroll", 0.02, 0.009, seg=12, rseg=5, mat="gilt", loc=(cx, cy, 0.009)))
+
+    # seat rail: a bowed front, a closed moulded loop
+    ts = [-1 + 2 * i / 8 for i in range(9)]
+    # sides sit at x +-0.2 (not 0.25): sharp corners miter-scale the profile outward, so the tail must stay narrow
+    rail = [(0.2 * t, -0.2 - 0.02 * (1 - t * t), 0.30) for t in ts]
+    rail += [(0.2, 0.0, 0.30), (0.2, 0.19, 0.30), (0.0, 0.19, 0.30), (-0.2, 0.19, 0.30), (-0.2, 0.0, 0.30)]
+    P.append(sweep("seat_rail", [(-0.03, 0.0), (0.03, 0.0), (0.045, 0.02), (0.035, 0.045), (0.0, 0.06), (-0.035, 0.045), (-0.045, 0.02)],
+                   rail, "gilt", closed_path=True))
+
+    # carved shell at the front centre, fanning down from the rail top
+    def shell(u, v):
+        ph = (u - 0.5) * 1.2
+        r = 0.065 * v
+        return (r * math.sin(ph), -0.25 - 0.025 * v - 0.006 * v * math.cos(18 * ph), 0.36 - r * math.cos(ph))
+    P.append(grid("seat_shell", 12, 4, shell, "gilt"))
+
+    # velvet underside panel closing the seat from below
+    P.append(kit.box("seat_underside", (0.44, 0.32, 0.012), (0.0, -0.01, 0.352), mat="velvet"))
+
+    # domed cushion: a sheet whose edges puff down onto the rail, crown at 0.42
+    def cushion(u, v):
+        sx, sy = -1 + 2 * u, -1 + 2 * v
+        f = max(0.0, 1 - sx ** 6) * max(0.0, 1 - sy ** 6)
+        return (0.225 * sx, -0.01 + 0.16 * sy, 0.36 + 0.05 * math.sqrt(f) + 0.01 * f)
+    P.append(grid("seat_cushion", 24, 16, cushion, "velvet"))
+
+    # back: an oval (0.5 x 0.54) with its crest, leaning 10 degrees; local origin is the rear pivot
+    NO = 28
+    a, b, zc = 0.25, 0.27, 0.32
+    oval = [(a * math.cos(TAU * i / NO), 0.0, zc + b * math.sin(TAU * i / NO)) for i in range(NO)]
+
+    def panel(u, v):
+        th = TAU * u
+        return (v * a * math.cos(th), -0.035 * (1 - v * v), zc + v * b * math.sin(th))
+
+    def skin(u, v):
+        th = TAU * u
+        return (v * a * math.cos(th), 0.006, zc + v * b * math.sin(th))
+    P.append(at_back(grid("back_panel", 28, 5, panel, "velvet")))
+    P.append(at_back(grid("back_skin", 28, 5, skin, "velvet")))
+    P.append(at_back(sweep("back_frame", [(-0.03, 0.0), (-0.032, 0.012), (-0.02, 0.03), (0.0, 0.036), (0.02, 0.03),
+                                          (0.032, 0.012), (0.03, 0.0), (0.02, -0.01), (-0.02, -0.01)],
+                           oval, "gilt", closed_path=True, axis=(0, -1, 0))))
+    crest = [(-0.13, -0.012, 0.55), (-0.09, -0.012, 0.61), (-0.03, -0.012, 0.64), (0.03, -0.012, 0.64), (0.09, -0.012, 0.61), (0.13, -0.012, 0.55)]
+    P.append(at_back(kit.tube("back_crest", crest, 0.012, 6, "gilt")))
     for sx in (-1, 1):
-        P.append(kit.tube("arm", [(sx * 0.32, 0.25, 0.55), (sx * 0.34, 0.0, 0.62), (sx * 0.33, -0.25, 0.6), (sx * 0.31, -0.3, 0.5)], 0.035, 6, "gilt"))
-    P.append(sweep("seat_apron", [(0.0, -0.06), (0.03, -0.06), (0.03, 0.0), (0.0, 0.0)], [(x, y, 0.38) for x, y, _ in seat_path], "gilt"))
+        P.append(at_back(kit.torus("crest_scroll", 0.022, 0.008, seg=12, rseg=5, mat="gilt", loc=(sx * 0.15, -0.012, 0.6), rot=(math.pi / 2, 0, 0))))
+    # seven buttons: one centre, six round it, pressed into the velvet
+    for bx, bz in [(0.0, zc)] + [(0.5 * a * math.cos(TAU * k / 6), zc + 0.5 * b * math.sin(TAU * k / 6)) for k in range(6)]:
+        s2 = min(1.0, (bx / a) ** 2 + ((bz - zc) / b) ** 2)
+        by = -0.035 * (1 - s2) - 0.002
+        btn = kit.lathe("button", [(0.0, 0.0), (0.011, 0.0), (0.012, 0.004), (0.008, 0.009), (0.0, 0.011)], segments=10, mat="velvet")
+        P.append(at_back(btn, (bx, by, bz), math.pi / 2))
+    for sx in (-1, 1):
+        P.append(at_back(kit.tube("back_post", [(sx * 0.15, 0.0, -0.07), (sx * 0.15, 0.0, 0.1)], 0.014, 6, "gilt")))
+
+    # arms: a curved support from the rail, then the arm running forward into a volute
+    for sx in (-1, 1):
+        P.append(curve_tube("arm_support", [(sx * 0.25, -0.02, 0.33), (sx * 0.29, -0.05, 0.42), (sx * 0.28, -0.08, 0.53),
+                                            (sx * 0.27, -0.10, 0.635)], [0.015, 0.015, 0.013, 0.013], 8, "gilt"))
+        arm = [(sx * 0.27, 0.14, 0.64), (sx * 0.27, 0.0, 0.66), (sx * 0.27, -0.14, 0.66), (sx * 0.27, -0.22, 0.65), (sx * 0.27, -0.26, 0.64)]
+        for k in range(1, 14):
+            ang = math.pi / 2 + 0.55 * k
+            r = 0.05 - 0.0015 * k
+            arm.append((sx * 0.27, -0.26 + r * math.cos(ang), 0.59 + r * math.sin(ang)))
+        P.append(curve_tube("arm", arm, [0.016] * len(arm), 8, "gilt"))
+        ts = [-1 + i / 3 for i in range(7)]
+        pad = kit.lathe("arm_pad", [(math.sqrt(1 - t * t), t) for t in ts], segments=14, mat="velvet")
+        pad.location = (sx * 0.27, -0.04, 0.665)
+        pad.scale = (0.034, 0.11, 0.014)
+        P.append(pad)
     kit.join("seat", P)
 
 
@@ -702,12 +848,22 @@ def stair(width=12.0, rise=2.8, run=7.0, steps=8):
         P[-1].location = (0, y - 0.04, z + 0.03)
     for sx in (-1, 1):
         bm = bmesh.new()
-        prof = [(sx * width / 2, 0.3, 0.0), (sx * width / 2, -run, 0.0), (sx * width / 2, -run, rise + 0.3), (sx * width / 2, 0.3, 0.3)]
+        # the string wall stands proud of the step ends and above the nosing line, so the flight's
+        # sides read as a carved panelled string, not stacked blocks
+        top0, top1 = 0.65, rise + 0.65
+        x = sx * (width / 2 + 0.2)
+        prof = [(x, 0.3, 0.0), (x, -run, 0.0), (x, -run, top1), (x, 0.3, top0)]
         bm.faces.new([bm.verts.new(p) for p in prof])
         ob = kit._obj("string", bm, "marble_teal", 30)
         mod = ob.modifiers.new("solid", "SOLIDIFY")
         mod.thickness = 0.4
+        mod.offset = 0.0
         P.append(ob)
+        rail = [(x, 0.3 - (0.3 + run) * t, top0 + (top1 - top0) * t) for t in (0.0, 0.5, 1.0)]
+        P.append(kit.tube("cap_rail", rail, 0.13, 10, "gilt"))
+        for off in (0.18, 0.55):  # two gilt mouldings along the string's face: a sunk panel outline
+            line = [(x + sx * 0.21, 0.1 - (run - 0.2) * t, off * (1 - t) + (top1 - (top0 - off)) * t) for t in (0.0, 1.0)]
+            P.append(kit.tube("string_moulding", line, 0.035, 6, "gilt"))
     kit.join("stair", P)
 
 
@@ -1056,11 +1212,57 @@ def chain():
     kit.join("chain", P)
 
 
+def page():
+    """A loose score page, 0.42 x 0.3, lying in XY (centred): a soft cylindrical bow across it, one corner
+    curling up and a little ripple, so it tumbles like paper rather than a card."""
+    def fn(u, v):
+        x, y = (u - 0.5) * 0.42, (v - 0.5) * 0.3
+        z = 0.035 * math.sin(math.pi * u) + 0.006 * math.sin(7.0 * u + 3.0 * v)
+        c = max(0.0, u + v - 1.25)  # the far corner curls
+        z += 0.15 * c * c
+        return (x, y, z)
+    grid("page_sheet", 14, 10, fn, "score_paper", 80)
+    kit.join("page", [bpy.data.objects["page_sheet"]])
+
+
+def dome_shell():
+    """The rotunda dome, 14 m radius hemisphere on z=0, seen from inside. Polar UVs: the apex is the centre
+    of the square fresco and the rim its circle, so the painting reads straight up. A gilt cornice ring at the rim."""
+    R, NS, NR = 14.0, 72, 24
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new()
+    rows = []
+    for j in range(NR + 1):
+        phi = (math.pi / 2) * j / NR  # 0 apex .. 90 deg rim
+        rows.append([bm.verts.new((R * math.sin(phi) * math.cos(TAU * i / NS), R * math.sin(phi) * math.sin(TAU * i / NS),
+                                   R * math.cos(phi))) for i in range(NS)])
+    for j in range(NR):
+        for i in range(NS):
+            i2 = (i + 1) % NS
+            f = bm.faces.new((rows[j][i], rows[j][i2], rows[j + 1][i2], rows[j + 1][i]))
+            for lp in f.loops:
+                x, y, z = lp.vert.co
+                phi = math.acos(max(-1.0, min(1.0, z / R)))
+                r = 0.49 * phi / (math.pi / 2)
+                th = math.atan2(y, x)
+                if j == 0 and lp.vert in rows[0]:  # apex ring: take the face's own angle so the seam stays clean
+                    th = TAU * (i + 0.5) / NS
+                lp[uv].uv = (0.5 + r * math.cos(th), 0.5 - r * math.sin(th))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    for f in bm.faces:  # normals point inward: the dome is seen from below
+        if f.normal.dot(f.calc_center_median()) > 0:
+            f.normal_flip()
+    P = [kit._obj("dome_painted", bm, "dome_painted", 60)]
+    P.append(sweep("cornice", [(-0.6, 0.0), (0.0, 0.0), (0.25, 0.2), (0.15, 0.45), (0.4, 0.6), (0.35, 0.8), (-0.6, 0.8)],
+                   [(R * math.cos(TAU * i / 96), R * math.sin(TAU * i / 96), -0.6) for i in range(96)], "gilt", closed_path=True))
+    kit.join("dome_shell", P)
+
+
 KINDS = {k: v for k, v in globals().items() if callable(v) and k in (
     "tier_bay", "panel_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
     "glass_bowls", "fork_statue", "chandelier", "stair", "stair_pit", "balustrade", "wind_chest", "royal_box",
     "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "catwalk", "fragment",
-    "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain")}
+    "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain", "dome_shell", "page")}
 
 
 def build(args):

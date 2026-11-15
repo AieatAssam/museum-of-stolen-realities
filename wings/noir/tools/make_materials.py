@@ -45,7 +45,7 @@ FLAT = {
     "awning":       ("0.18, 0.18, 0.18", 0.9, 0.0, ""),
     # window glass: dark mirror with a faint lit-room glow; unlit windows read black and reflect
     "window_glass": ("0.02, 0.02, 0.025", 0.05, 0.6, ""),
-    "window_lit":   ("0.9, 0.82, 0.62", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.86, 0.6, 1)\nemission_energy_multiplier = 1.6\n"),
+    "window_lit":   ("0.9, 0.82, 0.62", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.86, 0.6, 1)\nemission_energy_multiplier = 2.6\n"),
     # light sources (bloom above the glow threshold)
     "glass":        ("1, 0.96, 0.88", 0.2, 0.0, "emission_enabled = true\nemission = Color(1, 0.93, 0.8, 1)\nemission_energy_multiplier = 6.0\n"),
     "bulb":         ("1, 0.95, 0.85", 0.2, 0.0, "emission_enabled = true\nemission = Color(1, 0.9, 0.75, 1)\nemission_energy_multiplier = 9.0\n"),
@@ -58,6 +58,7 @@ FLAT = {
     "lamp_letter":  ("0.02, 0.02, 0.02", 0.6, 0.0, ""),
     "iron_grate":   ("0.12, 0.12, 0.13", 0.6, 0.6, ""),
     # clear plate glass: the street shows in it, the lit room shows through it
+    "glass_frosted": ("0.5, 0.5, 0.48", 0.6, 0.0, "transparency = 1\nalbedo_color = Color(0.5, 0.5, 0.48, 0.6)\nemission_enabled = true\nemission = Color(1, 0.92, 0.78, 1)\nemission_energy_multiplier = 0.05\n"),
     "window_clear": ("0.06, 0.065, 0.07", 0.02, 0.0, "transparency = 1\nalbedo_color = Color(0.06, 0.065, 0.07, 0.22)\nspecular_mode = 0\nmetallic_specular = 1.0\n"),
 }
 # textured one-offs written by hand
@@ -121,7 +122,7 @@ metallic = {metal}
 
 # wet ground (wet_ground.gdshader): name: (texture base, uv scale, tint, puddles 0..1, base wetness)
 WET = {
-    "wet_asphalt": (T + "asphalt", 0.3, "0.55, 0.55, 0.55", 0.68, 0.85),
+    "wet_asphalt": (T + "asphalt", 0.3, "0.4, 0.4, 0.4", 0.85, 0.95),
     "wet_cobble":  (T + "cobble", 0.55, "0.6, 0.6, 0.6", 0.6, 0.8),
     "wet_pavement": (T + "pavement", 0.33, "0.7, 0.7, 0.7", 0.45, 0.7),
     "wet_roof":    (T + "roof", 0.3, "0.5, 0.5, 0.5", 0.6, 0.75),

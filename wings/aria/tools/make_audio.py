@@ -40,6 +40,23 @@ def shift(x, semitones):
     return np.interp(np.arange(n) * r, np.arange(len(x)), x)
 
 
+def to_chord(x, pcs=(0, 4, 7), floor_db=-30.0, n=8192):
+    """Spectral mask: keep partials within ~35 cents of the chord's pitch classes, duck the rest.
+    The choir sample is a moving phrase; this pins it to C-E-G so it can't pass through D/D# against the strings."""
+    hop = n // 4
+    w = np.hanning(n)
+    f = np.fft.rfftfreq(n, 1 / SR)
+    c = (1200 * np.log2(np.maximum(f, 1) / 261.63)) % 1200
+    d = np.min([np.minimum(np.abs(c - 100 * p), 1200 - np.abs(c - 100 * p)) for p in pcs], axis=0)
+    g = np.where(d < 35, 1.0, 10 ** (floor_db / 20))
+    g[f < 80] = 1.0
+    y = np.zeros(len(x) + n)
+    xp = np.concatenate([x, np.zeros(n)])
+    for s in range(0, len(x), hop):
+        y[s:s + n] += np.fft.irfft(np.fft.rfft(xp[s:s + n] * w) * g, n) * w
+    return y[:len(x)] / 1.5  # hann^2 at 75% overlap sums to 1.5
+
+
 def cut(x, a, b, fin=0.02, fout=0.5):
     y = x[int(a * SR): int(b * SR)].copy()
     i, o = int(fin * SR), int(fout * SR)
@@ -128,7 +145,7 @@ def stems():
         place(motif, cut(shift(glass, st), 0.0, 6.0, 0.05, 2.5), t, 0.45)
     write("aria_motif", norm(motif, 0.5))
 
-    write("aria_choir", norm(loop_of(shift(load("choir_high.ogg"), -2), L, 2.0, 12.0, 3.0), 0.45))
+    write("aria_choir", norm(loop_of(to_chord(shift(load("choir_high.ogg"), -2)), L, 2.0, 12.0, 3.0), 0.45))
 
 
 def ambiences():
