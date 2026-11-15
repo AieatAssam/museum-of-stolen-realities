@@ -15,7 +15,7 @@ const LAMP_AIM := Vector3(-0.6, 2.6, -40.0)
 # sky zenith, sky horizon, stars, exposure, fill energy, lamp energy, window glow
 const STOPS: Array = [
 	[34.0, Color(1.0, 0.93, 0.78), 2.1, -48.0, 35.0, Color(0.62, 0.74, 0.92), 0.55, Color(0.70, 0.80, 0.95), 0.006,
-		Color(0.26, 0.52, 0.92), Color(0.78, 0.88, 0.98), 0.0, 0.72, 0.45, 0.0, 0.0],
+		Color(0.26, 0.52, 0.92), Color(0.78, 0.88, 0.98), 0.0, 0.62, 0.45, 0.0, 0.0],
 	[6.0, Color(1.0, 0.89, 0.70), 2.0, -40.0, 20.0, Color(0.60, 0.70, 0.88), 0.5, Color(0.74, 0.80, 0.92), 0.007,
 		Color(0.28, 0.50, 0.88), Color(0.86, 0.88, 0.92), 0.0, 0.6, 0.4, 0.0, 0.0],
 	[-12.0, Color(1.0, 0.72, 0.42), 2.0, -18.0, 70.0, Color(0.62, 0.55, 0.70), 0.45, Color(0.95, 0.72, 0.52), 0.009,
@@ -116,12 +116,22 @@ func build(wing: Wing) -> void:
 	burrow_light = SpotLight3D.new()
 	burrow_light.name = "BurrowShaft"
 	burrow_light.light_color = Color(1.0, 0.8, 0.55)
-	burrow_light.light_energy = 6.0
-	burrow_light.spot_range = 6.0
-	burrow_light.spot_angle = 22.0
-	burrow_light.shadow_enabled = false
+	burrow_light.light_energy = 14.0
+	burrow_light.spot_range = 7.0
+	burrow_light.spot_angle = 30.0
+	burrow_light.spot_attenuation = 0.6
+	# shadowed, so the mound's crown crops the beam to the skylight's round pool on the cotton reel
+	burrow_light.shadow_enabled = true
+	burrow_light.shadow_blur = 1.5
 	add_child(burrow_light)
-	burrow_light.look_at_from_position(BURROW + Vector3(0.8, 4.2, 0.0), BURROW + Vector3(1.6, 0.0, 0.0), Vector3.FORWARD)
+	burrow_light.look_at_from_position(BURROW + Vector3(1.62, 5.6, 0.0), BURROW + Vector3(1.7, 0.0, 0.0), Vector3.FORWARD)
+	var candle := OmniLight3D.new()  # the candle on the north shelf: a warm fill so the dug walls read
+	candle.name = "BurrowCandle"
+	candle.light_color = Color(1.0, 0.62, 0.3)
+	candle.light_energy = 1.2
+	candle.omni_range = 3.2
+	add_child(candle)
+	candle.position = BURROW + Vector3(-0.38, 1.6, -2.0)
 
 	wing.grade = PostGrade.new()
 	wing.grade.tint = Color(1.02, 1.0, 0.97)

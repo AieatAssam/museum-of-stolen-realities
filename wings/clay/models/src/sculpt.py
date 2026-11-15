@@ -130,6 +130,7 @@ def boolean(target, cutter, op="DIFFERENCE"):
     mod = target.modifiers.new("bool", "BOOLEAN")
     mod.operation = op
     mod.solver = "EXACT"
+    mod.material_mode = "TRANSFER"  # cut faces keep the cutter's material (raw clay inside a moss mound)
     mod.object = cutter
     bpy.context.view_layer.objects.active = target
     bpy.ops.object.modifier_apply(modifier=mod.name)
