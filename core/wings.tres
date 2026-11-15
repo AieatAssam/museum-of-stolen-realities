@@ -1,0 +1,99 @@
+[gd_resource type="Resource" script_class="WingRegistry" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://core/wing_info.gd" id="info"]
+[ext_resource type="Script" path="res://core/wing_registry.gd" id="reg"]
+
+[sub_resource type="Resource" id="glass"]
+script = ExtResource("info")
+id = &"glass"
+numeral = "I"
+title = "The Vitrine Kingdom"
+acquisition_no = "214"
+origin = "Taken at the third sunrise of the Feast of Panes, when all three suns stood in the rose window at once."
+rule = "Lightwalking"
+palette = PackedColorArray(0.1137, 0.2471, 0.6588, 1, 0.7020, 0.1255, 0.2275, 1, 0.9098, 0.6902, 0.2902, 1)
+scene_path = "res://wings/glass/glass.tscn"
+portal_medium = 0
+is_exhibit = true
+
+[sub_resource type="Resource" id="clay"]
+script = ExtResource("info")
+id = &"clay"
+numeral = "II"
+title = "The Pinched Forest"
+acquisition_no = "088"
+origin = "Lifted, still soft, on the morning its maker first left a thumbprint in the moss."
+rule = "Reshaping"
+palette = PackedColorArray(0.4353, 0.5608, 0.2275, 1, 0.7686, 0.4157, 0.2353, 1, 0.9176, 0.8510, 0.6902, 1)
+scene_path = "res://wings/clay/clay.tscn"
+portal_medium = 1
+is_exhibit = true
+
+[sub_resource type="Resource" id="noir"]
+script = ExtResource("info")
+id = &"noir"
+numeral = "III"
+title = "The Long Shadow"
+acquisition_no = "501"
+origin = "Removed at 3:11 a.m., one minute before the rain would have stopped."
+rule = "Shadowstepping"
+palette = PackedColorArray(0.8471, 0.8471, 0.8471, 1, 0.3529, 0.3529, 0.3529, 1, 0.0392, 0.0392, 0.0392, 1)
+scene_path = "res://wings/noir/noir.tscn"
+portal_medium = 2
+is_exhibit = true
+
+[sub_resource type="Resource" id="aria"]
+script = ExtResource("info")
+id = &"aria"
+numeral = "IV"
+title = "The Drowned Aria"
+acquisition_no = "003"
+origin = "Recovered on the held high note of its final performance, before the breath ran out."
+rule = "Singing Gravity"
+palette = PackedColorArray(0.1647, 0.5608, 0.6000, 1, 0.8118, 0.9020, 0.8784, 1, 0.0314, 0.1255, 0.1647, 1)
+scene_path = "res://wings/aria/aria.tscn"
+portal_medium = 3
+is_exhibit = true
+
+[sub_resource type="Resource" id="chitin"]
+script = ExtResource("info")
+id = &"chitin"
+numeral = "V"
+title = "The Chitin Court"
+acquisition_no = "340"
+origin = "Excised at the coronation of its last queen, mid-procession, every wing still raised."
+rule = "Silkspinning"
+palette = PackedColorArray(0.8196, 0.5412, 0.1176, 1, 0.9020, 0.8627, 0.7529, 1, 0.1647, 0.1020, 0.0471, 1)
+scene_path = "res://wings/chitin/chitin.tscn"
+portal_medium = 4
+is_exhibit = true
+
+[sub_resource type="Resource" id="paint"]
+script = ExtResource("info")
+id = &"paint"
+numeral = "VI"
+title = "The Unfinished Wing"
+acquisition_no = "001"
+origin = "Acquired while the paint was wet. It has not been allowed to dry."
+rule = "Wet Paint"
+palette = PackedColorArray(0.9490, 0.7608, 0.1882, 1, 0.1647, 0.3098, 0.8392, 1, 0.8863, 0.2706, 0.1686, 1)
+scene_path = "res://wings/paint/paint.tscn"
+portal_medium = 5
+is_exhibit = true
+
+[sub_resource type="Resource" id="template"]
+script = ExtResource("info")
+id = &"_template"
+numeral = "—"
+title = "The Conservation Studio"
+acquisition_no = "000-T"
+origin = "Staff only. Where galleries are assembled before they are hung."
+rule = "Every rule, in miniature"
+palette = PackedColorArray(0.7843, 0.6392, 0.3529, 1, 0.9137, 0.8902, 0.8275, 1, 0.0549, 0.0471, 0.0353, 1)
+scene_path = "res://wings/_template/template.tscn"
+portal_medium = 6
+is_exhibit = false
+
+[resource]
+script = ExtResource("reg")
+wings = Array[ExtResource("info")]([SubResource("glass"), SubResource("clay"), SubResource("noir"), SubResource("aria"), SubResource("chitin"), SubResource("paint"), SubResource("template")])
