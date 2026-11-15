@@ -113,8 +113,8 @@ func quit_to_title() -> void:
 	set_state(State.TRANSITION)
 	player = null
 	wing = null
+	Audio.stop_music()  # before the change: the title starts its own bed in _ready
 	await Transitions.change_scene(TITLE_SCENE, MUSEUM_PALETTE, MUSEUM_MEDIUM, _free_hud)
-	Audio.stop_music()
 	set_state(State.TITLE)
 
 
@@ -331,6 +331,10 @@ func _notification(what: int) -> void:
 ## "resources still in use" (AudioStreamPlayback*, OggPacketSequence*) at exit.
 func quit(exit_code: int = 0) -> void:
 	await _idle()  # a scene change mid-flight holds the old scene out of the tree; it would leak
+	Audio.closing = true
+	if is_instance_valid(player):  # no footstep may start during the wait below
+		player.input_enabled = false
+		player.process_mode = Node.PROCESS_MODE_DISABLED
 	for n in get_tree().root.find_children("*", "", true, false):
 		if n is AudioStreamPlayer or n is AudioStreamPlayer3D or n is AudioStreamPlayer2D:
 			n.stop()
@@ -369,15 +373,37 @@ func debug_complete_wing(wing_id: StringName) -> void:
 			Quest.find_provenance(StringName(p["id"]))
 		Quest.collect_fragment()
 		return
+	# the wing's own provenance list (from its root script, without loading the scene) so the hub's
+	# vitrines show the real relics; debug ids only if the script cannot be read
 	var provs: Array = []
-	for i in 3:
-		provs.append("debug_%d" % i)
+	var named: Dictionary = {}
+	for p: Dictionary in _declared_provenances(wing_id):
+		provs.append(String(p["id"]))
+		named[String(p["id"])] = {"name": String(p.get("name", "")), "line": String(p.get("line", ""))}
+	if provs.is_empty():
+		for i in 3:
+			provs.append("debug_%d" % i)
 	(Save.data["provenances"] as Dictionary)[String(wing_id)] = provs
+	(Save.data["provenance_info"] as Dictionary)[String(wing_id)] = named
 	if not String(wing_id) in Save.data["fragments"]:
 		(Save.data["fragments"] as Array).append(String(wing_id))
 	Save.wing_data(wing_id)
 	Save.save_game()
 	Quest.fragment_collected.emit(wing_id)
+
+
+func _declared_provenances(wing_id: StringName) -> Array[Dictionary]:
+	var info := registry.get_info(wing_id)
+	if info == null or not info.scene_exists():
+		return []
+	var st := (load(info.scene_path) as PackedScene).get_state()
+	for i in st.get_node_property_count(0):
+		if st.get_node_property_name(0, i) == &"script":
+			var w: Object = (st.get_node_property_value(0, i) as Script).new()
+			var out: Array[Dictionary] = w.call(&"provenances")
+			(w as Node).free()
+			return out
+	return []
 
 
 func debug_teleport(pos: Vector3, look_at_pos: Variant = null) -> void:
