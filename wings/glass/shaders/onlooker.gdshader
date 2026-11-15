@@ -9,9 +9,10 @@ uniform float reveal = 0.0;
 
 void fragment() {
 	vec2 uv = vec2(1.0 - UV.x, UV.y);  // seen from its back face
-	float m = smoothstep(0.25, 0.55, 1.0 - textureLod(shape, uv, 0.0).r) * smoothstep(1.0, 0.8, uv.y);  // shoulders melt into the light
+	float edge = smoothstep(0.0, 0.1, uv.x) * smoothstep(1.0, 0.82, uv.x) * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.72, uv.y);
+	float m = smoothstep(0.25, 0.55, 1.0 - textureLod(shape, uv, 0.0).r) * edge;  // shoulders and border melt into the light
 	float soft = 1.0 - textureLod(shape, uv, 4.0).r;
-	float rim = clamp(soft - m, 0.0, 1.0);
+	float rim = clamp(soft * edge - m, 0.0, 1.0);
 	ALBEDO = mix(vec3(1.0, 0.72, 0.42) * rim * 3.0, vec3(0.0), m);
 	ALPHA = clamp(m + rim * 0.9, 0.0, 1.0) * reveal;
 }

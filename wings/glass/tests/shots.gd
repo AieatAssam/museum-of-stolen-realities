@@ -19,7 +19,7 @@ const MARKS := [
 	["08_tower", Vector3(-17.2, 9.6, -19.0), Vector3(-26.0, 14.0, -26.0), ""],
 	["09_roof_reveal", Vector3(-19.0, 17.7, -33.0), Vector3(-30.0, 26.0, -60.0), "sky"],
 	["10_buttresses", Vector3(-17.0, 17.6, -55.0), Vector3(-24.3, 18.0, -68.0), "sky"],
-	["11_rose_phase1", H + Vector3(25.5, 1.7, 0.0), H + Vector3(-27.0, 10.0, 0.0), "rose1"],
+	["11_rose_phase1", H + Vector3(9.0, 1.7, 0.0), H + Vector3(-27.0, 9.0, 0.0), "rose1"],
 	["12_rose_dark", H + Vector3(-15.0, 1.7, 0.0), H + Vector3(5.0, -0.5, -4.0), "rose2"],
 	["13_east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0), "lens"],
 	["14_shattered", Vector3(0.0, 4.0, -104.0), Vector3(0.0, 8.0, -122.0), "shatter"],

@@ -35,7 +35,7 @@ print("wrote", len(MATS))
 
 # Glazed walls (glazed_wall.gdshader): name: proj, bay, bay_off, lw, tier_a, tier_b
 GLAZED = {
-    "glazed_nave":     (0, 5.5, -24.75, 3.2, "0.5, 9.0", "15.6, 9.6"),
+    "glazed_nave":     (0, 5.5, -24.75, 4.4, "0.5, 12.0", "14.2, 11.0"),
     "glazed_cloister": (0, 3.0, 0.0, 2.2, "0.6, 7.4", "0, 0"),
     "glass_crypt":     (0, 2.6, 0.0, 1.9, "-7.6, 5.2", "0, 0", "0.03, 0.08, 0.09"),
     "glazed_tower":    (0, 4.0, -24.0, 2.4, "-6.5, 9.5", "5.5, 11.5"),
