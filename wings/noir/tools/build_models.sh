@@ -11,7 +11,7 @@ ALL=(
   el:el_bent el:el_span el:el_car el:water_tower el:chimney el:roof_vent el:roof_hatch el:parapet el:skyline_block
   interior:desk interior:desk_lamp interior:chair interior:file_cabinet interior:locker interior:blind_window
   interior:hanging_lamp interior:switch_box interior:wainscot interior:door_frame
-  interior:seat_block interior:proscenium interior:curtain interior:pilaster interior:balcony interior:pedestal_reel
+  interior:seat_block interior:proscenium interior:curtain interior:pilaster interior:balcony interior:pedestal_reel interior:cinema_gate
   interior:projector interior:film_shelf interior:port_window
   interior:pawn_ticket interior:matchbook interior:stub interior:frame_stand
 )

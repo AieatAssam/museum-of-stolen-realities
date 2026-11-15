@@ -13,11 +13,29 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bpy  # noqa: E402
 import kit  # noqa: E402
 
 
 def B(name, size, loc, mat, bevel=0.0, seg=2):
-    return kit.box(name, size, loc, mat=mat, bevel=bevel, segments=seg)
+    """A box built about its own centre and moved to `loc`, so a rotation set afterwards turns it in place
+    (kit.box bakes `loc` into the vertices, which would swing a rotated part about the world origin)."""
+    ob = kit.box(name, size, (0, 0, 0), mat=mat, bevel=bevel, segments=seg)
+    ob.location = loc
+    return ob
+
+
+_join = kit.join
+
+
+def _join_baked(name, objs):
+    """kit.join, then bake the transforms so the mesh's own origin is the part's origin."""
+    ob = _join(name, objs)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return ob
+
+
+kit.join = _join_baked
 
 
 def _lattice_column(p, x, y, z0, z1, w=0.5):
@@ -190,7 +208,8 @@ def skyline_block():
             for side in range(4):
                 a = side * math.pi / 2
                 lit = (f * 7 + side * 3) % 5 == 0
-                strip = B("glass", (w * 0.86, 0.06, 1.3), (0, -w / 2 - 0.02, z), "window_lit" if lit else "window_glass")
+                r = w / 2 + 0.02
+                strip = B("glass", (w * 0.86, 0.06, 1.3), (r * math.sin(a), -r * math.cos(a), z), "window_lit" if lit else "window_glass")
                 strip.rotation_euler = (0, 0, a)
                 p.append(strip)
         p.append(B("ledge", (w + 0.4, w + 0.4, 0.3), (0, 0, z1), "stone"))

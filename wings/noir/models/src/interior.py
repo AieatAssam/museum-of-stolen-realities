@@ -13,11 +13,29 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bpy  # noqa: E402
 import kit  # noqa: E402
 
 
 def B(name, size, loc, mat, bevel=0.0, seg=2):
-    return kit.box(name, size, loc, mat=mat, bevel=bevel, segments=seg)
+    """A box built about its own centre and moved to `loc`, so a rotation set afterwards turns it in place
+    (kit.box bakes `loc` into the vertices, which would swing a rotated part about the world origin)."""
+    ob = kit.box(name, size, (0, 0, 0), mat=mat, bevel=bevel, segments=seg)
+    ob.location = loc
+    return ob
+
+
+_join = kit.join
+
+
+def _join_baked(name, objs):
+    """kit.join, then bake the transforms so the mesh's own origin is the part's origin."""
+    ob = _join(name, objs)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return ob
+
+
+kit.join = _join_baked
 
 
 def desk():
@@ -274,6 +292,37 @@ def pedestal_reel():
     kit.join("pedestal_reel", p)
 
 
+def cinema_gate():
+    """Collapsible scissor gate across the cinema mouth, 11 x 4 m, origin at its centre (front -Y)."""
+    p = []
+    W, H = 11.0, 4.0
+    n = 20
+    pitch = W / n
+    for i in range(n + 1):
+        x = -W / 2 + i * pitch
+        p.append(B("post", (0.05, 0.06, H - 0.1), (x, 0, 0), "iron", bevel=0.008))
+    # lazy-tongs: flat bars crossing between posts, three bays high
+    bays = 3
+    bh = (H - 0.5) / bays
+    L = math.hypot(pitch, bh)
+    a = math.atan2(bh, pitch)
+    for i in range(n):
+        cx = -W / 2 + (i + 0.5) * pitch
+        for j in range(bays):
+            cz = -H / 2 + 0.25 + (j + 0.5) * bh
+            for s, y in ((1, -0.04), (-1, 0.04)):
+                b = B("tong", (L, 0.012, 0.035), (cx, y, cz), "steel")
+                b.rotation_euler = (0, -s * a, 0)
+                p.append(b)
+    for z in (-H / 2 + 0.05, H / 2 - 0.05):
+        p.append(B("track", (W + 0.2, 0.14, 0.1), (0, 0, z), "iron", bevel=0.02))
+    # hasp and padlock at the meeting posts
+    p.append(B("hasp", (0.16, 0.1, 0.24), (0.0, -0.07, -0.25), "steel", bevel=0.01))
+    p.append(B("lock", (0.12, 0.06, 0.14), (0.0, -0.13, -0.42), "zinc", bevel=0.02))
+    p.append(kit.torus("shackle", 0.04, 0.008, 16, 6, mat="chrome", loc=(0.0, -0.13, -0.33), rot=(math.pi / 2, 0, 0)))
+    kit.join("cinema_gate", p)
+
+
 # --- booth ---------------------------------------------------------------------------------------
 
 def projector():
@@ -382,7 +431,7 @@ def frame_stand():
 PARTS = {n: globals()[n] for n in (
     "desk", "desk_lamp", "chair", "file_cabinet", "locker", "blind_window", "hanging_lamp", "switch_box",
     "wainscot", "door_frame", "seat_block", "proscenium", "curtain", "pilaster", "balcony", "pedestal_reel",
-    "projector", "film_shelf", "port_window", "pawn_ticket", "matchbook", "stub", "frame_stand")}
+    "cinema_gate", "projector", "film_shelf", "port_window", "pawn_ticket", "matchbook", "stub", "frame_stand")}
 
 
 def build(args):

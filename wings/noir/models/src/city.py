@@ -12,11 +12,29 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bpy  # noqa: E402
 import kit  # noqa: E402
 
 
 def B(name, size, loc, mat, bevel=0.0, seg=2):
-    return kit.box(name, size, loc, mat=mat, bevel=bevel, segments=seg)
+    """A box built about its own centre and moved to `loc`, so a rotation set afterwards turns it in place
+    (kit.box bakes `loc` into the vertices, which would swing a rotated part about the world origin)."""
+    ob = kit.box(name, size, (0, 0, 0), mat=mat, bevel=bevel, segments=seg)
+    ob.location = loc
+    return ob
+
+
+_join = kit.join
+
+
+def _join_baked(name, objs):
+    """kit.join, then bake the transforms so the mesh's own origin is the part's origin."""
+    ob = _join(name, objs)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return ob
+
+
+kit.join = _join_baked
 
 
 # --- facades -------------------------------------------------------------------------------------
@@ -232,7 +250,8 @@ def crate():
     for z in range(5):
         for side in range(4):
             a = side * math.pi / 2
-            slat = B("slat", (S - 0.04, 0.025, 0.16), (0, -S / 2 + 0.012, 0.1 + z * 0.175), "wood", bevel=0.004)
+            r = S / 2 - 0.012  # one face per side, turned about the crate's axis
+            slat = B("slat", (S - 0.04, 0.025, 0.16), (r * math.sin(a), -r * math.cos(a), 0.1 + z * 0.175), "wood", bevel=0.004)
             slat.rotation_euler = (0, 0, a)
             p.append(slat)
     p.append(B("top", (S - 0.02, S - 0.02, 0.025), (0, 0, S - 0.012), "wood", bevel=0.004))
@@ -240,8 +259,10 @@ def crate():
         for y in (-1, 1):
             p.append(B("corner", (0.07, 0.07, S), (x * (S / 2 - 0.035), y * (S / 2 - 0.035), S / 2), "wood", bevel=0.006))
     for side in range(4):
-        d = B("brace", (S * 1.25, 0.03, 0.08), (0, -S / 2 - 0.005, S / 2), "wood", bevel=0.004)
-        d.rotation_euler = (0, math.atan2(S - 0.2, S - 0.2), side * math.pi / 2)
+        a = side * math.pi / 2
+        r = S / 2 + 0.005
+        d = B("brace", (S * 1.25, 0.03, 0.08), (r * math.sin(a), -r * math.cos(a), S / 2), "wood", bevel=0.004)
+        d.rotation_euler = (0, math.atan2(S - 0.2, S - 0.2), a)
         p.append(d)
     kit.join("crate", p)
 
