@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://wings/aria/textures/score.png" id="t0"]
+
+[resource]
+resource_name = "score_paper"
+albedo_texture = ExtResource("t0")
+roughness = 0.9
+cull_mode = 0
+texture_filter = 5
