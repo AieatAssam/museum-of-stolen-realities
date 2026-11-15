@@ -32,30 +32,31 @@ void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
-float lit(vec3 p, out float idx) {
+float lit(vec3 p, float e, out float idx) {
 	float r = length(p.xz);
 	float seg = 6.2831853 / petals;
 	float a = atan(p.z, p.x) - omega * rose_t;
 	idx = mod(round(a / seg), petals);
 	if (r < r_in) return 1.0;
 	a = mod(a + seg * 0.5, seg) - seg * 0.5;
-	float ang = smoothstep(half_width + edge, half_width - edge, abs(a));
-	float rad = smoothstep(r_out + 0.6, r_out - 0.6, r);
+	float ang = smoothstep(half_width + e, half_width - e, abs(a));
+	float rad = smoothstep(r_out + 0.6 + e * 20.0, r_out - 0.6 - e * 20.0, r);
 	return ang * rad;
 }
 
 void fragment() {
 	vec3 lp = tile_c - centre;
 	float idx;
-	float l = lit(lp, idx);
+	float l = lit(lp, edge, idx);
 	vec3 col = PAL[int(idx)] * PAL[int(idx)] * 1.6;  // deeper, so exposure keeps them jewel-coloured
 	if (length(lp.xz) < r_in) col = vec3(0.6, 0.35, 0.85);
 	float on = 0.0;
 	float glow = 0.0;
 	if (phase == 1) {
-		on = step(0.5, l);
 		float ip;
-		glow = lit(wp - centre, ip);  // per pixel: the light's edge drawn exactly across the tile
+		glow = lit(wp - centre, 0.12, ip);  // per pixel, a soft falloff: cast light, not painted squares
+		on = glow;
+		if (length((wp - centre).xz) >= r_in) col = PAL[int(ip)] * PAL[int(ip)] * 1.6;
 	} else if (phase == 2) {
 		float d = length(lp.xz - lantern_pos.xz);
 		float dp = length((wp - centre).xz - lantern_pos.xz);  // per pixel: a warm pool that falls off
@@ -73,6 +74,6 @@ void fragment() {
 	float diamond = smoothstep(0.03, 0.0, abs(q.x + q.y - 0.95)) * 0.6;
 	float lead = max(border, diamond);
 	vec3 c = col * (0.18 + (phase == 1 ? 0.35 : 0.3) * glow) * (0.85 + 0.3 * rnd);
-	ALBEDO = mix(c, vec3(0.0), lead) * max(on, 0.05);
+	ALBEDO = mix(c, vec3(0.0), lead * (0.4 + 0.6 * (1.0 - glow))) * max(on, 0.05);
 	ALPHA = 1.0;
 }

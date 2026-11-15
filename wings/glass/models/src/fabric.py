@@ -83,19 +83,22 @@ def rotunda_bay():
     for z in (-0.2, 10.0, 22.6):
         p.append(_arc_sweep("course", course, R, -half, half, z, "lead"))
     p.append(_arc_sweep("course_roll", roll(0.05, 8, 0.3, 0.0), R, -half, half, 10.0, "brass"))
-    # blind arcade (two arches) and one tall blind lancet above, in the tangent plane at the bay centre
-    def plane(off_z, x0):
+    # leaded frames around the two glazed lancets (glass_wall_uv: lw 3.0, tiers 0.8+8.0 and 10.8+11.0,
+    # equilateral heads), so the moulding sits exactly on the shader's rim
+    def plane(off_z):
         def place(h, y, v):
-            return (R - 0.02 - v, x0 + h, off_z + y)
+            return (R - 0.02 - v, h, off_z + y)
         return place
-    chord = 2 * R * math.sin(half) - 0.8
-    for k in (-1, 1):
-        x0 = k * chord / 4
-        path = [(-chord / 4 + 0.05, 0.0)] + [(h, y + 4.5) for h, y in pointed(chord / 2 - 0.1, 2.0, 16)] + [(chord / 4 - 0.05, 0.0)]
-        p.append(sweep("blind", MOULD, path, "lead", plane(0.6, x0), close=True))
-    tall = [(-chord / 2 + 0.3, 0.0)] + [(h, y + 7.5) for h, y in pointed(chord - 0.6, 3.8, 20)] + [(chord / 2 - 0.3, 0.0)]
-    p.append(sweep("lancet", MOULD, tall, "lead", plane(10.6, 0.0), close=True))
-    p.append(sweep("lancet_roll", roll(0.045, 8, 0.12, -0.17), tall, "brass", plane(10.6, 0.0), close=True, smooth=70.0))
+    w = 3.12
+    for base, hgt in ((0.8, 8.0), (10.8, 11.0)):
+        spring = hgt + 0.06 - w * 0.866
+        rt = sorted((q for q in pointed(w, w * 0.866, 20) if q[0] >= 0.0), key=lambda q: q[1])  # springer -> apex
+        head = [(-h, y) for h, y in rt] + [q for q in reversed(rt)][1:]                          # left -> right
+        path = [(-w / 2, 0.0)] + [(h, y + spring) for h, y in head] + [(w / 2, 0.0)]
+        assert all(path[i][0] <= path[i + 1][0] + 1e-6 for i in range(len(path) - 1)), "frame path must run left to right"
+        p.append(sweep("frame", MOULD, path, "lead", plane(base - 0.06)))
+        p.append(sweep("frame_roll", roll(0.04, 8, 0.12, -0.17), path, "brass", plane(base - 0.06), smooth=70.0))
+        p.append(kit.box("sill", (0.3, w + 0.4, 0.14), (R - 0.12, 0.0, base - 0.1), mat="lead", bevel=0.03))
     kit.join("rotunda_bay", p)
 
 
