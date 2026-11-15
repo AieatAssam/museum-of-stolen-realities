@@ -14,4 +14,4 @@ shader_parameter/rough_tex = ExtResource("r")
 shader_parameter/uv_scale = 0.5
 shader_parameter/tint = Color(0.55, 0.45, 0.38, 1)
 shader_parameter/puddles = 0.0
-shader_parameter/wetness = 0.15
+shader_parameter/wetness = 0.45

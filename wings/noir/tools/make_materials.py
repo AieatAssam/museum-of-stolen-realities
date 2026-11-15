@@ -12,7 +12,7 @@ A = "res://assets/textures/"
 TEX = {
     "brick":      (T + "brick", "0.62, 0.52, 0.48", 0.45, 1.0, 0.0, 1.0, ""),
     "brick_dark": (T + "brick", "0.34, 0.3, 0.29", 0.45, 1.0, 0.0, 1.0, ""),
-    "stone":      (A + "plaster/plaster", "0.62, 0.6, 0.56", 0.6, 0.9, 0.0, 0.8, ""),
+    "stone":      (A + "plaster/plaster", "0.36, 0.35, 0.33", 0.6, 0.9, 0.0, 0.8, ""),
     "pavement":   (T + "pavement", "0.7, 0.7, 0.7", 0.33, 0.55, 0.0, 0.6, ""),
     "roof":       (T + "roof", "0.55, 0.55, 0.55", 0.3, 0.75, 0.0, 0.8, ""),
     "floorboards": (T + "floorboards", "0.6, 0.5, 0.42", 0.5, 0.55, 0.0, 0.7, ""),
@@ -21,7 +21,7 @@ TEX = {
     "steel":      (T + "steel", "0.55, 0.55, 0.57", 0.4, 0.5, 0.5, 1.0, ""),
     "carpet":     (T + "carpet", "0.75, 0.6, 0.6", 0.6, 0.95, 0.0, 0.6, ""),
     "plaster":    (A + "plaster/plaster", "0.7, 0.68, 0.64", 0.5, 0.95, 0.0, 0.6, ""),
-    "velvet":     (A + "velvet/velvet", "0.55, 0.12, 0.12", 1.5, 1.0, 0.0, 0.8, "rim_enabled = true\nrim = 0.5\nrim_tint = 0.6\n"),
+    "velvet":     (A + "velvet/velvet", "0.34, 0.16, 0.16", 1.5, 1.0, 0.0, 0.8, "rim_enabled = true\nrim = 0.5\nrim_tint = 0.6\n"),
     "gilt":       (A + "gilt/gilt", "0.6, 0.5, 0.35", 1.0, 0.35, 0.9, 0.6, ""),
 }
 # flat materials: name: (albedo, roughness, metallic, extra)
@@ -49,12 +49,12 @@ FLAT = {
     # light sources (bloom above the glow threshold)
     "glass":        ("1, 0.96, 0.88", 0.2, 0.0, "emission_enabled = true\nemission = Color(1, 0.93, 0.8, 1)\nemission_energy_multiplier = 6.0\n"),
     "bulb":         ("1, 0.95, 0.85", 0.2, 0.0, "emission_enabled = true\nemission = Color(1, 0.9, 0.75, 1)\nemission_energy_multiplier = 9.0\n"),
-    "neon_red":     ("1, 0.1, 0.12", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.06, 0.08, 1)\nemission_energy_multiplier = 7.0\n"),
+    "neon_red":     ("1, 0.1, 0.12", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.02, 0.04, 1)\nemission_energy_multiplier = 1.4\n"),
     "neon_tube_off": ("0.25, 0.08, 0.08", 0.2, 0.0, ""),
-    "diner_glow":   ("1, 0.9, 0.7", 0.4, 0.0, "emission_enabled = true\nemission = Color(1, 0.88, 0.66, 1)\nemission_energy_multiplier = 2.2\n"),
+    "diner_glow":   ("1, 0.9, 0.7", 0.4, 0.0, "emission_enabled = true\nemission = Color(1, 0.88, 0.66, 1)\nemission_energy_multiplier = 0.35\n"),
     "beam_lens":    ("1, 1, 1", 0.1, 0.0, "emission_enabled = true\nemission = Color(1, 0.98, 0.92, 1)\nemission_energy_multiplier = 12.0\n"),
     "silhouette":   ("0.0, 0.0, 0.0", 1.0, 0.0, "shading_mode = 0\n"),
-    "lamp":         ("1, 0.97, 0.9", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.95, 0.85, 1)\nemission_energy_multiplier = 3.0\n"),
+    "lamp":         ("1, 0.97, 0.9", 0.3, 0.0, "emission_enabled = true\nemission = Color(1, 0.95, 0.85, 1)\nemission_energy_multiplier = 1.6\n"),
     "lamp_letter":  ("0.02, 0.02, 0.02", 0.6, 0.0, ""),
     "iron_grate":   ("0.12, 0.12, 0.13", 0.6, 0.6, ""),
     # clear plate glass: the street shows in it, the lit room shows through it
@@ -121,11 +121,11 @@ metallic = {metal}
 
 # wet ground (wet_ground.gdshader): name: (texture base, uv scale, tint, puddles 0..1, base wetness)
 WET = {
-    "wet_asphalt": (T + "asphalt", 0.3, "0.55, 0.55, 0.55", 0.55, 0.6),
-    "wet_cobble":  (T + "cobble", 0.55, "0.6, 0.6, 0.6", 0.45, 0.55),
-    "wet_pavement": (T + "pavement", 0.33, "0.7, 0.7, 0.7", 0.3, 0.45),
-    "wet_roof":    (T + "roof", 0.3, "0.5, 0.5, 0.5", 0.5, 0.5),
-    "wet_floorboards": (T + "floorboards", 0.5, "0.55, 0.45, 0.38", 0.0, 0.15),
+    "wet_asphalt": (T + "asphalt", 0.3, "0.55, 0.55, 0.55", 0.68, 0.85),
+    "wet_cobble":  (T + "cobble", 0.55, "0.6, 0.6, 0.6", 0.6, 0.8),
+    "wet_pavement": (T + "pavement", 0.33, "0.7, 0.7, 0.7", 0.45, 0.7),
+    "wet_roof":    (T + "roof", 0.3, "0.5, 0.5, 0.5", 0.6, 0.75),
+    "wet_floorboards": (T + "floorboards", 0.5, "0.55, 0.45, 0.38", 0.0, 0.45),
     "wet_carpet":  (T + "carpet", 0.6, "0.6, 0.45, 0.45", 0.25, 0.1),
 }
 for name, (tex, uv, tint, puddles, wet) in WET.items():

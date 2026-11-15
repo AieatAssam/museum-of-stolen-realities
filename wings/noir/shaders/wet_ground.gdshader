@@ -42,7 +42,7 @@ void fragment() {
 	ring = smoothstep(0.03, 0.0, abs(d - t * 0.35)) * (1.0 - t) * rain;
 	float wet = clamp(wetness + pud, 0.0, 1.0);
 	ALBEDO = alb * mix(1.0, 0.45, wet);
-	ROUGHNESS = mix(r, r * 0.35, wetness) * (1.0 - pud) + mix(0.02, 0.12, ring) * pud;
+	ROUGHNESS = mix(r, r * 0.2, wetness) * (1.0 - pud) + mix(0.02, 0.12, ring) * pud;
 	SPECULAR = 0.5 + 0.3 * wet;
 	vec3 flat_n = vec3(0.5, 0.5, 1.0);
 	vec3 rn = vec3(0.5 + (f.x) * ring * 0.6, 0.5 + (f.y) * ring * 0.6, 1.0);

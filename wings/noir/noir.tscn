@@ -5,14 +5,14 @@
 [ext_resource type="AudioStream" path="res://wings/noir/audio/noir_bed.ogg" id="3"]
 [ext_resource type="AudioStream" path="res://wings/noir/audio/noir_pulse.ogg" id="4"]
 [ext_resource type="AudioStream" path="res://wings/noir/audio/noir_strings.ogg" id="5"]
-[ext_resource type="AudioStream" path="res://wings/noir/audio/noir_rain.ogg" id="6"]
+[ext_resource type="AudioStream" path="res://wings/noir/audio/rain_loop.ogg" id="6"]
 [ext_resource type="Script" path="res://core/placard.gd" id="7"]
 
 [sub_resource type="Resource" id="grade"]
 script = ExtResource("2")
 tint = Color(1, 1, 1, 1)
-saturation = 0.0
-contrast = 1.15
+saturation = 1.0
+contrast = 1.28
 lift = Color(0.01, 0.01, 0.012, 1)
 grain = 0.06
 aberration = 0.0
