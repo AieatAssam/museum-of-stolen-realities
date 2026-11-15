@@ -10,5 +10,5 @@ def build(args):
     legs.append(kit.tube("back", [(0, 0.2, 0), (0, 0.02, 0.44)], 0.008, 6, mat="brass"))
     legs.append(kit.tube("ledge", [(-0.2, -0.02, 0.08), (0.2, -0.02, 0.08)], 0.01, 6, mat="brass"))
     kit.join("easel", legs)
-    card = kit.box("card", (0.3, 0.004, 0.38), (0, -0.03, 0.28), mat="sketch_paper")
-    card.rotation_euler = (math.radians(-12), 0, 0)
+    card = kit.box("card", (0.3, 0.004, 0.38), (0, 0, 0), mat="sketch_paper")
+    kit.place(card, (0, -0.03, 0.28), (math.radians(-12), 0, 0))

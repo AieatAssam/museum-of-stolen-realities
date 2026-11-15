@@ -110,6 +110,7 @@ func _run() -> void:
 			check(not ok and Game.wing.wing_id == Game.HUB_ID, "%s: missing scene shows 'under restoration' without crashing" % info.id)
 			continue
 		print("[smoke] wing ", info.id)
+		await _until(func() -> bool: return not Transitions.busy, 10.0)
 		await Game.debug_goto(info.id)
 		check(Game.wing != null and Game.wing.wing_id == info.id, "%s loads" % info.id)
 		if Cinematics.playing:

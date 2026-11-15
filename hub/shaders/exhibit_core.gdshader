@@ -1,5 +1,6 @@
 shader_type spatial;
-// Broken edges of Exhibit 0's shards: raw strata glowing from within, warm gold.
+// Broken edges of Exhibit 0's shards: gold leaf laid along the breaks (kintsugi), with light from
+// the world inside leaking through the seams.
 #include "res://core/shaders/noise.gdshaderinc"
 
 uniform float heat = 1.0;
@@ -10,10 +11,10 @@ varying vec3 opos;
 void vertex() { opos = VERTEX; }
 
 void fragment() {
-	float r = length(opos);
-	float strata = 0.5 + 0.5 * sin(r * 60.0 + n_fbm(opos.xy * 6.0) * 6.0);
-	float crack = n_fbm(opos.xz * 9.0 + TIME * 0.05);
-	ALBEDO = mix(vec3(0.08, 0.05, 0.03), vec3(0.3, 0.2, 0.1), strata);
-	ROUGHNESS = 0.7;
-	EMISSION = tint.rgb * (0.25 + 1.4 * pow(crack, 3.0) + 0.3 * strata) * heat;
+	float n = n_fbm(opos.xz * 14.0 + opos.y * 5.0);
+	float leak = pow(n_fbm(opos.xy * 6.0 + TIME * 0.06), 2.0);
+	ALBEDO = vec3(1.0, 0.78, 0.42) * (0.75 + 0.25 * n);
+	METALLIC = 1.0;
+	ROUGHNESS = 0.22 + 0.2 * n;
+	EMISSION = tint.rgb * (0.35 + 2.2 * leak) * heat;
 }
