@@ -24,7 +24,9 @@ func build(t: ClayTerrain, keep_out: Array) -> void:
 		var n := int(ring * 0.42)
 		for i in n:
 			var a := TAU * (i + rnd.randf_range(-0.3, 0.3)) / n
-			trees.append(Vector3(cos(a) * ring, 0, sin(a) * ring) + Vector3(rnd.randf_range(-1.5, 1.5), 0, rnd.randf_range(-1.5, 1.5)))
+			var tp := Vector3(cos(a) * ring, 0, sin(a) * ring) + Vector3(rnd.randf_range(-1.5, 1.5), 0, rnd.randf_range(-1.5, 1.5))
+			if not _blocked(tp, 1.0):
+				trees.append(tp)
 	trees += _scatter(rnd, 26, Rect2(-30, -30, 60, 64), 4.5)
 	var split := [[], [], []]
 	for i in trees.size():
@@ -36,6 +38,11 @@ func build(t: ClayTerrain, keep_out: Array) -> void:
 	for c in flower_cols:
 		_add("flower_%s.glb" % c, _clusters(rnd, 14, 7, Rect2(-34, -30, 68, 66), 1.4), rnd, Vector2(1.4, 2.4), 0.0, false)
 	_add("tuft.glb", _clusters(rnd, 40, 6, Rect2(-36, -36, 72, 72), 1.2), rnd, Vector2(1.0, 2.0), 0.02, false)
+	# the village green: walk-through drifts of flowers and grass on the square (no big things there)
+	var green := Rect2(-22, -29, 35, 11.5)
+	for c in ["yellow", "ivory", "pink"]:
+		_add("flower_%s.glb" % c, _clusters(rnd, 7, 8, green, 1.6, true), rnd, Vector2(1.3, 2.2), 0.0, false)
+	_add("tuft.glb", _clusters(rnd, 18, 7, green, 1.4, true), rnd, Vector2(1.0, 2.0), 0.02, false)
 	_add("toadstool.glb", _clusters(rnd, 9, 4, Rect2(-34, -30, 68, 66), 0.9), rnd, Vector2(0.8, 2.6), 0.02, false)
 	_add("pebble.glb", _scatter(rnd, 70, Rect2(-36, -36, 72, 72), 0.8), rnd, Vector2(0.6, 1.8), 0.08, false)
 	# bulrushes along both banks of the trench (the banks are steep: they stand at the lip)
@@ -52,13 +59,13 @@ func build(t: ClayTerrain, keep_out: Array) -> void:
 
 
 ## Points kept off gameplay ground, at least `gap` apart.
-func _scatter(rnd: RandomNumberGenerator, n: int, area: Rect2, gap: float) -> Array[Vector3]:
+func _scatter(rnd: RandomNumberGenerator, n: int, area: Rect2, gap: float, small: bool = false) -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	var tries := 0
 	while out.size() < n and tries < n * 40:
 		tries += 1
 		var p := Vector3(rnd.randf_range(area.position.x, area.end.x), 0, rnd.randf_range(area.position.y, area.end.y))
-		if _blocked(p, 0.6):
+		if _blocked(p, 0.6, small):
 			continue
 		var ok := true
 		for q in out:
@@ -71,20 +78,23 @@ func _scatter(rnd: RandomNumberGenerator, n: int, area: Rect2, gap: float) -> Ar
 
 
 ## Drifts of small things, the way a set dresser presses a handful in at once.
-func _clusters(rnd: RandomNumberGenerator, n: int, per: int, area: Rect2, spread: float) -> Array[Vector3]:
+func _clusters(rnd: RandomNumberGenerator, n: int, per: int, area: Rect2, spread: float, small_centres: bool = false) -> Array[Vector3]:
 	var out: Array[Vector3] = []
-	for c in _scatter(rnd, n, area, 3.0):
+	for c in _scatter(rnd, n, area, 3.0, small_centres):
 		for i in per:
 			var p := c + Vector3(rnd.randf_range(-spread, spread), 0, rnd.randf_range(-spread, spread))
-			if not _blocked(p, 0.2):
+			if not _blocked(p, 0.2, true):
 				out.append(p)
 	return out
 
 
-func _blocked(p: Vector3, pad: float) -> bool:
+## `small`: flowers, tufts and pebbles may go where only big things are kept out (entries marked "big").
+func _blocked(p: Vector3, pad: float, small: bool = false) -> bool:
 	if absf(p.x) > 39.0 or absf(p.z) > 39.0:
 		return true
 	for k: Array in _keep_out:
+		if small and k.size() > 2 and k[2] == "big":
+			continue
 		if k[0] is Rect2:
 			if (k[0] as Rect2).grow(pad).has_point(Vector2(p.x, p.z)):
 				return true

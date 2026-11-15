@@ -1,0 +1,30 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://wings/chitin/chitin.gd" id="1"]
+[ext_resource type="Script" path="res://core/post/post_grade.gd" id="2"]
+[ext_resource type="AudioStream" path="res://wings/chitin/audio/chitin_stem_bed.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://wings/chitin/audio/chitin_stem_motif.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://wings/chitin/audio/chitin_stem_pulse.ogg" id="5"]
+[ext_resource type="AudioStream" path="res://wings/chitin/audio/hive_ambience.ogg" id="6"]
+
+[sub_resource type="Resource" id="grade"]
+script = ExtResource("2")
+tint = Color(1.0, 0.93, 0.8, 1)
+saturation = 0.9
+contrast = 1.08
+lift = Color(0.03, 0.015, 0.0, 1)
+grain = 0.03
+aberration = 0.35
+vignette = 0.55
+grain_fps = 24.0
+
+[node name="Chitin" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"chitin"
+spawn_checkpoint = &"start"
+start_mode = &"silk"
+grade = SubResource("grade")
+music_layers = Array[AudioStream]([ExtResource("3"), ExtResource("4"), ExtResource("5")])
+ambience = ExtResource("6")
+gravity = Vector3(0, -15, 0)
+void_height = -120.0

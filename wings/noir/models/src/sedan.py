@@ -12,15 +12,15 @@ def build(args):
     parts.append(kit.box("body", (1.7, 4.6, 0.6), (0, 0, 0.55), mat="paint", bevel=0.12, segments=3))
     # cabin with a raked windscreen
     parts.append(kit.box("cabin", (1.5, 2.2, 0.55), (0, -0.35, 1.15), mat="paint", bevel=0.14, segments=3))
-    parts.append(kit.box("glass_front", (1.36, 0.02, 0.42), (0, 0.78, 1.25), mat="glass"))
-    parts.append(kit.box("glass_side_l", (0.02, 1.8, 0.36), (-0.76, -0.35, 1.25), mat="glass"))
-    parts.append(kit.box("glass_side_r", (0.02, 1.8, 0.36), (0.76, -0.35, 1.25), mat="glass"))
+    parts.append(kit.box("glass_front", (1.36, 0.02, 0.42), (0, 0.78, 1.25), mat="window_glass"))
+    parts.append(kit.box("glass_side_l", (0.02, 1.8, 0.36), (-0.76, -0.35, 1.25), mat="window_glass"))
+    parts.append(kit.box("glass_side_r", (0.02, 1.8, 0.36), (0.76, -0.35, 1.25), mat="window_glass"))
     # running boards and bumpers
     parts.append(kit.box("bumper_f", (1.8, 0.1, 0.12), (0, 2.35, 0.36), mat="chrome"))
     parts.append(kit.box("bumper_r", (1.8, 0.1, 0.12), (0, -2.35, 0.36), mat="chrome"))
     # headlamps: glass on the chrome shells
     for x in (-0.6, 0.6):
-        lamp = kit.lathe("headlamp", [(0.0, 0.0), (0.14, 0.0), (0.14, 0.12), (0.0, 0.12)], 14, mat="glass")
+        lamp = kit.lathe("headlamp", [(0.0, 0.0), (0.14, 0.0), (0.14, 0.12), (0.0, 0.12)], 14, mat="chrome")
         kit.place(lamp, (x, 2.28, 0.9), rot=(math.radians(90), 0, 0))
         parts.append(lamp)
     # wheels: tyre + hub
