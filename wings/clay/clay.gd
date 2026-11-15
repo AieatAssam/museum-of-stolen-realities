@@ -510,7 +510,7 @@ func _build_shot_marks() -> void:
 			["04_river", Vector3(5.0, 1.7, 8.0), Vector3(-1.0, -0.4, -4.5)],
 			["05_hill", Vector3(20.0, 1.7, 0.0), Vector3(12.0, 2.5, -20.0)],
 			["06_plug", Vector3(20.5, 1.7, -8.5), Vector3(26.1, 1.2, -11.0)],
-			["07_burrow", Vector3(27.2, 1.5, -11.0), Vector3(31.0, 0.4, -11.0)],
+			["07_burrow", Vector3(26.9, 1.6, -10.2), Vector3(31.0, 1.4, -12.2)],
 			["08_village", Vector3(-3.0, 1.9, -16.5), Vector3(-9.0, 1.0, -25.0)],
 			["09_fence", Vector3(8.5, 1.7, -21.0), Vector3(-2.0, 1.2, -29.0)],
 			["10_workbench", Vector3(5.5, 3.4, -31.0), Vector3(-0.6, 2.8, -41.0)],
