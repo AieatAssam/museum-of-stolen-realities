@@ -56,3 +56,14 @@ Weather is the painter's mood, saved as `mood`. It drifts with play: scraping so
 ## Shot marks
 
 There are 12 `Marker3D` in group `shot_marks` under `ShotMarks`: shore, bough, chain, crown, unpainted, river, basin, source, corrections, pentimento, horizon, museum_wall.
+
+## Rails and solids
+
+A wet stroke never carries her through a solid. `surf_mode._blocked` casts at chest height (1.1 m) from where she is to the next sample plus 0.4 m, ignoring strokes; a hit stops the ride and drops her off (`wall` event, refuse sound). The playthrough audit samples every authored stroke the same way and fails if any rail passes through solid geometry.
+
+## Art
+
+- Concepts: `_concept/` (one per area, `tools/gen_concept.sh`). Gate: `tests/shot_check.py` on `shots/paint/*.png`, thresholds from the concepts.
+- Light: `paint_look.gd`, one recipe per area (sun, violet fill, fog, sky tint, exposure, saturation), picked by camera position, eased, modulated by mood.
+- Surfaces: `materials/` from `tools/make_materials.py` (`p_*` Blender contract, object space; `g_*` world finishes) on `shaders/paint_surface.gdshader`. Strokes are swept meshes on `wet_stroke.gdshader`; blocks are knife-laid slabs (`paint_art.gd`).
+- Models: `models/*.glb` from `tools/build_*.sh`. All dressing is visual only, with no collision. It is kept off rails, paths and gameplay volumes. Collision is always the original boxes.

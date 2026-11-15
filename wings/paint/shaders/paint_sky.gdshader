@@ -1,8 +1,8 @@
 shader_type sky;
 render_mode use_half_res_pass;
 // The sky is painted: two oil studies (fair and storm) wrapped around the dome and blended by the
-// painter's mood, drifting slowly, fading into a haze band at the horizon. Below the horizon, the
-// unpainted linen. The sun is a thick dab of light, not a disc.
+// painter's mood, drifting slowly, fading into a haze band at the horizon. Below the horizon, an
+// unfinished landscape laid in bands. The sun is a thick dab of light, not a disc.
 
 uniform sampler2D fair : source_color, filter_linear, repeat_enable;
 uniform sampler2D storm : source_color, filter_linear, repeat_enable;
