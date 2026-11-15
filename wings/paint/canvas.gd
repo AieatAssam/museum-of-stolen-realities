@@ -23,6 +23,7 @@ signal refused(why: String)
 signal seal_scraped(stroke: Node3D)
 
 const Stroke := preload("res://wings/paint/stroke.gd")
+const Art := preload("res://wings/paint/paint_art.gd")
 const KNIFE_REACH := 7.0
 const MAX_LOAD := 18.0
 const WALL_PITCH := 0.45
@@ -65,10 +66,10 @@ func add_water(id: String, rect: Rect2, base: float, raised: float = NAN, slot: 
 	var pm := PlaneMesh.new()
 	pm.size = rect.size
 	mi.mesh = pm
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.1, 0.2, 0.75, 0.82)
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.roughness = 0.1
+	var m := ShaderMaterial.new()   # opaque wet ultramarine, laid in creeping strokes
+	m.shader = load("res://wings/paint/shaders/paint_water.gdshader")
+	m.set_shader_parameter(&"stroke_normal", load(Stroke.STROKE_N))
+	m.set_shader_parameter(&"stroke_albedo", load(Stroke.STROKE_A))
 	mi.material_override = m
 	mi.position = Vector3(rect.get_center().x, base, rect.get_center().y)
 	(parent if parent else self).add_child(mi)
@@ -88,13 +89,8 @@ func add_varnish(id: String, a: Vector3, b: Vector3, parent: Node3D = null) -> S
 	sb.add_child(cs)
 	var mi := MeshInstance3D.new()
 	mi.name = "Visual"
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color("c98a1e")  # hazard/blocker: varnish amber
-	m.roughness = 0.15
-	mi.material_override = m
+	mi.mesh = Art.slab_mesh(size, (a + b) * 0.5, 0.6, 0.25, 0.08)
+	mi.material_override = Art.mat("g_varnish")  # hazard/blocker: yellowed, cracked varnish
 	sb.add_child(mi)
 	sb.position = (a + b) * 0.5
 	(parent if parent else self).add_child(sb)
@@ -417,6 +413,13 @@ static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> Arra
 
 
 func _blend(a: Node3D, b: Node3D, res: String, at: Vector3, instant: bool = false) -> void:
+	# the two colours bleed where they cross: a daub of the mixture over the crossing
+	var bleed := MeshInstance3D.new()
+	bleed.name = "Bleed"
+	bleed.mesh = Art.daub_mesh(1.6, 0.22, at.x + at.z)
+	bleed.material_override = Stroke.mat_for(res)
+	a.add_child(bleed)   # sinks, hides and goes with the stroke
+	bleed.global_position = at + Vector3.UP * 0.05
 	for st: Node3D in [a, b]:
 		st.set_colour(res)
 		if not st.laid:
@@ -436,15 +439,17 @@ func _blend(a: Node3D, b: Node3D, res: String, at: Vector3, instant: bool = fals
 
 func _grow(at: Vector3, top: float, instant: bool) -> void:
 	foliage.append([at.x, at.y, at.z, top])
-	var col := MeshInstance3D.new()
+	# a column of leafy daubs, stacked in 2 m segments, each turned so the stack never repeats
+	var col := Node3D.new()
 	col.name = "Foliage_%d" % foliage.size()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.9
-	cm.bottom_radius = 1.3
-	cm.height = top - at.y + 0.6
-	col.mesh = cm
-	col.material_override = Stroke.mat_for("green")
-	col.position = Vector3(at.x, (at.y + top) * 0.5, at.z)
+	var h := top - at.y + 0.6
+	for i in ceili(h / 2.0):
+		var seg := Art.model("foliage_seg")
+		seg.position = Vector3(0, i * 2.0, 0)
+		seg.rotation.y = i * 2.4 + at.x
+		seg.scale = Vector3.ONE * (1.0 - 0.25 * float(i * 2.0) / h)
+		col.add_child(seg)
+	col.position = at
 	add_child(col)
 	_foliage_nodes.append(col)
 	if not instant:

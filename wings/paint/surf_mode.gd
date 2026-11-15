@@ -26,6 +26,8 @@ const MIN_SPEED := 3.0
 const JUMP := 5.5
 const KICK := 5.0
 const LAUNCH_UP := 1.0
+const WALL_CHEST := 1.1     # the wall check runs at chest height, clear of the stroke and the ground
+const WALL_LOOK := 0.4      # and a little ahead of her
 
 var stroke: Node3D          # stroke.gd
 var s: float = 0.0
@@ -122,8 +124,29 @@ func step(delta: float) -> void:
 			_leave(t * speed + p.up_direction * LAUNCH_UP, true)
 			return
 	var pos: Vector3 = stroke.sample(s) + p.up_direction * 0.03
+	if _blocked(p.global_position, pos + t * WALL_LOOK):
+		# paint does not pass through a solid: she stops against it and drops off the stroke
+		_emit("wall", stroke)
+		_leave(-t * 1.5, false)
+		return
 	p.velocity = (pos - p.global_position) / maxf(delta, 0.0001)
 	p.global_position = pos
+
+
+## A solid (anything on the world layer that is not a stroke) between her chest now and her chest
+## at the next sample.
+func _blocked(a: Vector3, b: Vector3) -> bool:
+	var up := player.up_direction * WALL_CHEST
+	var q := PhysicsRayQueryParameters3D.create(a + up, b + up, 1, [player.get_rid()])
+	var space := player.get_world_3d().direct_space_state
+	for i in 4:
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return false
+		if not hit.collider.has_method(&"surfable"):
+			return true
+		q.exclude = q.exclude + [hit.rid]
+	return false
 
 
 func _leave(v: Vector3, chainable: bool) -> void:

@@ -1,0 +1,21 @@
+[gd_resource type="ShaderMaterial" load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://wings/paint/shaders/paint_surface.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://wings/paint/textures/paint_impasto_albedo.png" id="2"]
+[ext_resource type="Texture2D" path="res://wings/paint/textures/paint_impasto_normal.png" id="3"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/colour = Color(0.90, 0.68, 0.54, 1)
+shader_parameter/colour2 = Color(0.98, 0.78, 0.66, 1)
+shader_parameter/shade = Color(0.42, 0.36, 0.66, 1)
+shader_parameter/detail_albedo = ExtResource("2")
+shader_parameter/detail_normal = ExtResource("3")
+shader_parameter/tiles_per_m = 0.8
+shader_parameter/normal_strength = 1.2
+shader_parameter/tex_value = 0.5
+shader_parameter/mix_amount = 0.5
+shader_parameter/rough = 0.55
+shader_parameter/gloss = 0.1
+shader_parameter/emission_gain = 0.0
+shader_parameter/object_space = true
