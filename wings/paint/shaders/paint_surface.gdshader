@@ -20,6 +20,18 @@ uniform float gloss = 0.0;             // 0 dry, 1 wet (varnish, fresh paint)
 uniform float emission_gain = 0.0;
 uniform float shade_amount = 0.55;
 uniform bool object_space = false;
+// world finishes only: broad pigment patches across the land, a worn path, raw linen on the sides
+// below the primed lip, and a painter's simplification with distance (detail and contrast drop away)
+uniform float patch_amount = 0.0;
+uniform vec3 patch_a : source_color = vec3(0.46, 0.62, 0.22);   // sap green
+uniform vec3 patch_b : source_color = vec3(0.90, 0.66, 0.24);   // yellow ochre
+uniform vec3 patch_c : source_color = vec3(0.58, 0.48, 0.78);   // violet
+uniform float path_width = 0.0;
+uniform vec3 path_colour : source_color = vec3(0.80, 0.55, 0.34);
+uniform float side_linen = 0.0;
+uniform vec3 linen : source_color = vec3(0.70, 0.62, 0.50);
+uniform float simplify_near = 30.0;
+uniform float simplify_far = 160.0;
 
 varying vec3 v_p;
 varying vec3 v_n;
@@ -68,8 +80,25 @@ void fragment() {
 	vec3 on = normalize(n + wn * normal_strength);
 	float lum = dot(tex, vec3(0.299, 0.587, 0.114));
 	float k = vnoise(v_p.xz * 0.35 + v_p.y * 0.2) * 0.6 + lum * 0.8 - 0.3;
+	float far = object_space ? 0.0 : smoothstep(simplify_near, simplify_far, distance(v_p, CAMERA_POSITION_WORLD));
 	vec3 col = mix(colour, colour2, smoothstep(0.3, 0.8, k) * mix_amount);
-	col *= mix(1.0, clamp(lum / 0.72, 0.55, 1.25), tex_value);
+	if (!object_space) {
+		float top = smoothstep(0.55, 0.8, n.y);
+		// patches the size of fields, edges dragged by the strokes
+		float q = vnoise(v_p.xz * 0.022 + 7.3) + (lum - 0.5) * 0.25;
+		float r = vnoise(v_p.xz * 0.05 - 2.1) + (lum - 0.5) * 0.2;
+		vec3 pc = mix(patch_a, patch_b, smoothstep(0.42, 0.58, q));
+		pc = mix(pc, patch_c, smoothstep(0.62, 0.74, r) * 0.8);
+		col = mix(col, pc, patch_amount * top * smoothstep(0.25, 0.55, abs(q - 0.5) * 2.0 + 0.3));
+		// the worn path: the walking line, wandering
+		float px = abs(v_p.x - 1.6 * sin(v_p.z * 0.045) - 0.8 * sin(v_p.z * 0.13 + 1.0));
+		float path = (1.0 - smoothstep(path_width * 0.5, path_width * 0.5 + 0.9 + lum, px)) * top * step(0.01, path_width);
+		col = mix(col, path_colour * (0.85 + 0.3 * lum), path * 0.85);
+		// below the primed lip the slab is raw linen
+		col = mix(col, linen * (0.8 + 0.4 * lum), side_linen * (1.0 - smoothstep(0.35, 0.6, n.y)));
+	}
+	col *= mix(1.0, clamp(lum / 0.72, 0.55, 1.25), tex_value * (1.0 - far * 0.85));
+	on = normalize(mix(on, n, far * 0.8));
 	ALBEDO = col;
 	ROUGHNESS = mix(rough, 0.12, gloss) + (1.0 - lum) * 0.15;
 	SPECULAR = mix(0.35, 0.6, gloss);
