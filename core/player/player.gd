@@ -275,6 +275,7 @@ func _physics_process(delta: float) -> void:
 	var dy := (global_position - pre_pos).dot(up_direction)
 	if on_floor and _was_on_floor and not _teleported and absf(dy) > 0.05 and absf(dy) <= STEP_HEIGHT + 0.1:
 		_step_offset = clampf(_step_offset - dy, -0.5, 0.5)
+		head.position.y -= dy  # now, not next _process: no frame shows the body jump uncompensated
 	_teleported = false
 	if on_floor and not _was_on_floor:
 		var impact := maxf(-pre_vel.dot(up_direction), 0.0)

@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Cinematics autoload. `await Cinematics.play(steps)` runs a list of steps in order:
-##   {"card": "Text", "sub": "SMALL CAPS", "t": 5.0, "style": "light"|"display"|"body"}  timed text card
+##   {"card": "Text", "sub": "a caption under it", "t": 5.0, "style": "light"|"display"|"body"}  timed text card
 ##   {"cam": [Transform3D, ...], "t": 8.0, "fov": 60.0, "async": true}  camera path (Catmull-Rom); async = don't wait
 ##   {"wait": 2.0}
 ##   {"fade": 1.0, "t": 1.5}            3D view to ink (1) or back (0) — via Post
@@ -27,6 +27,8 @@ var _card_tween: Tween
 var _skip_t: float = 0.0
 var _bars: Array[ColorRect] = []
 var _card_box: VBoxContainer
+var _card_panel: PanelContainer
+var _skip_bar: ColorRect
 var _card_sub: Label
 var _card_main: Label
 var _skip_label: Label
@@ -49,37 +51,43 @@ func _ready() -> void:
 		add_child(b)
 		_bars.append(b)
 	_set_bars(0.0)
-	var c := CenterContainer.new()
-	c.set_anchors_preset(Control.PRESET_FULL_RECT)
-	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(c)
+	# Text cards sit at the lower left, above the bottom bar, on a solid backing (no text effects,
+	# never over the centre of the view). The caption goes under the line, not above it.
+	_card_panel = PanelContainer.new()
+	_card_panel.add_theme_stylebox_override(&"panel", Style.backing(0.8, 28))
+	_card_panel.anchor_top = 1.0
+	_card_panel.anchor_bottom = 1.0
+	_card_panel.offset_left = 120
+	_card_panel.offset_bottom = -(0.11 * 1080.0 + 40.0)
+	_card_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_card_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_card_panel)
 	_card_box = VBoxContainer.new()
-	_card_box.custom_minimum_size.x = 1100
-	_card_box.add_theme_constant_override(&"separation", 18)
-	_card_box.modulate.a = 0.0
-	c.add_child(_card_box)
-	_card_sub = Style.catalog("", 18, Style.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_card_main = Style.label("", Style.LIGHT, 54, Style.IVORY, HORIZONTAL_ALIGNMENT_CENTER)
+	_card_box.add_theme_constant_override(&"separation", 10)
+	_card_panel.add_child(_card_box)
+	_card_panel.modulate.a = 0.0
+	_card_main = Style.label("", Style.DISPLAY, 52, Style.IVORY)
 	_card_main.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_card_main.add_theme_constant_override(&"line_spacing", 6)
-	for l: Label in [_card_sub, _card_main]:  # cards sit over bright scenes; a soft shadow keeps them legible
-		l.add_theme_color_override(&"font_shadow_color", Color(0, 0, 0, 0.85))
-		l.add_theme_constant_override(&"shadow_outline_size", 14)
-		l.add_theme_constant_override(&"shadow_offset_x", 0)
-		l.add_theme_constant_override(&"shadow_offset_y", 2)
-	_card_box.add_child(_card_sub)
+	_card_main.custom_minimum_size.x = 760
+	_card_sub = Style.label("", Style.TEXT, Style.SIZE_META, Style.IVORY_DIM)
 	_card_box.add_child(_card_main)
-	_skip_label = Style.catalog("Hold to skip", 14, Style.GOLD_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
+	_card_box.add_child(_card_sub)
+	_skip_label = Style.label("Hold to skip", Style.TEXT, Style.SIZE_MIN, Style.IVORY_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
 	_skip_label.anchor_left = 1.0
 	_skip_label.anchor_right = 1.0
 	_skip_label.anchor_top = 1.0
 	_skip_label.anchor_bottom = 1.0
 	_skip_label.offset_left = -360
 	_skip_label.offset_right = -48
-	_skip_label.offset_top = -64
-	_skip_label.offset_bottom = -40
+	_skip_label.offset_top = -72
+	_skip_label.offset_bottom = -44
 	_skip_label.modulate.a = 0.0
 	add_child(_skip_label)
+	_skip_bar = ColorRect.new()  # hold progress: a hairline under the label
+	_skip_bar.color = Style.GOLD
+	_skip_bar.position = Vector2(0, 30)
+	_skip_bar.size = Vector2(0, 1)
+	_skip_label.add_child(_skip_bar)
 
 
 func _set_bars(frac: float) -> void:
@@ -102,7 +110,7 @@ func letterbox(on: bool, seconds: float = 1.2) -> void:
 
 ## True while any letterbox bar or the skip label is visible (tests assert this clears).
 func overlay_visible() -> bool:
-	return _bars[0].offset_bottom > 0.5 or _skip_label.modulate.a > 0.01 or _card_box.modulate.a > 0.01
+	return _bars[0].offset_bottom > 0.5 or _skip_label.modulate.a > 0.01 or _card_panel.modulate.a > 0.01
 
 
 static func marks(nodes: Array) -> Array[Transform3D]:
@@ -205,7 +213,7 @@ func _end() -> void:
 	_scene = null
 	if _card_tween:
 		_card_tween.kill()
-	_card_box.modulate.a = 0.0
+	_card_panel.modulate.a = 0.0
 	_skip_label.modulate.a = 0.0
 	_skip_t = 0.0
 	letterbox(false, 0.0 if _aborted else 1.2)
@@ -220,28 +228,23 @@ func _wait(t: float) -> void:
 
 
 func _card(s: Dictionary) -> void:
-	_card_sub.text = String(s.get("sub", "")).to_upper()
+	_card_sub.text = Style.clean(String(s.get("sub", "")), ", ")
 	_card_sub.visible = _card_sub.text != ""
 	_card_main.text = s["card"]
-	match String(s.get("style", "light")):
-		"display":
-			_card_main.add_theme_font_override(&"font", Style.DISPLAY)
-			_card_main.add_theme_font_size_override(&"font_size", 64)
-		"body":
-			_card_main.add_theme_font_override(&"font", Style.ITALIC)
-			_card_main.add_theme_font_size_override(&"font_size", 40)
-		_:
-			_card_main.add_theme_font_override(&"font", Style.LIGHT)
-			_card_main.add_theme_font_size_override(&"font_size", 54)
+	# "style" is accepted for old call sites: "body" sets long lines in the text face, anything
+	# else is a display line (§7: one face, one weight, one colour per heading).
+	var body := String(s.get("style", "")) == "body"
+	_card_main.add_theme_font_override(&"font", Style.TEXT if body else Style.DISPLAY)
+	_card_main.add_theme_font_size_override(&"font_size", 30 if body else 52)
 	var t := float(s.get("t", 5.0))
 	if _card_tween:
 		_card_tween.kill()
 	_card_tween = create_tween()
-	_card_tween.tween_property(_card_box, "modulate:a", 1.0, minf(1.4, t * 0.3))
+	_card_tween.tween_property(_card_panel, "modulate:a", 1.0, minf(1.4, t * 0.3))
 	await _wait(t - 1.2)
 	_card_tween.kill()
 	_card_tween = create_tween()
-	_card_tween.tween_property(_card_box, "modulate:a", 0.0, 0.25 if skipped else 1.2)
+	_card_tween.tween_property(_card_panel, "modulate:a", 0.0, 0.25 if skipped else 1.2)
 	await _wait(1.2)
 
 
@@ -286,8 +289,8 @@ func _process(delta: float) -> void:
 		return
 	var held := Input.is_action_pressed(&"jump") or Input.is_action_pressed(&"interact") or Input.is_action_pressed(&"pause")
 	_skip_t = _skip_t + delta if held else maxf(_skip_t - delta * 2.0, 0.0)
-	_skip_label.modulate.a = lerpf(_skip_label.modulate.a, 1.0 if held or _skip_t > 0.0 else 0.35, 1.0 - exp(-6.0 * delta))
-	_skip_label.text = "HOLD TO SKIP  " + "·".repeat(int(_skip_t / SKIP_HOLD * 8.0))
+	_skip_label.modulate.a = lerpf(_skip_label.modulate.a, 1.0 if held or _skip_t > 0.0 else 0.8, 1.0 - exp(-6.0 * delta))
+	_skip_bar.size.x = _skip_label.size.x * clampf(_skip_t / SKIP_HOLD, 0.0, 1.0)
 	if _skip_t >= SKIP_HOLD and not skipped:
 		skip()
 

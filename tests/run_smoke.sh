@@ -9,15 +9,18 @@ GODOT="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 SCENE="${1:-tests/smoke.tscn}"
 shift || true
 LOG="$(mktemp)"
+# Import first (new class_names, fonts) and drop iCloud " 2" copies from the class cache.
+GODOT="$GODOT" tools/godot_import.sh > "$LOG" 2>&1
+grep -E "^ERROR:|SCRIPT ERROR|ignored iCloud" "$LOG"
 # --verbose so leaked objects are named; it adds ~700 lines of loader noise to the log.
-"$GODOT" --headless --verbose --path . "$SCENE" "$@" 2>&1 | tee "$LOG"
+"$GODOT" --headless --verbose --path . "$SCENE" "$@" 2>&1 | tee -a "$LOG"
 code=${PIPESTATUS[0]}
 errs=$(grep -E "SCRIPT ERROR|Parse Error|^ERROR:|^WARNING: .*leaked|Resource still in use" "$LOG" || true)
 # Only tolerated leak: ResourceLoader LoadTokens from threaded scene loads (engine-side, see
 # core/transitions.gd). Anything else leaked is ours.
 bad_leaks=$(grep -E "^Leaked instance:" "$LOG" | grep -vE "^Leaked instance: RefCounted:[0-9]+ - Reference count: 0$" || true)
 n_tokens=$(grep -cE "^Leaked instance: RefCounted:[0-9]+ - Reference count: 0$" "$LOG" || true)
-errs=$(echo "$errs" | grep -vE "^WARNING: [0-9]+ ObjectDB instances were leaked" || true)
+errs=$(echo "$errs" | grep -vE "^WARNING: [0-9]+ ObjectDB instances? (was|were) leaked" || true)
 if [[ -n "$bad_leaks" ]]; then errs="$errs"$'\n'"$bad_leaks"; fi
 if [[ "$n_tokens" -gt 6 ]]; then errs="$errs"$'\n'"too many leaked RefCounted ($n_tokens): not just LoadTokens"; fi
 errs=$(echo "$errs" | sed '/^\s*$/d')

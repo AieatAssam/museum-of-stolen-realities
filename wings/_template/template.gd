@@ -58,11 +58,13 @@ func on_enter(first_time: bool) -> void:
 	_build_exit()
 	_build_fragment()
 	_build_stairs()
-	$Placard.set_text("—", "The Conservation Studio", "Staff only  ·  Acq. No. 000-T",
-		"Every rule of a gallery, in miniature. Light the lamps, cross the gap, wind the clock. Visits recorded: %d." % int(recall("visits", 1)), false)
+	_build_zipline()
+	# Tombstone label: title, date, medium, acquisition number, one paragraph (<= 40 words).
+	$Placard.set_label(Placard.fields("The Conservation Studio", "Undated", "Plaster, lamp oil, patience",
+		"Acq. No. 000-T", "Every rule of a gallery, in miniature. Light the lamps, cross the gap, wind the clock. Visits recorded: %d." % int(recall("visits", 1))), false)
 	if first_time:
 		await Cinematics.play([
-			{"card": "Staff only.", "sub": "The Conservation Studio", "t": 3.0, "style": "display"},
+			{"card": "Staff only.", "sub": "The Conservation Studio", "t": 3.0},
 		])
 	toast("You are in the Studio. The Curator lets staff rehearse here.")
 
@@ -159,6 +161,26 @@ func _build_float_zone() -> void:
 		if p.mode_name() == &"float":
 			p.set_mode(&"walk"))
 	add_child(zone)
+
+
+## A zipline: a RailMode (a ConstrainedMode) on a Path3D, grabbed with interact. It runs down the
+## west side; the player lets go at the end (or with jump) and drops back into walk.
+func _build_zipline() -> void:
+	var path := Path3D.new()
+	path.name = "Zipline"
+	path.curve = Curve3D.new()
+	path.curve.add_point(Vector3(-9.3, 1.4, 2.5))
+	path.curve.add_point(Vector3(-9.3, 0.2, -4.0))
+	add_child(path)
+	var handle := Interactable.make_box(Vector3(0.6, 0.6, 0.6), "Take the zipline")
+	handle.name = "Handle"
+	handle.position = Vector3(-9.3, 1.2, 2.5)
+	handle.interacted.connect(func(p: Player) -> void:
+		var rail := p.modes[&"rail"] as RailMode
+		rail.rail = path
+		rail.speed = 5.0
+		p.set_mode(&"rail"))
+	add_child(handle)
 
 
 ## Ordinary stairs, no ramp needed: four 0.18 m risers, a half landing, three 0.35 m risers

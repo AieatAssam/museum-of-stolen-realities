@@ -1,10 +1,18 @@
 extends Control
-## Title screen: the atrium matte painting breathing slowly behind museum typography.
+## Title screen: the real atrium, rendered live behind the menu (DESIGN_RULES §7), with a slow
+## camera drift. The atrium is a child of this scene (not of root), so Game does not register it
+## as the current wing: no player, no quest, no intro. The menu sits on the dark left side, on a
+## soft backing, in a CanvasLayer above Post so text gets no grain or aberration.
 
-var _bg: TextureRect
+const DRIFT_SECS := 70.0
+const CAM_A := Vector3(5.5, 2.1, 20.0)
+const CAM_B := Vector3(1.5, 2.6, 17.0)
+const LOOK := Vector3(-3.5, 4.4, 0.0)  # left of the sphere, so the sphere sits right of centre
+
 var _menu: VBoxContainer
-var _panel_host: CenterContainer
+var _panel_host: Control
 var _left: VBoxContainer
+var _cam: Camera3D
 var _t: float = 0.0
 
 
@@ -13,108 +21,73 @@ func _ready() -> void:
 	Post.apply(PostGrade.new(), 0.0)
 	Post.fade_to(0.0, 0.0)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var black := ColorRect.new()
+	var black := ColorRect.new()  # shown only if the atrium fails to load
 	black.color = Style.INK
 	black.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(black)
 
-	_bg = TextureRect.new()
-	_bg.texture = preload("res://assets/ui/title_art.png")
-	_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var m := ShaderMaterial.new()
-	m.shader = preload("res://ui/title_bg.gdshader")
-	_bg.material = m
-	add_child(_bg)
+	var atrium_scene := load(Game.HUB_SCENE) as PackedScene
+	if atrium_scene:
+		var atrium := atrium_scene.instantiate()
+		add_child(atrium)
+		if atrium is Wing:
+			Quality.apply((atrium as Wing).environment())
+		black.visible = false
+	_cam = Camera3D.new()
+	_cam.fov = 62.0
+	_cam.far = 600.0
+	add_child(_cam)
+	_cam.make_current()
+	_place_camera()
 
-	var motes := GPUParticles2D.new()
-	motes.amount = 90
-	motes.lifetime = 14.0
-	motes.preprocess = 14.0
-	motes.position = Vector2(1200, 1100)
-	var pm := ParticleProcessMaterial.new()
-	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	pm.emission_box_extents = Vector3(1100, 80, 0)
-	pm.direction = Vector3(0.1, -1, 0)
-	pm.spread = 25.0
-	pm.initial_velocity_min = 18.0
-	pm.initial_velocity_max = 55.0
-	pm.gravity = Vector3.ZERO
-	pm.turbulence_enabled = true
-	pm.turbulence_noise_strength = 3.0
-	pm.turbulence_noise_scale = 4.0
-	pm.scale_min = 0.6
-	pm.scale_max = 2.4
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.8, 0.45, 0.0))
-	ramp.set_color(1, Color(1.0, 0.8, 0.45, 0.0))
-	ramp.add_point(0.2, Color(1.0, 0.85, 0.5, 0.8))
-	ramp.add_point(0.8, Color(1.0, 0.8, 0.45, 0.5))
-	var gt := GradientTexture1D.new()
-	gt.gradient = ramp
-	pm.color_ramp = gt
-	motes.process_material = pm
-	motes.texture = _dot_texture()
-	var add := CanvasItemMaterial.new()
-	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	motes.material = add
-	add_child(motes)
+	var ui := CanvasLayer.new()
+	ui.layer = 65
+	add_child(ui)
+	var shade := TextureRect.new()  # backing: ink fading out to the right
+	var g := Gradient.new()
+	g.set_color(0, Color(Style.INK, 0.88))
+	g.set_color(1, Color(Style.INK, 0.0))
+	g.add_point(0.55, Color(Style.INK, 0.7))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.width = 256
+	gt.height = 4
+	shade.texture = gt
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.anchor_bottom = 1.0
+	shade.offset_right = 1000
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(shade)
 
 	_left = VBoxContainer.new()
-	_left.position = Vector2(150, 0)
 	_left.anchor_top = 0.5
 	_left.anchor_bottom = 0.5
-	_left.offset_top = -330
-	_left.add_theme_constant_override(&"separation", 6)
-	add_child(_left)
-	_left.add_child(Style.catalog("An exhibition in six acquisitions", 17, Style.GOLD))
-	_left.add_child(Control.new())
-	var l1 := Style.label("Museum of", Style.LIGHT, 64, Style.IVORY)
-	_left.add_child(l1)
-	var l2 := Style.label("Stolen Realities", Style.DISPLAY, 104, Style.IVORY)
-	l2.add_theme_constant_override(&"outline_size", 0)
-	_left.add_child(l2)
-	var r := Style.rule(360, Style.GOLD)
-	r.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	_left.add_child(r)
-	var spacer := Control.new()
-	spacer.custom_minimum_size.y = 40
-	_left.add_child(spacer)
+	_left.offset_left = 150
+	_left.offset_top = -240
+	_left.add_theme_constant_override(&"separation", 40)
+	ui.add_child(_left)
+	var t := Style.label("Museum of Stolen Realities", Style.DISPLAY, Style.SIZE_TITLE, Style.IVORY)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size.x = 640
+	_left.add_child(t)
 	_menu = VBoxContainer.new()
-	_menu.add_theme_constant_override(&"separation", 6)
+	_menu.add_theme_constant_override(&"separation", 4)
 	_left.add_child(_menu)
 
-	var foot := Style.catalog("Acquisition No. 000  ·  The Thief  ·  Medium: flesh, grief, intent", 13, Style.GOLD_DIM)
-	foot.anchor_top = 1.0
-	foot.anchor_bottom = 1.0
-	foot.position = Vector2(150, -70)
-	add_child(foot)
-
-	_panel_host = CenterContainer.new()
-	_panel_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_panel_host = PanelContainer.new()
+	_panel_host.add_theme_stylebox_override(&"panel", Style.backing(0.9, 40))
+	_panel_host.anchor_top = 0.5
+	_panel_host.anchor_bottom = 0.5
+	_panel_host.offset_left = 150
+	_panel_host.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_panel_host.visible = false
-	add_child(_panel_host)
+	ui.add_child(_panel_host)
 
 	_build_menu()
-	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, 2.5).set_trans(Tween.TRANS_SINE)
+	_left.modulate.a = 0.0
+	create_tween().tween_property(_left, "modulate:a", 1.0, 2.0).set_trans(Tween.TRANS_SINE)
 	Audio.play_music([Audio.stream("hub_bed_0"), Audio.stream("hub_bed_1")] as Array[AudioStream], 4.0, 1.0)
 	Audio.play_ambience(Audio.stream("amb_hub"), 4.0, -6.0)
-
-
-func _dot_texture() -> Texture2D:
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(0.5, 0.0)
-	t.width = 16
-	t.height = 16
-	return t
 
 
 func _build_menu() -> void:
@@ -123,7 +96,7 @@ func _build_menu() -> void:
 	var first: Button = null
 	if Save.has_save():
 		first = _btn("Continue", func() -> void: Game.continue_game())
-	var ng := _btn("New Game", func() -> void: Game.new_game())
+	var ng := _btn("New game", func() -> void: Game.new_game())
 	_btn("Settings", _show_settings)
 	_btn("Quit", func() -> void: Game.quit())
 	(first if first else ng).grab_focus.call_deferred()
@@ -133,7 +106,7 @@ func _btn(text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.add_theme_font_size_override(&"font_size", 26)
+	b.add_theme_font_size_override(&"font_size", Style.SIZE_SUBHEADING)
 	b.pressed.connect(func() -> void:
 		if Transitions.busy:
 			return
@@ -149,21 +122,21 @@ func _btn(text: String, cb: Callable) -> Button:
 func _show_settings() -> void:
 	_left.visible = false
 	_panel_host.visible = true
-	var p := PanelContainer.new()
 	var s := preload("res://ui/settings_panel.gd").new()
-	p.add_child(s)
-	_panel_host.add_child(p)
+	_panel_host.add_child(s)
 	s.closed.connect(func() -> void:
-		p.queue_free()
+		s.queue_free()
 		_panel_host.visible = false
 		_left.visible = true
 		_build_menu())
 
 
+func _place_camera() -> void:
+	var u := 0.5 - 0.5 * cos(_t / DRIFT_SECS * TAU)  # ping-pong A..B, eased at the ends
+	_cam.position = CAM_A.lerp(CAM_B, u)
+	_cam.look_at(LOOK + Vector3(0, 0.3 * sin(_t * 0.05), 0), Vector3.UP)
+
+
 func _process(delta: float) -> void:
 	_t += delta
-	var z := 1.04 + 0.03 * sin(_t * 0.05)
-	_bg.scale = Vector2(z, z)
-	_bg.pivot_offset = size * Vector2(0.55, 0.4)
-	var mp := get_viewport().get_mouse_position() / get_viewport_rect().size - Vector2(0.5, 0.5)
-	_bg.position = _bg.position.lerp(-mp * 18.0, 1.0 - exp(-2.0 * delta))
+	_place_camera()

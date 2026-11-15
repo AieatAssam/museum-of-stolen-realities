@@ -330,6 +330,7 @@ func _notification(what: int) -> void:
 ## the mixer drop its playbacks first is what avoids "ObjectDB instances leaked" /
 ## "resources still in use" (AudioStreamPlayback*, OggPacketSequence*) at exit.
 func quit(exit_code: int = 0) -> void:
+	await _idle()  # a scene change mid-flight holds the old scene out of the tree; it would leak
 	for n in get_tree().root.find_children("*", "", true, false):
 		if n is AudioStreamPlayer or n is AudioStreamPlayer3D or n is AudioStreamPlayer2D:
 			n.stop()

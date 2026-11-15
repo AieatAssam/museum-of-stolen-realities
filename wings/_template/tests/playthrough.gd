@@ -1,6 +1,6 @@
 extends Playthrough
 ## The Conservation Studio, start to finish, by real input only (no debug_complete_*):
-## three lamps, the stairs, leave by the door and come back (progress persists), the sprint-jump
+## three lamps, the stairs, the zipline, leave by the door and come back (progress persists), the sprint-jump
 ## gap, the hold-to-wind clock, all three provenances (one mid-air in the float zone), the fragment.
 ## Run: tests/run_playthrough.sh _template
 
@@ -30,6 +30,14 @@ func run() -> void:
 	check(Game.player.global_position.y > 1.7, "climbed the stairs without jumping (y=%.2f)" % Game.player.global_position.y)
 	await walk_to(Vector3(2.5, 0, 2.0), 8.0, 0.3)
 	check(Game.player.global_position.y < 0.1, "walked back down the stairs")
+
+	# --- the zipline (a ConstrainedMode): grab, ride to the end, drop back into walk ---
+	await walk_to(Vector3(-4, 0, 3.0))
+	await walk_to(Vector3(-9.3, 0, 3.4), 10.0, 0.3)
+	await use(w.get_node("Handle"))
+	check(Game.player.mode_name() == &"rail", "interact grabs the zipline")
+	await until(func() -> bool: return Game.player.mode_name() == &"walk", 6.0, "zipline lets go at its end")
+	check(Game.player.global_position.z < -2.5, "rode the zipline (z=%.1f)" % Game.player.global_position.z)
 
 	# --- provenance 1 on the stepped landing ---
 	await walk_to(Vector3(7, 0, 1.5))  # in front of the 0.3 m steps, then up them

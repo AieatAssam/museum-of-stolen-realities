@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bdnea5adnlide"
-path="res://.godot/imported/Gloock-Regular.ttf-06885a5fb93a05f248848b484d0380de.fontdata"
+uid="uid://b4bs0uirsjpvt"
+path="res://.godot/imported/Newsreader-Variable.ttf-08dc02de226924477b258a394e00291b.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Gloock-Regular.ttf"
-dest_files=["res://.godot/imported/Gloock-Regular.ttf-06885a5fb93a05f248848b484d0380de.fontdata"]
+source_file="res://assets/fonts/Newsreader-Variable.ttf"
+dest_files=["res://.godot/imported/Newsreader-Variable.ttf-08dc02de226924477b258a394e00291b.fontdata"]
 
 [params]
 
