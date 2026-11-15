@@ -43,6 +43,14 @@ void fragment() {
 		p += (vec2(n_fbm(p * 5.0 + t * 0.05), n_fbm(p * 5.0 - t * 0.04 + 7.0)) - 0.5) * 0.008;
 	}
 	vec3 col = texture(art, p).rgb;
+	// a second, deeper layer: the far distance (top of the picture) is resampled further back and
+	// softer, so sky and horizon lag behind the foreground as you walk past
+	vec2 pf = (uv - 0.5) * 0.86 + 0.5 - vec2(o.x, -o.y) * 0.005;
+	vec3 far_col = textureLod(art, pf, 1.5).rgb;
+	col = mix(col, far_col, smoothstep(0.45, 0.05, uv.y) * 0.55);
+	// aerial haze between the far layer and the near one, drifting in the wing's own colour
+	float haze = n_fbm(vec2(p.x * 3.0 + t * 0.02, p.y * 6.0)) * smoothstep(0.15, 0.55, uv.y) * smoothstep(0.85, 0.5, uv.y);
+	col = mix(col, c1.rgb * 1.2, haze * 0.18);
 	float lum = dot(col, vec3(0.299, 0.587, 0.114));
 
 	if (medium == 0) {            // glass: light beams sweeping through the panes
@@ -78,5 +86,9 @@ void fragment() {
 	}
 	// edges sink into the moulding
 	float e = smoothstep(0.0, 0.06, UV.x) * smoothstep(1.0, 0.94, UV.x) * smoothstep(0.0, 0.05, UV.y) * smoothstep(1.0, 0.95, UV.y);
-	ALBEDO = col * brightness * mix(0.3, 1.0, e) * awaken;
+	// the reveal: the frame's ebony lining throws a shadow that slides with the view, so the picture
+	// sits behind a real opening rather than on the wall
+	vec2 sh = UV + vec2(o.x, -o.y) * 0.06;
+	float inner = smoothstep(0.0, 0.05, sh.x) * smoothstep(1.0, 0.95, sh.x) * smoothstep(0.0, 0.04, sh.y);
+	ALBEDO = col * brightness * mix(0.3, 1.0, e) * mix(0.35, 1.0, inner) * awaken;
 }
