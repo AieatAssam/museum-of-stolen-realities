@@ -19,14 +19,17 @@ extends Node3D
 const MODELS := "res://wings/noir/models/"
 const MATS := "res://wings/noir/materials/"
 ## Tonemap exposure per area, set from the current camera (tuned against shot_check.py).
-const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 2.4, "cinema": 2.4, "booth": 3.9}
+const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 3.2, "cinema": 3.4, "booth": 4.6}
 ## Volumetric fog density per area: thick outdoors for the cones, thinner in rooms so they keep contrast.
-const FOG := {"alley": 0.03, "street": 0.03, "roofs": 0.025, "plaza": 0.03, "precinct": 0.006, "cinema": 0.016, "booth": 0.018}
+## depth fog per area: indoors it is cut so the blacks stay black
+const DEPTH_FOG := {"alley": 0.016, "street": 0.016, "roofs": 0.005, "plaza": 0.016, "precinct": 0.0, "cinema": 0.012, "booth": 0.006}
+const FOG := {"alley": 0.03, "street": 0.03, "roofs": 0.014, "plaza": 0.03, "precinct": 0.006, "cinema": 0.016, "booth": 0.018}
 
 var wing: Node3D
 var env: Environment
 var mono: ShaderMaterial
 var _rain: GPUParticles3D
+var _fan: Node3D
 var _dirs: Array = []
 
 
@@ -147,6 +150,17 @@ func hide_box(area: String, at: Vector3) -> void:
 		mi.visible = false
 
 
+func _shadow_box(at: Vector3, size: Vector3, m: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	mi.position = at
+	add_child(mi)
+
+
 ## Decorative light: never in `shadow_lights`, so it is never "lit" to the rule.
 func omni(pos: Vector3, col: Color, energy: float, rng: float, shadows := false) -> OmniLight3D:
 	var l := OmniLight3D.new()
@@ -176,7 +190,7 @@ func spot(from: Vector3, to: Vector3, col: Color, energy: float, angle: float, r
 
 
 ## Bays of a facade along a wall face. `face` is the outward normal (into the walkable space).
-func facade_run(z0: float, z1: float, x: float, face: float, y := 0.0, kinds := ["facade_a", "facade_a", "facade_b"]) -> void:
+func facade_run(z0: float, z1: float, x: float, face: float, y := 0.0, kinds := ["facade_a", "facade_c", "facade_b"]) -> void:
 	var by_kind := {}
 	var n := int(round(absf(z1 - z0) / 3.0))
 	for i in n:
@@ -188,7 +202,7 @@ func facade_run(z0: float, z1: float, x: float, face: float, y := 0.0, kinds := 
 
 
 ## Bays along a face running in X (north/south faces). `face` +1 faces +Z, -1 faces -Z.
-func facade_run_x(x0: float, x1: float, z: float, face: float, y := 0.0, kinds := ["facade_a", "facade_b", "facade_a"]) -> void:
+func facade_run_x(x0: float, x1: float, z: float, face: float, y := 0.0, kinds := ["facade_a", "facade_b", "facade_c"]) -> void:
 	var by_kind := {}
 	var n := int(round(absf(x1 - x0) / 3.0))
 	for i in n:
@@ -262,8 +276,21 @@ func steam(pos: Vector3, amount := 18, rise := 1.0) -> void:
 
 func _environment() -> void:
 	env = (wing.get_node("WorldEnvironment") as WorldEnvironment).environment
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.05, 0.052, 0.058)
+	# the sky: black overhead, the city's glow on the low cloud at the horizon, so roofs and towers stand as silhouettes
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.025, 0.026, 0.03)
+	sky_mat.sky_horizon_color = Color(0.3, 0.3, 0.32)
+	sky_mat.sky_curve = 0.3
+	sky_mat.ground_horizon_color = Color(0.3, 0.3, 0.32)
+	sky_mat.ground_bottom_color = Color(0.05, 0.05, 0.055)
+	sky_mat.sun_angle_max = 0.0
+	sky_mat.sky_energy_multiplier = 1.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	sky.process_mode = Sky.PROCESS_MODE_QUALITY  # static: the radiance map is built once
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.5, 0.52, 0.58)
 	env.ambient_light_energy = 0.08
@@ -293,7 +320,7 @@ func _environment() -> void:
 	env.fog_light_color = Color(0.3, 0.31, 0.34)
 	env.fog_light_energy = 1.0
 	env.fog_density = 0.016
-	env.fog_sky_affect = 1.0
+	env.fog_sky_affect = 0.35
 	env.fog_aerial_perspective = 0.0
 	# volumetric fog: the lamps' cones and the searchlight beams
 	env.volumetric_fog_enabled = true
@@ -380,7 +407,7 @@ func area_of(at: Vector3) -> String:
 	if at.z > -52.0:
 		return "street"
 	if at.z > -66.0:
-		return "precinct" if at.x > 5.5 else "plaza"
+		return "precinct" if at.x > 5.0 else "plaza"
 	return "cinema" if at.z > -90.6 else "booth"
 
 
@@ -392,6 +419,9 @@ func _process(delta: float) -> void:
 	var a := area_of(at)
 	env.tonemap_exposure = move_toward(env.tonemap_exposure, EXPOSURE[a], delta * 2.0)
 	env.volumetric_fog_density = move_toward(env.volumetric_fog_density, FOG[a], delta * 0.02)
+	env.fog_density = move_toward(env.fog_density, DEPTH_FOG[a], delta * 0.02)
+	if _fan:
+		_fan.rotate_y(delta * 2.2)
 	var outdoors := a in ["alley", "street", "plaza", "roofs"]
 	_rain.emitting = outdoors
 	_rain.visible = outdoors
@@ -402,14 +432,14 @@ func _process(delta: float) -> void:
 
 func _alley() -> void:
 	# the end wall behind the entry: brick and a facade so the alley closes
-	facade_run(0.5, -20.0, -4.0, 1.0)
-	facade_run(0.5, -20.0, 4.0, -1.0, 0.0, ["facade_b", "facade_a", "facade_a"])
+	facade_run(0.5, -20.0, -4.0, 1.0, 0.0, ["facade_c", "facade_a", "facade_b"])
+	facade_run(0.5, -20.0, 4.0, -1.0, 0.0, ["facade_b", "facade_c", "facade_a"])
 	facade_run_x(-4.5, 4.5, 1.0, -1.0, 0.0, ["facade_low", "facade_a", "facade_low"])
 	hide_box("Alley", Vector3(-4.5, 3, -10))
 	hide_box("Alley", Vector3(4.5, 3, -10))
 	# back wall (the latch face): a steel back door in stone, the dark face either side
 	model(self, "back_door", Vector3(-2.6, 0, -20.5))
-	omni(Vector3(-2.6, 2.9, -20.1), Color(1.0, 0.86, 0.62), 0.7, 3.2)
+	omni(Vector3(-2.6, 2.9, -20.1), Color(1.0, 0.86, 0.62), 1.8, 3.6)
 	model(self, "fire_escape", Vector3(-4.0, 0, -9.0), 90.0)
 	model(self, "fire_escape", Vector3(4.0, 0, -15.5), -90.0)
 	# the cover crate: two crates stacked to the collider's 1.2 x 0.8 x 1.2
@@ -420,7 +450,10 @@ func _alley() -> void:
 	model(self, "manhole", Vector3(0.6, 0.01, -14.0))
 	steam(Vector3(0.6, 0.05, -14.0))
 	model(self, "lamp_bracket", Vector3(4.0, 3.6, -5.0), -90.0)
-	omni(Vector3(3.15, 3.35, -5.0), Color(1.0, 0.9, 0.7), 0.9, 4.5)
+	omni(Vector3(3.15, 3.35, -5.0), Color(1.0, 0.9, 0.7), 2.4, 5.5)
+	# a second bracket over the cover crate: a pool on the crates and the wet cobbles
+	model(self, "lamp_bracket", Vector3(-4.0, 3.3, -11.0), 90.0)
+	omni(Vector3(-3.15, 3.05, -11.0), Color(1.0, 0.9, 0.7), 2.0, 5.0)
 
 
 func _street() -> void:
@@ -458,7 +491,7 @@ func _street() -> void:
 	glass.position.x = 4.02
 	mass(Vector3(4.9, 1.0, -48.5), Vector3(4.95, 3.6, -21.5), "diner_glow")
 	var sil: MeshInstance3D = wing.get("_silhouette")
-	sil.mesh = mesh_of("figure")
+	sil.mesh = mesh_of("figure_b")
 	sil.material_override = mat("silhouette")
 	sil.position = Vector3(4.45, 0.0, sil.position.z)
 	sil.rotation_degrees.y = -90.0
@@ -476,17 +509,37 @@ func _street() -> void:
 		if c is MeshInstance3D:
 			(c as MeshInstance3D).mesh = fig
 			(c as MeshInstance3D).position = Vector3(0, -0.9, 0)
-	# street covers (2.2 x 3 x 1.4): stacks of crates waiting for a truck
+	# street covers (2.2 x 3 x 1.4): a shuttered newsstand, then crates and barrels off a delivery, stacked high
 	var stacks := []
 	for i in 4:
 		var z := -26.0 - i * 6.0
 		var x := -1.8 if i % 2 == 0 else 1.8
 		hide_box("DinerStreet", Vector3(x, 1.5, z))
-		for k in 6:
-			var sx := x + (-0.55 if k % 2 == 0 else 0.55)
-			var sy := float(k / 2) * 1.0
-			stacks.append(xf(Vector3(sx, sy, z), (k * 37 % 9) - 4.0, Vector3(0.74, 1.1, 0.94)))
-	mm("crate", stacks)
+		if i == 0:
+			model(self, "newsstand", Vector3(x, 0, z), 180.0, Vector3(1.1, 1.25, 1.17))
+			continue
+		stacks.append(xf(Vector3(x, 0, z), 180.0 * (i % 2) + 4.0 * i, Vector3(1.3, 1.0, 1.05)))
+		stacks.append(xf(Vector3(x + 0.15 * (1 - i % 2 * 2), 1.6, z + 0.05), 180.0 * ((i + 1) % 2) - 6.0, Vector3(1.15, 0.86, 1.0)))
+	mm("crate_stack", stacks)
+	# signage on the upper storeys: a vertical hotel blade and a painted ghost sign, both readable down the street
+	var hotel := Label3D.new()
+	hotel.text = "H\nO\nT\nE\nL"
+	hotel.font_size = 96
+	hotel.pixel_size = 0.009
+	hotel.line_spacing = -8.0
+	hotel.modulate = Color(2.4, 2.35, 2.2)
+	hotel.position = Vector3(-3.7, 8.6, -44.0)
+	hotel.rotation_degrees.y = 90.0
+	add_child(hotel)
+	model(self, "lamp_bracket", Vector3(-3.9, 11.2, -44.0), -90.0)
+	var ghost_sign := Label3D.new()
+	ghost_sign.text = "KESSLER & SONS\nFIREPROOF STORAGE"
+	ghost_sign.font_size = 96
+	ghost_sign.pixel_size = 0.007
+	ghost_sign.modulate = Color(0.6, 0.6, 0.56, 0.35)
+	ghost_sign.position = Vector3(4.33, 10.2, -40.0)
+	ghost_sign.rotation_degrees.y = -90.0
+	add_child(ghost_sign)
 	# the neon blade over the diner, and its spill on the wet street
 	model(self, "neon_eat", Vector3(4.0, 3.2, -23.2), -90.0)
 	spot(Vector3(3.4, 4.6, -23.2), Vector3(-2.0, 0.0, -24.5), Color(1.0, 0.03, 0.05), 6.0, 55.0, 10.0, false)
@@ -594,6 +647,17 @@ func _roofs() -> void:
 		if c is SpotLight3D and c != head:
 			(c as SpotLight3D).light_volumetric_fog_energy = 2.0
 	model(self, "lamp_bracket", Vector3(-13.5, 10.6, -31.0), 90.0)
+	var spill := OmniLight3D.new()  # the lit car throws its windows onto the deck and the roofs below
+	spill.position = Vector3(0, 2.6, 0)
+	spill.light_color = Color(1.0, 0.9, 0.72)
+	spill.light_energy = 2.2
+	spill.omni_range = 7.0
+	(wing.get("_train") as Node3D).add_child(spill)
+	# the back light: a cold key behind the water tower rims the chimneys, the tower and the el, and lays a
+	# bright wet path across the near roof toward the gap
+	var back := spot(Vector3(-30.0, 17.0, -16.0), Vector3(-18.0, 5.0, -30.0), Color(0.78, 0.84, 1.0), 16.0, 22.0, 40.0)
+	back.light_volumetric_fog_energy = 0.5
+	omni(Vector3(-17.2, 6.0, -26.0), Color(1.0, 0.9, 0.7), 1.2, 3.0)  # the bulb over the roof hatch
 
 
 func _precinct() -> void:
@@ -609,11 +673,23 @@ func _precinct() -> void:
 	mm("wainscot", ws)
 	for i in 5:
 		hide_box(p, Vector3(11.9, 2.4, -53.2 - i * 0.4))
-	model(self, "blind_window", Vector3(12.0, 0.9, -54.2), -90.0)
-	# moonlight through the blinds: a projector spot outside the window lays the stripes on the floor
-	var bl := spot(Vector3(11.8, 2.6, -55.2), Vector3(8.0, 0.0, -58.0), Color(0.8, 0.86, 1.0), 24.0, 32.0, 9.0, false)
-	bl.light_projector = load("res://wings/noir/textures/blinds_projector.png")
-	bl.light_volumetric_fog_energy = 0.4
+	var bw := model(self, "blind_window", Vector3(12.0, 0.9, -54.2), -90.0)
+	for gi: Node in bw.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # the shadow slats do the work
+	# moonlight through the blinds, cast for real: a shadowed spot outside, the east wall's mesh casts no shadow,
+	# a shadow-only mask leaves the window opening, and the slats in it rule the floor and the far wall in bars
+	var east := box_at(p, Vector3(12.5, 3, -59))
+	if east:
+		east.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var occ := StandardMaterial3D.new()
+	for b: Array in [[Vector3(12.05, 0.45, -59.5), Vector3(0.05, 0.9, 13.0)], [Vector3(12.05, 4.5, -57.0), Vector3(0.05, 3.2, 18.0)],
+			[Vector3(12.05, 1.9, -51.2), Vector3(0.05, 2.0, 4.4)], [Vector3(12.05, 1.9, -60.5), Vector3(0.05, 2.0, 11.0)]]:
+		_shadow_box(b[0], b[1], occ)
+	for i in 15:
+		_shadow_box(Vector3(11.97, 0.98 + i * 0.13, -54.2), Vector3(0.03, 0.065, 1.6), occ)
+	var bl := spot(Vector3(16.5, 4.4, -54.3), Vector3(8.0, 0.0, -57.6), Color(0.8, 0.86, 1.0), 260.0, 19.0, 18.0)
+	bl.shadow_blur = 0.15
+	bl.light_volumetric_fog_energy = 0.0
 	var desk := model(self, "desk", Vector3(9.4, 0, -55.8), 180.0)
 	desk.name = "Desk"
 	model(self, "desk_lamp", Vector3(9.8, 0.78, -55.6), 160.0)
@@ -634,6 +710,28 @@ func _precinct() -> void:
 	model(self, "locker", Vector3(7.55, 0, -63.6))
 	model(self, "switch_box", Vector3(5.25, 1.2, -58.95), 0.0)
 	model(self, "detective_seated", Vector3(11.2, 0, -59.0), -90.0)
+	# the squad room: a second desk with the typewriter and phone, the coat stand, clock, pinboard, frosted door
+	model(self, "desk", Vector3(10.9, 0, -62.6), 90.0)
+	model(self, "chair", Vector3(11.7, 0, -62.6), 80.0)
+	model(self, "typewriter", Vector3(10.9, 0.78, -62.9), 90.0)
+	model(self, "telephone", Vector3(10.8, 0.78, -62.0), 70.0)
+	model(self, "telephone", Vector3(8.9, 0.78, -55.4), 200.0)
+	model(self, "coat_stand", Vector3(11.55, 0, -53.6), 30.0)
+	model(self, "wall_clock", Vector3(7.6, 2.6, -53.0))
+	model(self, "pinboard", Vector3(9.4, 1.55, -66.0), 180.0)
+	model(self, "frosted_door", Vector3(10.3, 0, -53.0))
+	var sign := Label3D.new()  # painted for the corridor, so it reads backwards from inside
+	sign.text = "HOMICIDE\nLt. M. KESSLER"
+	sign.font_size = 64
+	sign.pixel_size = 0.0022
+	sign.modulate = Color(0.08, 0.08, 0.08)
+	sign.outline_size = 0
+	sign.position = Vector3(10.3, 1.7, -53.08)
+	add_child(sign)
+	model(self, "ceiling_fan", Vector3(9.0, 3.6, -59.5))
+	_fan = model(self, "ceiling_fan_blades", Vector3(9.0, 3.08, -59.5))
+	# a ceiling light above the blades: the fan's shadow turns slowly over the floor
+	spot(Vector3(9.0, 3.5, -59.5), Vector3(9.0, 0.0, -59.6), Color(0.95, 0.9, 0.8), 3.5, 45.0, 4.5).light_volumetric_fog_energy = 0.0
 
 
 func _cinema() -> void:
@@ -642,7 +740,21 @@ func _cinema() -> void:
 	(wing.get("_gate_mesh") as MeshInstance3D).material_override = null
 	# the house: proscenium and screen on the back wall over the booth door, seats over the covers
 	model(self, "proscenium", Vector3(0, 0, -89.95))
-	mass(Vector3(-3.8, 2.7, -90.0), Vector3(3.8, 6.6, -89.9), "screen")
+	mass(Vector3(-3.8, 2.7, -90.0), Vector3(3.8, 6.6, -89.9), "black")
+	# the picture: a 4:3 still, glowing on its own (dark albedo so the beams don't wash it)
+	var film := StandardMaterial3D.new()
+	film.albedo_color = Color(0.02, 0.02, 0.02)
+	film.emission_enabled = true
+	film.emission_texture = load("res://wings/noir/textures/screen_still.png")
+	film.emission_energy_multiplier = 0.8
+	var still := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(5.2, 3.9)
+	still.mesh = q
+	still.material_override = film
+	still.position = Vector3(0, 4.65, -89.88)
+	still.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(still)
 	mass(Vector3(-1.0, 2.6, -90.9), Vector3(1.0, 6.0, -90.0), "black")
 	model(self, "curtain", Vector3(-4.7, 0, -89.6), 0.0, Vector3(0.7, 1, 1))
 	model(self, "curtain", Vector3(4.7, 0, -89.6), 0.0, Vector3(-0.7, 1, 1))
@@ -667,7 +779,8 @@ func _cinema() -> void:
 	mass(Vector3(-7.0, 6.0, -66.4), Vector3(7.0, 9.2, -66.0), "plaster")
 	mass(Vector3(-6.0, 6.0, -91.0), Vector3(6.0, 9.2, -90.4), "plaster")
 	model(self, "pedestal_reel", Vector3(0, 0, -86.0))
-	omni(Vector3(0, 6.0, -88.5), Color(0.8, 0.85, 0.95), 1.2, 9.0)
+	omni(Vector3(0, 6.0, -88.5), Color(0.8, 0.85, 0.95), 2.2, 11.0)
+	omni(Vector3(0, 7.5, -72.0), Color(0.8, 0.85, 0.95), 1.6, 10.0)  # house lights at half
 	# searchlights cast shadows: the seats stripe the floor as the beams sweep
 	for s: Node in get_tree().get_nodes_in_group(&"searchlights"):
 		(s as SpotLight3D).shadow_enabled = true
@@ -694,7 +807,7 @@ func _booth() -> void:
 	mm("port_window", [xf(Vector3(-2.4, 1.95, -91.0), 180.0), xf(Vector3(2.4, 1.95, -91.0), 180.0)])
 	mm("film_shelf", [xf(Vector3(-4.0, 0, -94.5), 90.0), xf(Vector3(4.0, 0, -95.5), -90.0)])
 	model(self, "hanging_lamp", Vector3(0, 4.0, -94.0))
-	omni(Vector3(0, 3.0, -94.0), Color(1.0, 0.92, 0.78), 0.6, 5.0)
+	omni(Vector3(0, 3.0, -94.0), Color(1.0, 0.92, 0.78), 1.3, 6.0)
 	spot(Vector3(0, 3.7, -95.0), Vector3(0, 0.8, -97.6), Color(1.0, 0.92, 0.78), 24.0, 24.0, 6.0, false)  # a tight pool on the desk and the frame
 	# the beams: from each lens out through the port toward the screen's back
 	for x in [-2.4, 2.4]:
