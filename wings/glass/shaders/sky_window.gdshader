@@ -100,7 +100,7 @@ void sky() {
 	vec3 fogc = mix(vec3(0.02, 0.03, 0.08), vec3(0.08, 0.1, 0.22), smoothstep(-0.2, 0.6, d.y));
 	col = mix(col, fogc + vec3(1.0, 0.86, 0.55) * suns * 2.0, haze * 0.85);
 	if (d.y < 0.0) col = mix(col, vec3(0.005, 0.006, 0.015), smoothstep(0.0, -0.15, d.y));
-	col *= 1.0 - dark * 0.92;
+	col *= dark > 0.96 ? 0.0 : 1.0 - dark * 0.92;  // the Widow's black is total; the heist only dims
 	COLOR = col;
 	}
 }
