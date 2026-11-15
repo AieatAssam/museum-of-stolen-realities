@@ -6,7 +6,7 @@ and cut into the game files by `wings/aria/tools/make_audio.py`. Each derived fi
 | Path | Title | Author | Source | Licence |
 |---|---|---|---|---|
 | wings/aria/models/*.glb | Opera kit (tiers, proscenium, organ cases, chandelier, seats, stair, instruments, La Sirena, props) | modelled in code | wings/aria/models/src/*.py via tools/blender_build.sh | project-original |
-| wings/aria/textures/* | Damask, velvet, fresco, verdigris, marble and score-paper PBR sets | generated | tools/gen_image.sh + tools/make_pbr.py | project-original |
+| wings/aria/textures/* | Damask, velvet, fresco, verdigris, marble and score-paper PBR sets; dome fresco and seascape drop (graded from textures_raw/) | generated | tools/gen_image.sh + tools/make_pbr.py | project-original |
 | wings/aria/shaders/* | Water and cymatics shaders | written for this project | wings/aria/shaders | project-original |
 | wings/aria/audio/src/organ_loud_c4.ogg | Organ loud C4 | sgossner | https://freesound.org/s/373703/ | CC0-1.0 |
 | wings/aria/audio/src/organ_quiet_c4.ogg | Organ quiet C4 | sgossner | https://freesound.org/s/373735/ | CC0-1.0 |

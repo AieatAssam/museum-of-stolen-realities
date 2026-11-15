@@ -32,9 +32,9 @@ const LOOK := {
 	&"foyer": [5.0, 0.018, Color(0.55, 0.62, 0.6), 1.2],
 	&"auditorium": [4.2, 0.02, Color(0.5, 0.66, 0.62), 1.0],
 	&"pit": [6.0, 0.022, Color(0.45, 0.55, 0.52), 1.2],
-	&"corridor": [6.4, 0.014, Color(0.5, 0.6, 0.6), 1.2],
+	&"corridor": [4.8, 0.014, Color(0.5, 0.6, 0.6), 1.2],
 	&"flyloft": [6.0, 0.012, Color(0.55, 0.62, 0.66), 1.0],
-	&"dome": [4.2, 0.02, Color(0.55, 0.62, 0.6), 1.0],
+	&"dome": [4.2, 0.012, Color(0.55, 0.62, 0.6), 1.0],
 }
 
 var wing: Node3D
@@ -63,6 +63,7 @@ func on_enter() -> void:
 	if vp.msaa_3d != Viewport.MSAA_DISABLED:
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
+	vp.use_debanding = true  # dark teal fog gradients band badly in 8-bit output without it
 	RenderingServer.gi_set_use_half_resolution(true)
 	RenderingServer.environment_set_sdfgi_ray_count(RenderingServer.ENV_SDFGI_RAY_COUNT_16)
 	RenderingServer.environment_set_sdfgi_frames_to_update_light(RenderingServer.ENV_SDFGI_UPDATE_LIGHT_IN_8_FRAMES)
@@ -73,6 +74,7 @@ func on_enter() -> void:
 
 func on_exit() -> void:
 	get_tree().root.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED  # the next wing's Quality.apply restores MSAA
+	get_tree().root.use_debanding = false
 	RenderingServer.gi_set_use_half_resolution(false)
 
 
@@ -123,7 +125,7 @@ func _environment() -> void:
 	env.volumetric_fog_enabled = true
 	env.volumetric_fog_density = 0.02
 	env.volumetric_fog_albedo = Color(0.55, 0.62, 0.6)
-	env.volumetric_fog_emission = Color(0.004, 0.018, 0.018)
+	env.volumetric_fog_emission = Color(0.006, 0.032, 0.03)
 	env.volumetric_fog_emission_energy = 1.0
 	env.volumetric_fog_anisotropy = 0.6
 	env.volumetric_fog_length = 64.0
@@ -135,7 +137,7 @@ func _environment() -> void:
 	grade.contrast = 1.08
 	grade.aberration = 0.15
 	grade.vignette = 0.6
-	grade.grain = 0.02
+	grade.grain = 0.012
 	wing.grade = grade
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -311,7 +313,7 @@ func _foyer() -> void:
 	_put("ceiling", Vector3(0, 14.6, 29.25), 0.0, Vector3(1, 1, 26.5 / 46.0))
 	for z: float in [22.0, 34.0]:
 		_put("chandelier", Vector3(0, 14.4, z), 0.0, Vector3.ONE * 0.6)
-		_omni(Vector3(0, 11.4, z), Color("ffc890"), 7.0, 18.0, false, 1.0)
+		_omni(Vector3(0, 11.4, z), Color("ffe2bc"), 7.0, 18.0, false, 1.0)
 	_omni(Vector3(0, 6, 40), Color("ffd2a0"), 1.5, 12.0)  # gallery wash, so the stair's head reads
 	_spot(Vector3(0, 12, 17), Vector3(0, 0.5, 19.5), Color("ffe0b0"), 6.0, 16.0, 18.0)  # the demo horn
 
@@ -329,19 +331,19 @@ func _auditorium() -> void:
 		_put("organ_case", Vector3(sx * 8.6, 0, -30), 0.0, Vector3.ONE * 0.68)
 	_put("ceiling", Vector3(0, 15.0, -7))
 	_put("chandelier", Vector3(0, 15.0, -4))
-	_omni(Vector3(0, 10.5, -4), Color("ffc27a"), 9.0, 30.0, false, 1.5)
+	_omni(Vector3(0, 10.5, -4), Color("ffe2bc"), 9.0, 30.0, false, 1.5)
 	# warm boxes: a lamp in each tier run, low energy, no shadows
 	for sx: float in [-1.0, 1.0]:
 		for z: float in [8.0, -14.0]:
-			_omni(Vector3(sx * 13.2, 7.5, z), Color("ff9f5a"), 2.0, 9.0)
+			_omni(Vector3(sx * 13.2, 7.5, z), Color("ffd6a6"), 2.0, 9.0)
 	# footlights up the proscenium and a cold top light on the stage
-	_spot(Vector3(0, 0.6, -19.5), Vector3(0, 9, -23), Color("ffcf8f"), 6.0, 18.0, 55.0, false, 0.6)
+	_spot(Vector3(0, 0.6, -19.5), Vector3(0, 9, -23), Color("ffe2bc"), 6.0, 18.0, 55.0, false, 0.6)
 	_spot(Vector3(0, 13.5, -24), Vector3(0, 0, -26.5), Color("8ff5e0"), 5.0, 18.0, 28.0, true, 2.0)
 	# La Sirena hangs over the stage in her own light
-	_put("sirena", Vector3(0, 2.6, -27.6), 0.0, Vector3.ONE * 0.75)
-	_omni(Vector3(0, 6, -26.5), Color("6fffe0"), 3.0, 10.0, false, 1.0)
+	_put("sirena", Vector3(0, 2.6, -27.6), 0.0, Vector3.ONE * 0.66)
+	_omni(Vector3(0, 6, -26.5), Color("6fffe0"), 2.4, 10.0, false, 1.0)
 	for sx: float in [-1.0, 1.0]:  # stage wings: warm working light either side of the opening
-		_omni(Vector3(sx * 10.0, 5.0, -25.5), Color("ffb070"), 4.0, 11.0, false, 1.0)
+		_omni(Vector3(sx * 10.0, 5.0, -25.5), Color("ffd6a6"), 4.0, 11.0, false, 1.0)
 	# the flooded stalls: black water to the stage lip, seats sunk to the cushions
 	var water := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -364,6 +366,15 @@ func _auditorium() -> void:
 				var t := Transform3D(Basis(Vector3.UP, PI + sx * 0.012 * i), Vector3(x, -0.18 + 0.02 * r, z))
 				seats.append(t)
 	_multi("seat", seats)
+	for sx: float in [-1.0, 1.0]:  # one invisible block per seat bank: the centre aisle and side aisles stay open
+		var body := StaticBody3D.new()
+		body.position = Vector3(sx * 6.5, 0.4, 8.0)
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(8.5, 1.2, 10.2)
+		cs.shape = box
+		body.add_child(cs)
+		add_child(body)
 
 
 func _pit() -> void:
@@ -384,9 +395,9 @@ func _pit() -> void:
 	cello.rotation_degrees.x = 90.0
 	# the well's cymatics, amber stand lamps, the teal spill down the stair
 	_disc(Vector3(-22, -2.97, -2), 2.4, Color(1.0, 0.7, 0.35), 0.18, 4.0, 5.0)
-	_omni(Vector3(-24.2, -1.4, -4.0), Color("ffa04a"), 5.0, 9.0, false, 2.0)
-	_omni(Vector3(-28.5, -0.8, -12.0), Color("ff9040"), 4.5, 9.0, false, 2.0)
-	_omni(Vector3(-22.0, 3.5, -17.0), Color("ffb060"), 3.0, 10.0, false, 1.0)  # over the wind-chest deck
+	_omni(Vector3(-24.2, -1.4, -4.0), Color("ffd6a6"), 5.0, 9.0, false, 2.0)
+	_omni(Vector3(-28.5, -0.8, -12.0), Color("ffd6a6"), 4.5, 9.0, false, 2.0)
+	_omni(Vector3(-22.0, 3.5, -17.0), Color("ffd6a6"), 3.0, 10.0, false, 1.0)  # over the wind-chest deck
 	_spot(Vector3(-15.5, 5.0, -10), Vector3(-22, -3, -10), Color("6fd8c8"), 4.0, 16.0, 30.0, false, 1.5)
 
 
@@ -426,21 +437,21 @@ func _corridor() -> void:
 		_put("mirror", Vector3(x + 2.0, 4.0, 41.75), 180.0)
 	for x: float in [19.0, 27.0, 35.0, 43.0]:
 		_spot(Vector3(x, 11.5, 39), Vector3(x, 2.8, 39), Color("9ff0e0"), 4.0, 12.0, 26.0, false, 1.2)
-	_omni(Vector3(17, 5.0, 39), Color("ffc890"), 2.0, 8.0)
-	_omni(Vector3(43, 5.0, 39), Color("ffc890"), 2.0, 8.0)
+	_omni(Vector3(17, 5.0, 39), Color("ffe2bc"), 2.0, 8.0)
+	_omni(Vector3(43, 5.0, 39), Color("ffe2bc"), 2.0, 8.0)
 	# sconce wash: warm light pooled on the oxblood damask between the piers
 	for x: float in [21.0, 29.0, 37.0]:
-		_omni(Vector3(x, 3.6, 37.0), Color("ff8a4a"), 3.0, 5.0, false, 0.5)
-		_omni(Vector3(x + 2.0, 3.6, 41.0), Color("ff8a4a"), 3.0, 5.0, false, 0.5)
+		_omni(Vector3(x, 3.6, 37.0), Color("ffd6a6"), 2.0, 5.0, false, 0.5)
+		_omni(Vector3(x + 2.0, 3.6, 41.0), Color("ffd6a6"), 2.0, 5.0, false, 0.5)
 
 
 func _fly_loft() -> void:
 	_bays("rigging", Vector3(62, 2.8, 32), Vector3(62, 2.8, 44), -90.0)
 	_bays("rigging", Vector3(48, 2.8, 46), Vector3(60, 2.8, 46), 180.0)
 	_bays("rigging", Vector3(48, 2.8, 30), Vector3(60, 2.8, 30), 0.0)
-	# a painted seascape flown out, hem at 6 m, and a second drop further up
-	_put("backdrop", Vector3(54.5, 12.6, 43.6), 180.0)
-	_spot(Vector3(54.5, 3.6, 36.0), Vector3(54.5, 8.5, 43.6), Color("ffd9a8"), 5.0, 14.0, 40.0, false, 0.3)  # footlight on the drop
+	# a painted seascape flown out, hem at 7.6 m, and a second drop further up
+	_put("backdrop", Vector3(54.5, 14.2, 43.6), 180.0)
+	_spot(Vector3(54.5, 3.6, 36.0), Vector3(54.5, 8.5, 43.6), Color("ffd9a8"), 1.6, 14.0, 40.0, false, 0.3)  # footlight on the drop
 	_put("backdrop", Vector3(54.0, 18.5, 33.0), 0.0, Vector3(1.0, 1.0, 1.0))
 	var walk: Array[Transform3D] = []
 	for i: int in 4:
@@ -449,11 +460,11 @@ func _fly_loft() -> void:
 	# moonlight down the skylight onto the fork; a warm work lamp on the floor
 	_spot(Vector3(52, 22, 36), Vector3(56, 2.8, 40), Color("bfe8ff"), 7.0, 30.0, 12.0, true, 0.8)
 	_omni(Vector3(54, 11, 38), Color("ffcf9a"), 2.0, 14.0, false, 0.3)  # grid lamp: the rigging and drops
-	_omni(Vector3(49.5, 4.2, 33.5), Color("ffb060"), 2.5, 8.0, false, 1.5)
+	_omni(Vector3(49.5, 4.2, 33.5), Color("ffd6a6"), 2.5, 8.0, false, 1.5)
 	_omni(Vector3(56, 5.0, 40), Color("8ff0d8"), 1.0, 5.0)
 	# rope-lamps along the rigging walls: warm pools on the pin rails and sandbags
 	for p: Vector3 in [Vector3(51, 4.0, 31.0), Vector3(58, 4.0, 31.0), Vector3(61.0, 4.0, 38), Vector3(51, 4.0, 45.0), Vector3(58, 4.0, 45.0)]:
-		_omni(p, Color("ff9a50"), 3.0, 6.0, false, 0.4)
+		_omni(p, Color("ffd6a6"), 3.0, 6.0, false, 0.4)
 
 
 func _dome() -> void:
@@ -464,14 +475,14 @@ func _dome() -> void:
 	_put("royal_box", Vector3(0, 8, -60))
 	# the lid keeps its collider; the eye goes up into a painted dome
 	_hide_mesh("Lid")
-	_put("dome_shell", Vector3(0, 16, -46), 0.0, Vector3(1.45, 1.0, 1.45))
+	_put("dome_shell", Vector3(0, 16, -46), 0.0, Vector3(0.86, 1.0, 1.14))
 	_disc(Vector3(0, 0.03, -46), 7.0, Color(0.55, 1.0, 0.85), 0.35, 6.0, 8.0)
 	for i: int in 6:
 		var a := TAU * (float(i) + 0.5) / 6.0
-		_omni(Vector3(sin(a) * 10.0, 8.0, -46 + cos(a) * 12.0), Color("ff9a55"), 1.8, 8.0)
-	_spot(Vector3(0, 28, -46), Vector3(0, 0, -46), Color("8ff5e0"), 4.0, 34.0, 20.0, false, 2.0)
+		_omni(Vector3(sin(a) * 10.0, 8.0, -46 + cos(a) * 12.0), Color("ffd6a6"), 1.8, 8.0)
+	_spot(Vector3(0, 28, -46), Vector3(0, 0, -46), Color("8ff5e0"), 4.0, 34.0, 20.0, false, 0.6)
 	for p: Vector3 in [Vector3(-9, 14.5, -46), Vector3(9, 14.5, -46), Vector3(0, 14.5, -35), Vector3(0, 14.5, -57)]:
-		_omni(p, Color("ffb878"), 3.0, 12.0, false, 0.4)  # cornice uplights wash the painted dome
+		_omni(p, Color("ffd6a6"), 0.8, 12.0, false, 0.4)  # cornice uplights wash the painted dome
 
 
 # =============================================================================================
@@ -520,12 +531,12 @@ func _pages(centre: Vector3, extents: Vector3, count: int) -> void:
 	ct.curve = fade
 	pm.scale_curve = ct
 	p.process_material = pm
-	var q := QuadMesh.new()
-	q.size = Vector2(0.32, 0.42)
-	var mat := MaterialLib.lookup("score_paper", MAT_DIRS).duplicate() as StandardMaterial3D
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
-	q.material = mat
+	pm.scale_min = 0.6  # loose pages of several sizes
+	pm.scale_max = 1.5
+	var src := (load(MODELS + "page.glb") as PackedScene).instantiate()
+	var q := ((src.find_children("*", "MeshInstance3D", true, false)[0]) as MeshInstance3D).mesh.duplicate() as Mesh
+	src.free()
+	q.surface_set_material(0, MaterialLib.lookup("score_paper", MAT_DIRS))
 	p.draw_pass_1 = q
 	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_DISABLED
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

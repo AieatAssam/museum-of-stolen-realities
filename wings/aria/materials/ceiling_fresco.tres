@@ -11,5 +11,5 @@ emission_enabled = true
 emission_texture = ExtResource("t1")
 emission = Color(1, 1, 1, 1)
 emission_energy_multiplier = 0.35
-cull_mode = 0
+cull_mode = 2
 texture_filter = 5
