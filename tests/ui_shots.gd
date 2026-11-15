@@ -55,6 +55,12 @@ func _run() -> void:
 	await Game.debug_goto(&"_template")
 	await _skip()
 	await seconds(2.5)
+	# a worst-case (40-word) tombstone toast, queued behind the wing's own
+	Placards.toast(Placard.fields("A note on the lamps", "Undated", "Lamp oil on brass", "Acq. No. 000-T",
+		"Staff are reminded that the lamps in this studio are original to the collection and must be lit in order. Visitors who light them out of order will be thanked and asked, politely, to begin again from the very first."))
+	while Placards.history.size() < 2 or not Placards.toast_visible() or Placards._card_parts[0].text != "A note on the lamps":
+		await get_tree().process_frame
+	await seconds(1.0)
 	await shot("03_hud_toast")
 	Game.debug_teleport(Vector3(-5, 0, -5.4), Vector3(-5, 0.6, -7))
 	await seconds(0.8)
