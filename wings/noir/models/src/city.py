@@ -90,7 +90,7 @@ def facade(variant):
         z0, z1 = floors[i], floors[i] + 1.8  # reveal back wall behind the glass
         p.append(B("reveal", (1.1, 0.1, 1.8), (0, 0.3, (z0 + z1) / 2), "brick_dark"))
     for k, z in enumerate(floors):
-        _window(p, 0.0, z, lit=(variant == "b" and k == 1))
+        _window(p, 0.0, z, lit=(variant == "b" and k == 1) or (variant == "c" and k != 1))
     # granite plinth, belt course at the first floor, a pilaster strip at each bay edge
     p.append(B("plinth", (3.0, 0.1, 0.6), (0, -0.05, 0.3), "stone", bevel=0.015))
     p.append(B("belt", (3.0, 0.16, 0.22), (0, -0.06, 4.0), "stone", bevel=0.02))
@@ -267,6 +267,74 @@ def crate():
     kit.join("crate", p)
 
 
+def _light_crate():
+    """crate() with 4 slats a side and 1-segment bevels, so three of them stay within the tri budget. Origin at
+    the crate's footprint centre, ~0.9 m tall."""
+    p = []
+    S = 0.9
+    for z in range(4):
+        for side in range(4):
+            a = side * math.pi / 2
+            r = S / 2 - 0.012
+            slat = B("slat", (S - 0.04, 0.025, 0.16), (r * math.sin(a), -r * math.cos(a), 0.1 + z * 0.24), "wood", bevel=0.004, seg=1)
+            slat.rotation_euler = (0, 0, a)
+            p.append(slat)
+    p.append(B("top", (S - 0.02, S - 0.02, 0.025), (0, 0, S - 0.012), "wood", bevel=0.004, seg=1))
+    for x in (-1, 1):
+        for y in (-1, 1):
+            p.append(B("corner", (0.07, 0.07, S), (x * (S / 2 - 0.035), y * (S / 2 - 0.035), S / 2), "wood", bevel=0.006, seg=1))
+    return kit.join("crate", p)
+
+
+def crate_stack():
+    """Three 0.9-scale crates (two on the pavement, one on top at the left) and a wood barrel in front.
+    Footprint about 1.65 x 1.3 m, top at 1.62 m. Origin at the footprint's centre on the floor.
+    Seeded yaw jitter on the crates so they do not sit square."""
+    import random
+    rng = random.Random(7)
+    p = []
+    for x, z in ((-0.42, 0.0), (0.42, 0.0), (-0.42, 0.81)):
+        c = _light_crate()
+        c.scale = (0.9, 0.9, 0.9)
+        c.rotation_euler = (0, 0, rng.uniform(-0.05, 0.05))
+        c.location = (x, -0.25, z)
+        p.append(c)
+    barrel = kit.lathe("barrel", [(0, 0), (0.22, 0), (0.25, 0.1), (0.28, 0.45), (0.25, 0.8), (0.22, 0.9), (0, 0.9)], 18, mat="wood")
+    barrel.location = (0, 0.37, 0)
+    p.append(barrel)
+    for z in (0.12, 0.78):
+        p.append(kit.torus("hoop", 0.26, 0.012, 24, 6, mat="iron", loc=(0, 0.37, z)))
+    kit.join("crate_stack", p)
+
+
+def newsstand():
+    """2.0 w x 1.2 d x 2.4 h kiosk, origin at the floor centre, open counter on the +Y front. Plinth, back and side
+    panels, roof, a wood counter with newspaper stacks, two magazine shelves on the back, a striped awning and a
+    lit bulb under it."""
+    p = [B("plinth", (2.0, 1.2, 0.1), (0, 0, 0.05), "black", bevel=0.01)]
+    p.append(B("back", (2.0, 0.06, 2.2), (0, -0.57, 1.2), "paint", bevel=0.01))
+    for sx in (-1, 1):
+        p.append(B("side", (0.06, 1.2, 2.2), (sx * 0.97, 0, 1.2), "paint", bevel=0.01))
+    p.append(B("roof", (2.0, 1.2, 0.1), (0, 0, 2.35), "paint", bevel=0.01))
+    p.append(B("counter", (2.0, 1.2, 0.05), (0, 0, 0.975), "wood", bevel=0.008))
+    for x in (-0.45, 0.45):
+        p.append(B("papers", (0.85, 0.5, 0.1), (x, 0.2, 1.05), "paper", bevel=0.004))
+        p.append(B("band", (0.87, 0.52, 0.02), (x, 0.2, 1.05), "card_red", bevel=0.002))
+    for j, z in enumerate((1.3, 1.65)):
+        p.append(B("shelf", (1.8, 0.25, 0.03), (0, -0.42, z), "wood", bevel=0.004))
+        for i in range(8):
+            mx = -0.78 + i * 0.22
+            p.append(B("mag", (0.2, 0.02, 0.28), (mx, -0.36, z + 0.16), "card_red" if (i + j) % 2 else "paper", bevel=0.002))
+    for i, x in enumerate((-0.75, -0.25, 0.25, 0.75)):
+        a = B("awning", (0.5, 0.5, 0.03), (x, 0.35, 1.95), "card_red" if i % 2 == 0 else "paper", bevel=0.004)
+        a.rotation_euler = (-0.3, 0, 0)
+        p.append(a)
+    bulb = kit.lathe("bulb", [(0, 0), (0.05, 0), (0.06, 0.05), (0.05, 0.1), (0, 0.11)], 14, mat="bulb")
+    bulb.location = (0, 0.5, 1.8)
+    p.append(bulb)
+    kit.join("newsstand", p)
+
+
 def manhole():
     p = [kit.lathe("lid", [(0.0, 0.0), (0.38, 0.0), (0.38, 0.015), (0.0, 0.015)], 32, mat="iron")]
     p.append(kit.torus("rim", 0.4, 0.025, 32, 6, mat="iron", loc=(0, 0, 0.005)))
@@ -351,10 +419,11 @@ def lamp_bracket():
 
 
 PARTS = {
-    "facade_a": lambda: facade("a"), "facade_b": lambda: facade("b"), "facade_low": lambda: facade("low"),
+    "facade_a": lambda: facade("a"), "facade_b": lambda: facade("b"), "facade_c": lambda: facade("c"), "facade_low": lambda: facade("low"),
     "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "neon_eat": neon_eat,
     "trash_can": trash_can, "crate": crate, "manhole": manhole, "hydrant": hydrant, "bench": bench,
     "shopfront": shopfront, "curb": curb, "lamp_bracket": lamp_bracket,
+    "newsstand": newsstand, "crate_stack": crate_stack,
 }
 
 

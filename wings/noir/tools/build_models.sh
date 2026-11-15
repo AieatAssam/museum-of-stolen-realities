@@ -6,14 +6,18 @@ cd "$(dirname "$0")/../../.."
 SRC=wings/noir/models/src
 OUT=wings/noir/models
 ALL=(
-  city:facade_a city:facade_b city:facade_low city:back_door city:fire_escape city:diner_front city:neon_eat
+  city:facade_a city:facade_b city:facade_c city:facade_low city:back_door city:fire_escape city:diner_front city:neon_eat
   city:trash_can city:crate city:manhole city:hydrant city:bench city:shopfront city:curb city:lamp_bracket
+  city:newsstand city:crate_stack
   el:el_bent el:el_span el:el_car el:water_tower el:chimney el:roof_vent el:roof_hatch el:parapet el:skyline_block
   interior:desk interior:desk_lamp interior:chair interior:file_cabinet interior:locker interior:blind_window
   interior:hanging_lamp interior:switch_box interior:wainscot interior:door_frame
   interior:seat_block interior:proscenium interior:curtain interior:pilaster interior:balcony interior:pedestal_reel interior:cinema_gate
   interior:projector interior:film_shelf interior:port_window
   interior:pawn_ticket interior:matchbook interior:stub interior:frame_stand
+  interior:typewriter interior:telephone interior:coat_stand interior:wall_clock interior:pinboard
+  interior:frosted_door interior:ceiling_fan interior:ceiling_fan_blades
+  figure:figure figure:figure_b figure:figure_woman figure:detective_seated
 )
 PARTS=("${@:-${ALL[@]}}")
 fail=0
