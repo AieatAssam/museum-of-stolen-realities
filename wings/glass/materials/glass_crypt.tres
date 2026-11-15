@@ -1,18 +1,15 @@
-[gd_resource type="ShaderMaterial" load_steps=5 format=3]
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
 
-[ext_resource type="Shader" path="res://wings/glass/shaders/leaded_glass.gdshader" id="1"]
-[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_crypt_albedo.png" id="2"]
-[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_crypt_normal.png" id="3"]
-[ext_resource type="Texture2D" path="res://wings/glass/textures/glass_crypt_roughness.png" id="4"]
+[ext_resource type="Shader" path="res://wings/glass/shaders/glazed_wall.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://wings/glass/textures/lancet_atlas.png" id="2"]
 
 [resource]
 shader = ExtResource("1")
-shader_parameter/albedo_tex = ExtResource("2")
-shader_parameter/normal_tex = ExtResource("3")
-shader_parameter/rough_tex = ExtResource("4")
-shader_parameter/scale = 0.35
-shader_parameter/tint = Color(1, 1, 1, 1)
-shader_parameter/backlight = 0.22
-shader_parameter/lead_cut = 0.13
-shader_parameter/dark = 0.0
-shader_parameter/shimmer = 0.15
+shader_parameter/atlas = ExtResource("2")
+shader_parameter/proj = 0
+shader_parameter/bay = 2.6
+shader_parameter/bay_off = 0.0
+shader_parameter/lw = 1.9
+shader_parameter/tier_a = Vector2(-7.6, 5.2)
+shader_parameter/tier_b = Vector2(0, 0)
+shader_parameter/tint = Color(0.03, 0.08, 0.09, 1)

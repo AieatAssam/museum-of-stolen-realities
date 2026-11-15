@@ -1,0 +1,15 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://wings/glass/shaders/glazed_wall.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://wings/glass/textures/lancet_atlas.png" id="2"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/atlas = ExtResource("2")
+shader_parameter/proj = 0
+shader_parameter/bay = 3.0
+shader_parameter/bay_off = 0.0
+shader_parameter/lw = 2.2
+shader_parameter/tier_a = Vector2(0.6, 7.4)
+shader_parameter/tier_b = Vector2(0, 0)
+shader_parameter/energy = 3.4
