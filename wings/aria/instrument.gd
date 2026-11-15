@@ -69,7 +69,9 @@ func field_at(p: Vector3) -> float:
 		var t := clampf(h / height, 0.0, 1.0)
 		a = strength * (1.0 - t * t)
 	else:
-		if h < -height or h > 0.6:
+		# the well pulls anything within its height above or below its floor origin, so a jump
+		# into its footprint sinks (a grounded player stands on solid floor and is not pulled)
+		if h < -height or h > height:
 			return 0.0
 		a = -strength
 	var sgn := -1.0 if (flip_active and flip_box.has_point(p)) else 1.0

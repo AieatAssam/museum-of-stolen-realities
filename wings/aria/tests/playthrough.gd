@@ -134,6 +134,18 @@ func _run() -> void:
 		await frames(10)
 	check(Quest.is_done(&"cadence"), "the cadence G, E, C completes the objective")
 
+	print("[aria] sink well: strike it, then drop through its footprint (A/B against the silent well)")
+	var well := _instrument("Instrument_sink_low")
+	# B: the same drop with the well silent, measured first so the well's tail does not leak in
+	await _until(func() -> bool: return well.env <= 0.001, 15.0)
+	var drop_silent := await _measure_drop(well)
+	await _stand(well.global_position + Vector3(0, 0, 1.0), well.global_position + Vector3(0, 1.5, 0))
+	_tap(&"primary")
+	await seconds(1.4)
+	var drop_sink := await _measure_drop(well)
+	print("  drop with the well sounding %.2f m, silent %.2f m" % [drop_sink, drop_silent])
+	check(drop_sink > drop_silent + 0.3, "the sink well draws her down faster (%.2f m vs %.2f m over 0.6 s)" % [drop_sink, drop_silent])
+
 	# held note: secondary sustains the struck note nearby; breath should drop while held
 	var song: MovementMode = Game.player.modes[&"song"]
 	var gn0 := _instrument(glass["c"])
@@ -169,6 +181,15 @@ func _run() -> void:
 
 	print("[aria] done, %d failure(s)" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
+
+
+## Drop from 2.5 m above the well's floor origin for 0.6 s of physics, returning metres fallen.
+func _measure_drop(well: Node3D) -> float:
+	Game.debug_teleport(well.global_position + Vector3(0, 2.5, 0), well.global_position + Vector3(0, 2.5, -1.0))
+	await frames(4)
+	var y0 := Game.player.global_position.y
+	await frames(36)
+	return y0 - Game.player.global_position.y
 
 
 func _count_provs() -> int:
