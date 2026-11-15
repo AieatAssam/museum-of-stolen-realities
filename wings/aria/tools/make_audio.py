@@ -5,7 +5,7 @@ Needs ffmpeg (decode) and oggenc (encode). Everything is in C: the leitmotif is 
 Instrument notes (one-shots, ~9 s to match Instrument.SUSTAIN):
   note_organ_c/e/g  organ_loud_c4 (373703) at C3, E3, G3
   note_horn         fhorn_18 (682231)                     note_cello  cello_section_fs4 (372840, sounds G4) at C4
-  note_glass        wine_glass_fs6 (256251) at C6           note_sirena female_voice_sustained (851043, C#5) at C5
+  note_glass        wine_glass_fs6 (256251) at C6           note_sirena female_voice_sustained (851043, C +30 cents) on C
   fork_strike       tuning_fork_a4 (361922)                  gravity_release  bubbles (840042) + underwater swell
 Music stems (24 s seamless loops, played together; Audio.set_intensity fades the upper ones in):
   aria_bed      organ_quiet_c4 (373735) as a C3+G3 fifth
@@ -24,6 +24,7 @@ SR = 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "audio", "src")
 OUT = os.path.join(HERE, "..", "audio")
+VOICE_TO_C = -0.5  # the voice sits 30-60 cents above C (energy-weighted pitch-class histogram)
 
 
 def load(name):
@@ -87,10 +88,14 @@ def notes():
     for n, st in (("c", -12), ("e", -8), ("g", -5)):
         write(f"note_organ_{n}", norm(cut(shift(organ, st), 0.0, 9.0, 0.01, 2.5), 0.7))
     horn = load("fhorn_18.ogg")
-    write("note_horn", norm(cut(horn, 0.0, len(horn) / SR, 0.005, 0.6), 0.7))
+    sus = np.zeros(int(9.0 * SR))  # the call, then its sustain overlapped out to Instrument.SUSTAIN
+    place(sus, cut(horn, 0.0, 2.2, 0.005, 0.5), 0.0)
+    for t in (1.7, 3.2, 4.7, 6.2):
+        place(sus, cut(horn, 0.6, 2.2, 0.5, 0.5), t, 0.8)
+    write("note_horn", norm(cut(sus, 0.0, 9.0, 0.0, 2.5), 0.7))
     write("note_cello", norm(cut(shift(load("cello_section_fs4.ogg"), -7), 0.0, 9.0, 0.05, 2.5), 0.7))
     write("note_glass", norm(cut(shift(load("wine_glass_fs6.ogg"), -6), 0.0, 9.0, 0.01, 2.5), 0.6))
-    write("note_sirena", norm(cut(shift(load("female_voice_sustained.ogg"), -1), 0.0, 8.0, 0.15, 2.0), 0.7))
+    write("note_sirena", norm(cut(shift(load("female_voice_sustained.ogg"), VOICE_TO_C), 0.0, 8.0, 0.15, 2.0), 0.7))
     fork = load("tuning_fork_a4.ogg")
     write("fork_strike", norm(cut(fork, 0.0, len(fork) / SR, 0.002, 0.8), 0.8))
     rel = np.zeros(int(5.0 * SR))
@@ -117,8 +122,8 @@ def stems():
     voice = load("female_voice_sustained.ogg")
     glass = load("wine_glass_fs6.ogg")
     motif = np.zeros(int(L * SR))
-    for t, st in ((1.0, 6), (4.0, 3), (7.0, -1)):  # G5, E5, C5 sung
-        place(motif, cut(shift(voice, st), 0.5, 4.5 if st == -1 else 3.8, 0.3, 1.2), t, 0.8)
+    for t, st, end in ((1.0, 7, 3.8), (4.0, 4, 3.8), (7.0, 0, 4.5)):  # G, E, C sung
+        place(motif, cut(shift(voice, VOICE_TO_C + st), 0.5, end, 0.3, 1.2), t, 0.8)
     for t, st in ((13.0, -6), (15.0, -2), (17.0, 1)):  # C6, E6, G6 on the glass, the answer
         place(motif, cut(shift(glass, st), 0.0, 6.0, 0.05, 2.5), t, 0.45)
     write("aria_motif", norm(motif, 0.5))

@@ -106,7 +106,7 @@ func _environment() -> void:
 	env.sdfgi_energy = 1.2
 	env.sdfgi_read_sky_light = false
 	env.ssr_enabled = true
-	env.ssr_max_steps = 32
+	env.ssr_max_steps = 16
 	env.ssr_fade_in = 0.1
 	env.ssr_fade_out = 2.0
 	env.ssao_enabled = false  # cost ~13 ms at 1440p in glass; SDFGI occlusion reads well enough here
@@ -241,7 +241,7 @@ func _hide_mesh(body_name: String) -> void:
 		(mi as MeshInstance3D).visible = false
 
 
-func _omni(pos: Vector3, col: Color, energy: float, range_: float, shadow: bool = false, fog: float = 1.0) -> OmniLight3D:
+func _omni(pos: Vector3, col: Color, energy: float, range_: float, shadow: bool = false, fog: float = 0.0) -> OmniLight3D:  # fills stay out of the fog (GPU)
 	var l := OmniLight3D.new()
 	l.position = pos
 	l.light_color = col
@@ -311,9 +311,9 @@ func _foyer() -> void:
 	_put("ceiling", Vector3(0, 14.6, 29.25), 0.0, Vector3(1, 1, 26.5 / 46.0))
 	for z: float in [22.0, 34.0]:
 		_put("chandelier", Vector3(0, 14.4, z), 0.0, Vector3.ONE * 0.6)
-		_omni(Vector3(0, 11.4, z), Color("ffc890"), 7.0, 18.0)
+		_omni(Vector3(0, 11.4, z), Color("ffc890"), 7.0, 18.0, false, 1.0)
 	_omni(Vector3(0, 6, 40), Color("ffd2a0"), 1.5, 12.0)  # gallery wash, so the stair's head reads
-	_spot(Vector3(0, 12, 17), Vector3(0, 0.5, 19.5), Color("ffe0b0"), 6.0, 16.0, 18.0, true)  # the demo horn
+	_spot(Vector3(0, 12, 17), Vector3(0, 0.5, 19.5), Color("ffe0b0"), 6.0, 16.0, 18.0)  # the demo horn
 
 
 func _auditorium() -> void:
@@ -339,9 +339,9 @@ func _auditorium() -> void:
 	_spot(Vector3(0, 13.5, -24), Vector3(0, 0, -26.5), Color("8ff5e0"), 5.0, 18.0, 28.0, true, 2.0)
 	# La Sirena hangs over the stage in her own light
 	_put("sirena", Vector3(0, 2.6, -27.6), 0.0, Vector3.ONE * 0.75)
-	_omni(Vector3(0, 6, -26.5), Color("6fffe0"), 3.0, 10.0)
+	_omni(Vector3(0, 6, -26.5), Color("6fffe0"), 3.0, 10.0, false, 1.0)
 	for sx: float in [-1.0, 1.0]:  # stage wings: warm working light either side of the opening
-		_omni(Vector3(sx * 10.0, 5.0, -25.5), Color("ffb070"), 4.0, 11.0)
+		_omni(Vector3(sx * 10.0, 5.0, -25.5), Color("ffb070"), 4.0, 11.0, false, 1.0)
 	# the flooded stalls: black water to the stage lip, seats sunk to the cushions
 	var water := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
