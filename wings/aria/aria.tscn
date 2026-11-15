@@ -1,0 +1,28 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://wings/aria/aria.gd" id="1"]
+[ext_resource type="Script" path="res://core/post/post_grade.gd" id="2"]
+[ext_resource type="AudioStream" path="res://wings/aria/audio/aria_stem_motif.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://wings/aria/audio/aria_stem_texture.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://wings/aria/audio/aria_bed_drone.ogg" id="5"]
+
+[sub_resource type="Resource" id="grade"]
+script = ExtResource("2")
+tint = Color(0.92, 1.0, 0.98, 1)
+saturation = 0.85
+contrast = 1.06
+lift = Color(0.0, 0.03, 0.03, 1)
+grain = 0.035
+aberration = 0.5
+vignette = 0.6
+grain_fps = 24.0
+
+[node name="Aria" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"aria"
+spawn_checkpoint = &"start"
+grade = SubResource("grade")
+music_layers = Array[AudioStream]([ExtResource("3"), ExtResource("4")])
+ambience = ExtResource("5")
+gravity = Vector3(0, -9.8, 0)
+void_height = -30.0
