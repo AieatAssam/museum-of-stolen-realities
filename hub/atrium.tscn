@@ -1,0 +1,78 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://hub/atrium.gd" id="1"]
+[ext_resource type="Script" path="res://core/checkpoint.gd" id="2"]
+[ext_resource type="Script" path="res://core/post/post_grade.gd" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_bed_0.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_bed_1.ogg" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_bed_2.ogg" id="6"]
+[ext_resource type="AudioStream" path="res://assets/audio/amb_hub.ogg" id="7"]
+
+[sub_resource type="Resource" id="grade"]
+script = ExtResource("3")
+tint = Color(1.03, 1.0, 0.94, 1)
+saturation = 0.92
+contrast = 1.08
+lift = Color(0.012, 0.01, 0.008, 1)
+grain = 0.035
+aberration = 0.35
+vignette = 0.62
+grain_fps = 24.0
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.012, 0.01, 0.008, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.42, 0.36, 0.28, 1)
+ambient_light_energy = 0.12
+reflected_light_source = 1
+tonemap_mode = 4
+tonemap_white = 7.0
+tonemap_exposure = 1.05
+fog_enabled = true
+fog_light_color = Color(0.02, 0.016, 0.012, 1)
+fog_density = 0.002
+fog_sky_affect = 0.0
+fog_height = 9.0
+fog_height_density = -0.09
+ssr_enabled = true
+ssr_max_steps = 96
+ssr_fade_in = 0.1
+ssr_fade_out = 1.5
+ssr_depth_tolerance = 0.3
+ssao_enabled = true
+ssao_radius = 1.4
+ssao_intensity = 2.2
+glow_enabled = true
+glow_intensity = 0.7
+glow_strength = 1.0
+glow_bloom = 0.04
+glow_blend_mode = 1
+glow_hdr_threshold = 1.1
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.011
+volumetric_fog_albedo = Color(0.95, 0.86, 0.7, 1)
+volumetric_fog_length = 80.0
+volumetric_fog_detail_spread = 1.6
+volumetric_fog_ambient_inject = 0.15
+volumetric_fog_sky_affect = 1.0
+adjustment_enabled = true
+adjustment_contrast = 1.04
+adjustment_saturation = 1.02
+
+[node name="Atrium" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"atrium"
+grade = SubResource("grade")
+music_layers = Array[AudioStream]([ExtResource("4"), ExtResource("5"), ExtResource("6")])
+music_intensity = 0.25
+ambience = ExtResource("7")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Checkpoints" type="Node3D" parent="."]
+
+[node name="start" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 19)
+script = ExtResource("2")

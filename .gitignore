@@ -1,2 +1,7 @@
-node_modules/
+.godot/
 .DS_Store
+*.blend1
+*.tmp
+/build/
+/shots/
+tools/.venv/
