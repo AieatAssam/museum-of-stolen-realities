@@ -23,6 +23,7 @@ const MARKS := [
 	["12_rose_dark", H + Vector3(-15.0, 1.7, 0.0), H + Vector3(5.0, -0.5, -4.0), "rose2"],
 	["13_east_window", Vector3(0.0, 3.4, -97.5), Vector3(0.0, 13.0, -121.0), "lens"],
 	["14_shattered", Vector3(0.0, 4.0, -104.0), Vector3(0.0, 8.0, -122.0), "shatter"],
+	["14b_fourth_sun", Vector3(1.3, 8.1, -121.6), Vector3(0.0, 7.75, -123.3), ""],
 	["15_heist", Vector3(1.6, 8.0, -124.3), Vector3(-1.0, 4.0, -150.0), "heist"],
 ]
 

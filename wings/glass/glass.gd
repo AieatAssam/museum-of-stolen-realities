@@ -203,6 +203,15 @@ func _build_environment() -> void:
 	env.volumetric_fog_emission = Color(0.012, 0.016, 0.05)
 	env.volumetric_fog_anisotropy = 0.55
 	env.volumetric_fog_length = 90.0
+	# grade: night-blue lift, slightly richer colour, a touch of chromatic fringe (old crown glass)
+	grade = PostGrade.new()
+	grade.tint = Color(0.97, 0.98, 1.04)
+	grade.lift = Color(0.012, 0.016, 0.05)
+	grade.saturation = 1.12
+	grade.contrast = 1.06
+	grade.aberration = 0.9
+	grade.vignette = 0.7
+	grade.grain = 0.03
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -589,8 +598,8 @@ func _build_nave() -> void:
 	_block(Vector3(-4, -0.6, -65), Vector3(4, 0, -59), "glass_floor")    # P2
 	var isl := {"pier_shaft": [], "pier_capital": []}
 	for p: Vector3 in [Vector3(0, -0.6, -45.5), Vector3(0, -0.6, -62)]:
-		isl["pier_shaft"].append(Transform3D(Basis.from_scale(Vector3(2, 13.0, 2)), p + Vector3(0, -14, 0)))
-		isl["pier_capital"].append(Transform3D(Basis.from_scale(Vector3(2, 1, 2)), p + Vector3(0, -1.0, 0)))
+		isl["pier_shaft"].append(Transform3D(Basis.from_scale(Vector3(2, 13.28, 2)), p + Vector3(0, -14, 0)))
+		isl["pier_capital"].append(Transform3D(Basis.from_scale(Vector3(2, 1, 2)), p + Vector3(0, -0.72, 0)))
 	for part: String in isl:
 		_mm(part, isl[part])
 	# walls and vault (the nave is roofed: its sky is hidden in haze until the roof)
@@ -794,8 +803,13 @@ func _build_crypt() -> void:
 	_receptor("verdance", Vector3(0, -7.88, -120.6), GlassOptics.GOLD | GlassOptics.BLUE, Vector3(1.6, 1.2, 0.6), func() -> void: _restore(&"verdance"))
 	_pane(Vector3(0, -7.88, -120.5), "win_verdance", true)
 	_receptor("reliquary", reliq, GlassOptics.RED | GlassOptics.BLUE, Vector3(1.3, 0.8, 1.3), _open_reliquary)
-	_block(reliq + Vector3(-0.5, -0.12, -0.4), reliq + Vector3(0.5, 0.25, 0.4), "glass_gold", true)
-	_reliquary_lid = _block(reliq + Vector3(-0.55, 0.25, -0.45), reliq + Vector3(0.55, 0.38, 0.45), "brass", false)
+	_block(reliq + Vector3(-0.5, -0.12, -0.4), reliq + Vector3(0.5, 0.25, 0.4), "glass_gold", true).visible = false
+	var chest := _model("reliquary")
+	chest.position = reliq + Vector3(0, -0.12, 0)
+	geo.add_child(chest)
+	_reliquary_lid = _model("reliquary_lid")
+	_reliquary_lid.position = reliq + Vector3(0, 0.25, 0)
+	geo.add_child(_reliquary_lid)
 	_prov_spots["veil"] = reliq + Vector3(0, 0.62, 0)
 	pts["reliquary"] = reliq + Vector3(0.9, -0.12, 0.8)
 	_placard(Vector3(-3, -6.5, -82.6), Vector3(0, 0, -1), "Original glazing, face-down", "Removed during re-leading", "Stained glass, stored per conservation guidance", "214.3",
@@ -863,17 +877,13 @@ func _build_roof() -> void:
 		_block(Vector3(-21.8, 16, seg.x), Vector3(-21.5, 16.9, seg.y), "lead")
 	_block(Vector3(-21.8, 16, -100.3), Vector3(-16.5, 16.9, -100), "lead")
 	# flying buttresses: outer pinnacles and arches leaning on the clerestory
+	var tips: Array = []
 	for k in 8:
 		var z := -36.0 - k * 9.0
 		_block(Vector3(-25, 0, z - 0.7), Vector3(-23.6, 23, z + 0.7), "glass_red", true)
-		var tip := MeshInstance3D.new()
-		var pm := PrismMesh.new()
-		pm.size = Vector3(1.4, 3.0, 1.4)
-		tip.mesh = pm
-		tip.material_override = M["glass_gold"]
-		tip.position = Vector3(-24.3, 24.5, z)
-		geo.add_child(tip)
+		tips.append(Transform3D(Basis.IDENTITY, Vector3(-24.3, 23, z)))
 		_ramp(Vector3(-23.6, 21.5, z), Vector3(-16.5, 24.5, z), 0.7, "glass_gold", false)
+	_mm("pinnacle", tips)
 	# the hidden one: a fallen buttress you can climb, to a pinnacle niche (Provenance C)
 	_ramp(Vector3(-20.5, 16, -60), Vector3(-23.6, 18.3, -60), 1.6, "glass_red")
 	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.6, 18.3, -58.8), "glass_floor")
@@ -1030,17 +1040,8 @@ func _build_east_and_heist() -> void:
 		ped = _block(Vector3(-0.4, 0, -0.4), Vector3(0.4, 1.05, 0.4), "museum_white", false, _frag_spot)
 	else:
 		_frag_spot.add_child(ped)
-	var shard := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.45, 0.6, 0.12)
-	shard.mesh = pm
-	var sm := StandardMaterial3D.new()
-	sm.albedo_color = Color("fff1d2")
-	sm.emission_enabled = true
-	sm.emission = Color("ffd98a")
-	sm.emission_energy_multiplier = 6.0
-	shard.material_override = sm
-	shard.position.y = 1.45
+	var shard := _model("fourth_sun")
+	shard.position.y = 1.5
 	shard.name = "Shard"
 	_frag_spot.add_child(shard)
 	_fragment = Pickup.new()
@@ -1103,17 +1104,8 @@ func _spawn_provenance(id: String) -> void:
 	if Quest.has_provenance(wing_id, StringName(id)):
 		return
 	var at: Vector3 = _prov_spots[id]
-	var mesh := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.24, 0.32, 0.08)
-	mesh.mesh = pm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color("e8b54a")
-	mat.emission_enabled = true
-	mat.emission = Color("e8b54a")
-	mat.emission_energy_multiplier = 2.5
-	mat.metallic = 1.0
-	mesh.material_override = mat
+	var mesh := _model("prov_" + id)
+	mesh.scale = Vector3.ONE * 1.6  # hand-sized, but readable from a few metres
 	mesh.position = at
 	geo.add_child(mesh)
 	var spin := mesh.create_tween().set_loops()
