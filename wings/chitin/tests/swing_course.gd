@@ -131,7 +131,7 @@ func _run() -> void:
 		print(l)
 	var rate := float(landed) / TRIALS
 	print("[swing] chained three-swing landings: %d / %d (%.0f%%)" % [landed, TRIALS, rate * 100.0])
-	get_tree().quit(0 if rate >= 0.9 else 1)
+	Game.quit(0 if rate >= 0.9 else 1)
 
 
 func _trial(_i: int) -> Dictionary:

@@ -44,20 +44,22 @@ func setup(pa: Vector3, pb: Vector3, mat: Material) -> void:
 	_mesh = MeshInstance3D.new()
 	_mesh.name = "SilkLine"
 	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.045
-	cyl.bottom_radius = 0.045
+	cyl.top_radius = 0.03
+	cyl.bottom_radius = 0.03
 	cyl.height = length
-	cyl.radial_segments = 6
+	cyl.radial_segments = 8
+	cyl.rings = clampi(int(length * 3.0), 8, 96)  # enough rings to bend for the sag and the shiver
 	_mesh.mesh = cyl
 	_mesh.rotation_degrees.x = 90.0
 	if mat == null:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color("ffd27a")
-		m.emission_enabled = true
-		m.emission = Color("ffb640")
-		m.emission_energy_multiplier = 1.5
-		mat = m
+		mat = _silk_mat()
 	_mesh.material_override = mat
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# a walkable line sags a hand's width at most, so her feet stay on it; harps sag a little more
+	_mesh.set_instance_shader_parameter(&"len", length)
+	_mesh.set_instance_shader_parameter(&"sag", minf(0.006 * length, 0.07))
+	_mesh.set_instance_shader_parameter(&"pitch", pitch())
+	_mesh.set_instance_shader_parameter(&"beads", length * 1.6)
 	add_child(_mesh)
 
 
@@ -95,7 +97,11 @@ func pluck() -> void:
 	_pluck_t = 0.6
 
 
+static func _silk_mat() -> Material:
+	return load("res://wings/chitin/materials/silk_line.tres")
+
+
 func _process(delta: float) -> void:
 	if _pluck_t > 0.0:
 		_pluck_t = maxf(_pluck_t - delta, 0.0)
-		_mesh.position.x = sin(_pluck_t * 90.0) * 0.08 * _pluck_t
+		_mesh.set_instance_shader_parameter(&"pluck", _pluck_t / 0.6)
