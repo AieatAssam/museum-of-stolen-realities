@@ -24,6 +24,11 @@ func run() -> void:
 	await _section("shaft", _shaft)
 	await _section("foundry", _foundry)
 	await _section("gallery", _gallery)
+	await _section("general", _general)
+	await _section("hall", _hall)
+	await _section("heist", _heist)
+	for id: StringName in [&"bell", &"guild_key", &"tapestry"]:
+		check(Quest.has_provenance(&"chitin", id), "provenance held at the end: %s" % id)
 
 
 func _section(name_: String, fn: Callable) -> void:
@@ -307,6 +312,72 @@ func _gallery() -> void:
 	await walk_to(Vector3(67, -31, 96.5), 20.0, 0.5)
 	await use(w.find_child("Provenance_tapestry", true, false) as Node3D)
 	await until(func() -> bool: return Quest.has_provenance(&"chitin", &"tapestry"), 8.0, "provenance: the tapestry hem")
+
+
+## The Locksmith General: three phrases, swung south over the arena's pit, one key per phrase.
+func _general() -> void:
+	await walk_to(Vector3(40, -31, 98), 20.0, 0.5)
+	await until(func() -> bool: return int(w.call("arena_phrase")) == 0, 3.0, "the first phrase begins")
+	var fwd := Vector3(0, 0, -1)
+	await walk_to(Vector3(40, -31, 96.6), 10.0, 0.25)
+	await look_at(Vector3(40, -25, 88))
+	await swing_chain([w.get("_keys")[0]], fwd, -34.0, "phrase 1")
+	await until(func() -> bool: return int(w.call("arena_phrase")) == 1, 3.0, "key 1 turned, the second phrase begins")
+	var segs: Array = w.get("_arena_segs")
+	await walk_to(Vector3(40, -34, 68.6), 10.0, 0.25)
+	await look_at(Vector3(40, -28, 60))
+	await swing_chain(segs[1], fwd, -38.0, "phrase 2")
+	await until(func() -> bool: return int(w.call("arena_phrase")) == 2, 3.0, "key 2 turned, the third phrase begins")
+	await walk_to(Vector3(40, -38, 30.6), 10.0, 0.25)
+	await look_at(Vector3(40, -32, 22))
+	await swing_chain(segs[2], fwd, -42.0, "phrase 3")
+	await until(func() -> bool: return Quest.is_done(&"general"), 3.0, "the General is held by her own keys")
+
+
+## Down the processional stair, through the curtain, under the eye; open the case, take the fragment.
+func _hall() -> void:
+	await walk_to(Vector3(50, -42, -12), 15.0, 0.5)
+	await walk_to(Vector3(57, -42, -12), 10.0, 0.4)
+	await walk_to(Vector3(78, -70, -12), 30.0, 0.4)
+	await until(func() -> bool: return Quest.is_step_done(&"court", &"hall"), 10.0, "the curtain parts and the sky blinks")
+	await walk_to(Vector3(100, -70, -18), 20.0, 0.5)
+	await walk_to(Vector3(115, -70, -17), 10.0, 0.3)
+	await weave(_hook(Vector3(111, -69.65, -14)), _hook(Vector3(119, -69.65, -14)), "the case's standard line")
+	await pluck_at(Vector3(115, -69.65, -14), "the case line")
+	await until(func() -> bool: return Quest.is_step_done(&"court", &"dais"), 3.0, "the case lifts away")
+	await walk_to(Vector3(115, -69.7, -10.5), 10.0, 0.4)
+	await use(w.get("_fragment") as Node3D)
+	await until(func() -> bool: return bool(w.get("_heist_on")), 10.0, "the fragment is taken and the court stops pretending")
+	await skip_cinematics()
+
+
+## Up the shaft: a lift to the first ledge, the courtiers' cut line, a lift to the rim.
+func _heist() -> void:
+	await walk_to(Vector3(100, -70, -21), 15.0, 0.4)
+	await _ride(0, Vector3(89, -35, -22), "lift 1")
+	await walk_to(Vector3(95.4, -35, -22), 10.0, 0.25)
+	await look_at(Vector3(102, -25, -22))
+	var cut: Node3D = w.get("_cut_anchor")
+	await until(func() -> bool: return not cut.is_in_group(&"silk_anchors"), 8.0)
+	await until(func() -> bool: return cut.is_in_group(&"silk_anchors"), 3.0, "the cut line is spun again")
+	await swing_chain([cut], Vector3.RIGHT, -38.0, "cut line")
+	await walk_to(Vector3(118, -38, -21), 10.0, 0.4)
+	await _ride(1, Vector3(118, -3, -35), "lift 2")
+	await until(func() -> bool: return Quest.has_fragment(&"chitin"), 6.0, "out on the rim with the fragment")
+
+
+## Fire at lift k from below, ride it to the end of its path, let go over `over`.
+func _ride(k: int, over: Vector3, what: String) -> void:
+	var l: Node3D = w.call("lift", k)
+	if not await aim_and(l, &"primary", what):
+		return
+	await until(func() -> bool: return bool(w.call("lift_done", k)), 25.0, what + " reaches the top of its run")
+	await frames(30)
+	if silk.get("state") == SilkMode.ROPE:
+		press(&"primary")
+	await until(func() -> bool: return silk.get("state") == SilkMode.GROUND, 5.0)
+	var at: Vector3 = Game.player.global_position
+	check(absf(at.y - over.y) < 0.5, "%s: set down on its ledge (at %s)" % [what, at])
 
 
 # --- lookups -------------------------------------------------------------------------------
