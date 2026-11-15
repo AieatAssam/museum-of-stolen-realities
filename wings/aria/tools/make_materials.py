@@ -13,6 +13,11 @@ def tex_set(base, name):
             "roughness_texture": f"{base}{name}/{name}_roughness.png"}
 
 
+def relief(base, name):
+    """Normal + roughness only: the generated gilt albedos are orange-brown, so gold takes a flat yellow albedo."""
+    return {k: v for k, v in tex_set(base, name).items() if k != "albedo_texture"}
+
+
 def fmt(v):
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -49,7 +54,7 @@ def write(name, props, tri=None, cull=None):
 def main():
     # palette: yellow gold, oxblood velvet, cream marble, near-black ebony; teal marble and water as the counter-colour.
     # Aria-local overrides of the shared core materials (MAT_DIRS looks here first).
-    write("gilt", {**tex_set(A, "gilt"), "albedo_color": (1.0, 0.86, 0.46), "normal_scale": 1.0, "metallic": 1.0, "roughness": 0.42,
+    write("gilt", {**relief(A, "gilt"), "albedo_color": (1.0, 0.8, 0.42), "normal_scale": 1.0, "metallic": 1.0, "roughness": 0.42,
                    "metallic_specular": 0.7}, tri=1.1)
     write("velvet", {**tex_set(A, "velvet"), "albedo_color": (0.46, 0.05, 0.08), "normal_scale": 0.6, "roughness": 1.0,
                      "rim_enabled": True, "rim": 0.55, "rim_tint": 0.35}, tri=1.5)
@@ -57,10 +62,10 @@ def main():
                            "metallic_specular": 0.6}, tri=0.6)
     write("ebony", {**tex_set(A, "ebony"), "albedo_color": (0.3, 0.24, 0.22), "normal_scale": 0.6, "roughness": 0.45,
                     "clearcoat_enabled": True, "clearcoat": 0.4}, tri=1.0)
-    write("marble_teal", {**tex_set(T, "marble_teal"), "albedo_color": (0.85, 0.95, 0.92), "normal_scale": 0.35, "roughness": 0.4, "metallic_specular": 0.6}, tri=0.45)
+    write("marble_teal", {**tex_set(T, "marble_teal"), "albedo_color": (0.62, 0.86, 0.95), "normal_scale": 0.35, "roughness": 0.4, "metallic_specular": 0.6}, tri=0.45)
     write("damask_ox", {**tex_set(T, "damask_ox"), "albedo_color": (0.72, 0.5, 0.52), "normal_scale": 0.8, "roughness": 0.85}, tri=1.25)
     write("boards", {**tex_set(T, "boards"), "albedo_color": (0.75, 0.68, 0.62), "normal_scale": 0.8, "roughness": 0.8}, tri=0.4)
-    write("gilt_orn", {**tex_set(T, "ornament"), "albedo_color": (1.0, 0.84, 0.45), "normal_scale": 2.0, "metallic": 1.0, "roughness": 0.5, "metallic_specular": 0.7}, tri=1.1)
+    write("gilt_orn", {**relief(T, "ornament"), "albedo_color": (1.0, 0.8, 0.42), "normal_scale": 2.0, "metallic": 1.0, "roughness": 0.5, "metallic_specular": 0.7}, tri=1.1)
     write("velvet_drape", {**tex_set(T, "velvet"), "albedo_color": (0.5, 0.06, 0.09), "normal_scale": 0.6, "roughness": 1.0,
                            "rim_enabled": True, "rim": 0.5, "rim_tint": 0.6}, tri=0.5, cull=2)
     write("pipe_tin", {**tex_set(A, "brass"), "albedo_color": (0.78, 0.8, 0.82), "normal_scale": 0.3, "metallic": 1.0, "roughness": 0.55}, tri=1.5)
@@ -82,12 +87,12 @@ def main():
     write("fragment_crystal", {"albedo_color": (0.8, 1.0, 0.95, 0.8), "transparency": 1, "roughness": 0.05, "emission_enabled": True,
                                "emission": (0.5, 1.0, 0.9), "emission_energy_multiplier": 5.0, "rim_enabled": True, "rim": 1.0})
     write("mirror", {"albedo_color": (0.32, 0.42, 0.42), "metallic": 1.0, "roughness": 0.08})
-    write("backdrop", {"albedo_texture": T + "backdrop.png", "albedo_color": (0.4, 0.4, 0.4), "roughness": 0.95,
-                       "emission_enabled": True, "emission_texture": T + "backdrop.png", "emission": (1, 1, 1), "emission_energy_multiplier": 0.05}, cull=2)
+    write("backdrop", {"albedo_texture": T + "backdrop.png", "albedo_color": (0.8, 0.8, 0.8), "roughness": 0.95,
+                       "emission_enabled": True, "emission_texture": T + "backdrop.png", "emission": (1, 1, 1), "emission_energy_multiplier": 0.0}, cull=2)
     write("ceiling_fresco", {"albedo_texture": T + "ceiling.png", "roughness": 0.9, "emission_enabled": True, "emission_texture": T + "ceiling.png",
                              "emission": (1, 1, 1), "emission_energy_multiplier": 0.35}, cull=2)
-    write("dome_painted", {"albedo_texture": T + "dome.png", "albedo_color": (0.5, 0.5, 0.5), "roughness": 0.85, "emission_enabled": True, "emission_texture": T + "dome.png",
-                           "emission": (1, 1, 1), "emission_energy_multiplier": 0.12}, cull=2)
+    write("dome_painted", {"albedo_texture": T + "dome.png", "albedo_color": (0.8, 0.8, 0.8), "roughness": 0.85, "emission_enabled": True, "emission_texture": T + "dome.png",
+                           "emission": (1, 1, 1), "emission_energy_multiplier": 0.0}, cull=2)
     write("score_paper", {"albedo_texture": T + "score.png", "albedo_color": (0.72, 0.66, 0.56), "roughness": 0.9}, cull=2)
     # La Sirena: a drowned voice made visible - pale teal skin lit from within, a sea-glass gown, dark drifting hair
     write("sirena_skin", {"albedo_color": (0.78, 0.95, 0.9), "roughness": 0.5, "rim_enabled": True, "rim": 1.0, "rim_tint": 0.2,

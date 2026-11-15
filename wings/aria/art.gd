@@ -137,7 +137,7 @@ func _environment() -> void:
 	grade.contrast = 1.08
 	grade.aberration = 0.15
 	grade.vignette = 0.6
-	grade.grain = 0.02
+	grade.grain = 0.012
 	wing.grade = grade
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -368,10 +368,10 @@ func _auditorium() -> void:
 	_multi("seat", seats)
 	for sx: float in [-1.0, 1.0]:  # one invisible block per seat bank: the centre aisle and side aisles stay open
 		var body := StaticBody3D.new()
-		body.position = Vector3(sx * 6.5, 0.8, 8.0)
+		body.position = Vector3(sx * 6.5, 0.4, 8.0)
 		var cs := CollisionShape3D.new()
 		var box := BoxShape3D.new()
-		box.size = Vector3(8.5, 2.0, 10.2)
+		box.size = Vector3(8.5, 1.2, 10.2)
 		cs.shape = box
 		body.add_child(cs)
 		add_child(body)
@@ -475,7 +475,7 @@ func _dome() -> void:
 	_put("royal_box", Vector3(0, 8, -60))
 	# the lid keeps its collider; the eye goes up into a painted dome
 	_hide_mesh("Lid")
-	_put("dome_shell", Vector3(0, 16, -46), 0.0, Vector3(1.45, 1.0, 1.45))
+	_put("dome_shell", Vector3(0, 16, -46), 0.0, Vector3(0.86, 1.0, 1.14))
 	_disc(Vector3(0, 0.03, -46), 7.0, Color(0.55, 1.0, 0.85), 0.35, 6.0, 8.0)
 	for i: int in 6:
 		var a := TAU * (float(i) + 0.5) / 6.0
