@@ -19,6 +19,7 @@ varying vec3 tile_c;
 varying flat float kind;
 varying flat float rnd;
 varying vec2 local_xz;
+varying vec3 wp;
 
 const vec3 PAL[6] = vec3[](vec3(0.70, 0.13, 0.26), vec3(0.91, 0.71, 0.29), vec3(0.17, 0.33, 0.79),
 	vec3(0.10, 0.48, 0.37), vec3(0.54, 0.25, 0.82), vec3(0.91, 0.71, 0.29));
@@ -28,6 +29,7 @@ void vertex() {
 	kind = INSTANCE_CUSTOM.r;
 	rnd = INSTANCE_CUSTOM.g;
 	local_xz = VERTEX.xz;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 float lit(vec3 p, out float idx) {
@@ -52,7 +54,8 @@ void fragment() {
 	float glow = 0.0;
 	if (phase == 1) {
 		on = step(0.5, l);
-		glow = l;
+		float ip;
+		glow = lit(wp - centre, ip);  // per pixel: the light's edge drawn exactly across the tile
 	} else if (phase == 2) {
 		float d = length(lp.xz - lantern_pos.xz);
 		on = step(0.5, kind) * step(kind, 1.5) * step(d, lantern_r);
@@ -68,7 +71,7 @@ void fragment() {
 	float border = smoothstep(0.86, 0.9, max(q.x, q.y));
 	float diamond = smoothstep(0.03, 0.0, abs(q.x + q.y - 0.95)) * 0.6;
 	float lead = max(border, diamond);
-	vec3 c = col * (0.35 + 1.9 * glow) * (0.85 + 0.3 * rnd);
+	vec3 c = col * (0.18 + (phase == 1 ? 3.2 : 1.9) * glow) * (0.85 + 0.3 * rnd);
 	ALBEDO = mix(c, vec3(0.0), lead) * max(on, 0.05);
 	ALPHA = 1.0;
 }
