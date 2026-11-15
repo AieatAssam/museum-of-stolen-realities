@@ -402,7 +402,7 @@ func _placard(pos: Vector3, facing: Vector3, title: String, date: String, medium
 	var p := Placard.new()
 	geo.add_child(p)
 	p.global_transform = Transform3D(Basis.looking_at(-facing, Vector3.UP), pos)
-	p.set_text(title, date, "%s. Acq. no. %s" % [medium, acq], body, false)
+	p.set_label(Placard.fields(title, date, medium, "Acq. no. %s" % acq, body), false)
 	return p
 
 
