@@ -20,6 +20,10 @@ func run() -> void:
 	_deliverables()
 	await _section("fall", _fall_test)
 	await _section("gate", _gate)
+	await _section("districts", _districts)
+	await _section("shaft", _shaft)
+	await _section("foundry", _foundry)
+	await _section("gallery", _gallery)
 
 
 func _section(name_: String, fn: Callable) -> void:
@@ -79,6 +83,8 @@ func aim_and(node: Node3D, verb: StringName, what: String) -> bool:
 		if silk.get("target") == node:
 			break
 	if not check(silk.get("target") == node, "aim picks " + what):
+		var t: Node3D = silk.get("target")
+		print("    aim miss: at %s v %s, wanted %s, target %s, state %d" % [Game.player.global_position, Game.player.velocity, node.global_position if node else null, t.global_position if t else null, silk.get("state")])
 		return false
 	press(verb)
 	await frames(3)
@@ -119,9 +125,13 @@ func swing_chain(anchors: Array, fwd: Vector3, land_y: float, what: String) -> b
 		if not check(silk.get("state") == SilkMode.ROPE, "%s: line %d holds" % [what, k + 1]):
 			return false
 		chain = maxi(chain, int(silk.get("air_chain")))
+		if OS.has_environment("CHITIN_DEBUG"):
+			print("      %s k%d fired: rope %.2f dist %.2f pivot %s floor %s" % [what, k, silk.get("rope_len"), (silk.call("grip") as Vector3).distance_to(anchors[k].global_position), silk.call("pivot"), Game.player.is_on_floor()])
 		var guard := 0
 		while guard < 900 and silk.get("state") == SilkMode.ROPE:
 			guard += 1
+			if guard % 12 == 0 and OS.has_environment("CHITIN_DEBUG"):
+				print("      %s k%d t%d pos %s v %s apex %d" % [what, k, guard, Game.player.global_position, Game.player.velocity, ticks_to_apex(fwd)])
 			var n := ticks_to_apex(fwd)
 			if n >= 0 and n <= 1:
 				break
@@ -172,6 +182,131 @@ func _fall_test() -> void:
 	check(t0 >= 0, "fall test: she fell")
 	check(back and secs < 2.0, "fall test: back on the gate ledge in %.2f s" % secs)
 	await frames(60)
+
+
+## Pluck at a point on a strand (aim at it, secondary). Returns the strand plucked, if any.
+func pluck_at(point: Vector3, what: String) -> bool:
+	var got: Array = []
+	var cb := func(st: Node) -> void: got.append(st)
+	silk.connect(&"plucked", cb)
+	await aim(point)
+	press(&"secondary")
+	await frames(3)
+	silk.disconnect(&"plucked", cb)
+	return check(not got.is_empty(), "pluck: " + what)
+
+
+## Weave a line between two pegs: secondary at each.
+func weave(a: Node3D, b: Node3D, what: String) -> Node:
+	var before: int = (silk.get("strands") as Array).size()
+	await aim_and(a, &"secondary", what + " first peg")
+	await aim_and(b, &"secondary", what + " second peg")
+	var strands: Array = silk.get("strands")
+	check(strands.size() > before or strands.size() == SilkMode.MAX_STRANDS, "weave: " + what)
+	return strands[-1] if not strands.is_empty() else null
+
+
+func _districts() -> void:
+	# the usher blocks the door until a nearby line is plucked
+	await walk_to(Vector3(22, -3, 9), 15.0)
+	await pluck_at(Vector3(22, -1.2, 13.3), "the usher's harp line")
+	await until(func() -> bool: return (w.get("_usher") as Node3D).position.z > 3.0, 3.0, "the usher steps aside")
+	await walk_to(Vector3(26, -3, 0), 10.0, 0.4)
+	await walk_to(Vector3(33, -3, 0), 10.0, 0.4)
+	check(Quest.is_step_done(&"districts", &"usher"), "past the usher")
+	# the light-well: weave a tightrope between its pegs and walk it
+	await walk_to(Vector3(38.6, -3, 0), 10.0, 0.3)
+	var s := await weave(_hook(Vector3(40.3, -2.95, 0)), _hook(Vector3(51.7, -2.95, 0)), "the light-well tightrope")
+	check(s != null and absf(float(s.get("length")) - 11.4) < 0.2, "tightrope is 11.4 m")
+	await walk_to(Vector3(55, -3, 0), 15.0, 0.4)
+	check(Game.player.global_position.y > -3.3 and Quest.is_step_done(&"districts", &"tightrope"), "walked the tightrope over the well")
+	# the moth: pluck its line, it comes down to hang above; swing up to the perch
+	await walk_to(Vector3(60, -3, -10), 10.0)
+	await pluck_at(Vector3(60, -1.2, -13.3), "the moth's harp line")
+	var moth: Node3D = w.get("_moth")
+	await until(func() -> bool: return moth.is_in_group(&"silk_anchors") and moth.position.y < 9.2, 4.0, "a moth answers and hangs above")
+	await walk_to(Vector3(60, -3, -6), 10.0, 0.3)
+	await frames(30)
+	await aim_and(moth, &"primary", "the moth")
+	var g := 0
+	while g < 1200 and not (silk.get("state") == SilkMode.GROUND and Game.player.global_position.y > -0.5):
+		g += 1
+		if g % 12 == 0 and OS.has_environment("CHITIN_DEBUG"):
+			print("      perch t%d st %d pos %s v %s" % [g, silk.get("state"), Game.player.global_position, Game.player.velocity])
+		if silk.get("state") == SilkMode.ROPE and ticks_to_apex(Vector3.RIGHT) in [0, 1] and Game.player.global_position.x > 72.0:
+			press(&"primary")
+		await frames(1)
+	check(Game.player.global_position.y > -0.5, "up on the high perch (mantles %d)" % silk.get("mantles"))
+	await walk_to(Vector3(77.5, 0, -8), 10.0, 0.5)
+	await use(w.find_child("Provenance_bell", true, false) as Node3D)
+	await until(func() -> bool: return Quest.has_provenance(&"chitin", &"bell"), 8.0, "provenance: the finger-bell")
+
+
+func _shaft() -> void:
+	# off the perch, to the district rim; the gate course's chain, offset to the rim
+	await walk_to(Vector3(72, -3, -4), 10.0)
+	await walk_to(Vector3(78.6, -3, 0), 10.0, 0.3)
+	await frames(30)
+	var chain := [_hook(Vector3(86, 7, 0)), _hook(Vector3(99, 7, 0)), _hook(Vector3(112, 7, 0))]
+	var ok := await swing_chain(chain, Vector3.RIGHT, -7.0, "shaft chain")
+	check(ok and int(silk.get("best_air_chain")) >= 2 and Quest.is_step_done(&"shaft", &"chain"), "three swings chained without touching ground (air chain %d)" % silk.get("best_air_chain"))
+	# step off the balcony's east lip; weave the two hooks while falling and ride the line down
+	# the top hook is picked from the lip; the line is finished mid-fall
+	await walk_to(Vector3(129.6, -7, 0), 10.0, 0.2)
+	await aim_and(_hook(Vector3(132, -10.5, 0)), &"secondary", "zip top hook (from the lip)")
+	await look_at(Vector3(140, -9, 0))
+	Input.action_press(&"move_forward")
+	await until(func() -> bool: return not Game.player.is_on_floor(), 3.0)
+	Input.action_release(&"move_forward")
+	var fell_at: Vector3 = Game.player.global_position
+	await aim_and(_hook(Vector3(131.6, -24, 19)), &"secondary", "zip low hook (mid-fall)")
+	if OS.has_environment("CHITIN_DEBUG"):
+		print("    zip: left lip at %s, woven at %s state %d" % [fell_at, Game.player.global_position, silk.get("state")])
+	var zipped := false
+	var g := 0
+	while g < 900 and not (silk.get("state") == SilkMode.GROUND and Game.player.global_position.y > -28.5 and Game.player.global_position.y < -20.0 and Game.player.is_on_floor()):
+		g += 1
+		zipped = zipped or silk.get("state") == SilkMode.ZIP
+		if OS.has_environment("CHITIN_DEBUG") and g % 10 == 0 and g < 120:
+			print("    zip t%d %s v %s state %d" % [g, Game.player.global_position, Game.player.velocity, silk.get("state")])
+		await frames(1)
+	check(zipped, "caught the woven line mid-fall and zipped")
+	check(Quest.is_step_done(&"shaft", &"zip"), "down the zip to the foundry (at %s)" % Game.player.global_position)
+
+
+func _foundry() -> void:
+	# the clockwork anchor rides a track over the channel; fire as it turns at the east end
+	await walk_to(Vector3(139, -28, 49.5), 15.0, 0.3)
+	await look_at(Vector3(139, -24, 60))
+	var clock: Node3D = w.get("_clock_anchor")
+	await until(func() -> bool: return clock.global_position.x > 139.6, 25.0, "the clockwork anchor comes round")
+	await swing_chain([clock], Vector3(0, 0, 1), -31.0, "clockwork swing")
+	check(Quest.is_step_done(&"foundry", &"clockwork"), "across the channel on a moving anchor")
+	# the vault: a six-metre line (the tailors' span) between its pegs, plucked
+	await walk_to(Vector3(100, -31, 79.3), 20.0, 0.4)
+	await weave(_hook(Vector3(97, -30.95, 77)), _hook(Vector3(103, -30.95, 77)), "the vault's six-metre line")
+	await pluck_at(Vector3(100, -30.95, 77), "the vault line")
+	await until(func() -> bool: return not (w.get("_vault_door") as Node3D).visible, 3.0, "the vault opens to the queen's span")
+	await walk_to(Vector3(100, -31, 72), 10.0, 0.4)
+	await walk_to(Vector3(99, -31, 68.5), 10.0, 0.4)
+	await use(w.find_child("Provenance_guild_key", true, false) as Node3D)
+	await until(func() -> bool: return Quest.has_provenance(&"chitin", &"guild_key"), 8.0, "provenance: the guild key")
+	await walk_to(Vector3(100, -31, 76), 10.0, 0.4)
+	# the guild door: the eight-metre standard
+	await walk_to(Vector3(114, -31, 70), 15.0, 0.4)
+	await weave(_hook(Vector3(110, -30.95, 74)), _hook(Vector3(118, -30.95, 74)), "the guild's eight-metre line")
+	await pluck_at(Vector3(114, -30.95, 74), "the guild line")
+	await until(func() -> bool: return Quest.is_step_done(&"foundry", &"door"), 3.0, "the guild door opens")
+	await walk_to(Vector3(130, -31, 78), 15.0, 0.5)
+	await walk_to(Vector3(130, -31, 84), 10.0, 0.5)
+
+
+func _gallery() -> void:
+	await walk_to(Vector3(100, -31, 91), 20.0, 0.5)
+	await walk_to(Vector3(90, -31, 91), 10.0, 0.5)
+	await walk_to(Vector3(67, -31, 96.5), 20.0, 0.5)
+	await use(w.find_child("Provenance_tapestry", true, false) as Node3D)
+	await until(func() -> bool: return Quest.has_provenance(&"chitin", &"tapestry"), 8.0, "provenance: the tapestry hem")
 
 
 # --- lookups -------------------------------------------------------------------------------

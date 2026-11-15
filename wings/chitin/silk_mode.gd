@@ -102,7 +102,7 @@ func exit(_to: MovementMode) -> void:
 
 func reset() -> void:
 	_drop_line()
-	_zip = null
+	_unhang()
 	state = GROUND
 	air_chain = 0
 	weave_from = null
@@ -227,12 +227,20 @@ func fire() -> bool:
 	var p := player
 	var was_ground := state == GROUND and p.is_on_floor()
 	if state == ZIP:
-		_zip = null
+		_unhang()
 	anchor_node = n
 	pivots.clear()
 	chain_len = 0.0
 	rope_len = clampf(grip().distance_to(n.global_position), MIN_ROPE, MAX_ROPE)
 	var up := p.up_direction
+	if was_ground:
+		rope_len = maxf(rope_len - 0.3, MIN_ROPE)  # taut from the first tick: the hop never leaves it slack
+		# floor under the anchor would catch the arc's bottom and drag her: take up the slack so the
+		# line lifts her clear (over an abyss nothing changes, so the gated geometry is unaffected)
+		var below := _ray(n.global_position, -up * (rope_len + GRIP + 0.5))
+		if not below.is_empty():
+			var room := n.global_position.distance_to(below.position) - GRIP - 0.5
+			rope_len = clampf(minf(rope_len, room), MIN_ROPE, MAX_ROPE)
 	if was_ground and p.velocity.dot(up) < HOP:
 		p.velocity += up * (HOP - p.velocity.dot(up))
 	else:
@@ -593,13 +601,18 @@ func _try_zip() -> bool:
 	for s: Node in player.get_tree().get_nodes_in_group(&"silk_strands"):
 		if s == _no_zip or float(s.call("slope_deg")) < ZIP_MIN_SLOPE:
 			continue
-		var q: Vector3 = s.call("closest", g + p.up_direction * 0.6)
-		if q.distance_to(g + p.up_direction * 0.6) > ZIP_CATCH:
+		# reach from the feet to above the grip: a line fallen onto is caught as well as one beside her
+		var near := INF
+		for h: float in [-GRIP, 0.0, 0.6]:
+			var at := g + p.up_direction * h
+			near = minf(near, (s.call("closest", at) as Vector3).distance_to(at))
+		if near > ZIP_CATCH:
 			continue
 		var a: Vector3 = s.get("a")
 		var b: Vector3 = s.get("b")
 		var down := (b - a).normalized() if b.y < a.y else (a - b).normalized()
 		_zip = s
+		p.add_collision_exception_with(s)  # she hangs through the line she rides
 		_zip_s = maxf(p.velocity.dot(down), 2.0)
 		_drop_line()
 		state = ZIP
@@ -625,7 +638,7 @@ func _zipping(delta: float) -> void:
 	if hang.distance_to(low) < 0.4:
 		_leave_zip(p.up_direction * 2.5)
 	elif p.is_on_floor():
-		_zip = null
+		_unhang()
 		_touch_down()
 
 
@@ -638,8 +651,14 @@ func _leave_zip(kick: Vector3) -> void:
 		var b: Vector3 = _zip.get("b")
 		var down := (b - a).normalized() if b.y < a.y else (a - b).normalized()
 		p.velocity = down * _zip_s + kick
-	_zip = null
+	_unhang()
 	state = AIR
+
+
+func _unhang() -> void:
+	if is_instance_valid(_zip):
+		player.remove_collision_exception_with(_zip)
+	_zip = null
 
 
 # --- design model ------------------------------------------------------------------------------

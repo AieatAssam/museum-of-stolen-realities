@@ -274,7 +274,7 @@ func _build_shaft(area: Node3D) -> void:
 	_ledge(geo, Vector3(115, -8, -8), Vector3(130, -7, 8), _mat["walk"])  # the balcony
 	_zone(area, Vector3(115, -7, -8), Vector3(130, -4, 8), func() -> void: complete_step(&"shaft", &"chain"))
 	# the zip: two hooks off the balcony's east lip, a 22 m line sloping down to the foundry
-	_anchor(area, Vector3(131.6, -12, 0))
+	_anchor(area, Vector3(132, -10.5, 0))
 	_anchor(area, Vector3(131.6, -24, 19))
 	# the net: below every descent route, above the hall
 	_abyss(area, Vector3(80, -44, -30), Vector3(150, -40, 14))
@@ -305,6 +305,7 @@ func _build_foundry(area: Node3D) -> void:
 	var wall: Material = _mat["wall"]
 	_ledge(geo, Vector3(95, -70, 14), Vector3(160, -28, 50), walk)  # also the shaft's north wall
 	_ledge(geo, Vector3(95, -32, 63), Vector3(160, -31, 100), walk)
+	_zone(area, Vector3(95, -28, 14), Vector3(160, -25, 48), func() -> void: complete_step(&"shaft", &"zip"))
 	_ledge(geo, Vector3(94, -32, 50), Vector3(95, -10, 88), wall)
 	_ledge(geo, Vector3(94, -32, 94), Vector3(95, -10, 100), wall)
 	_ledge(geo, Vector3(160, -32, 14), Vector3(161, -10, 100), wall)
@@ -687,7 +688,7 @@ func _on_plucked(s: Node) -> void:
 	var pitch: float = s.call("pitch")
 	Audio.sfx(_sfx["pluck"], s.global_position, -2.0, 0.3, pitch)
 	var mid: Vector3 = s.global_position
-	if mid.distance_to(_usher.global_position) < 14.0 and not Quest.is_step_done(&"districts", &"usher"):
+	if mid.distance_to(_usher.global_position) < 18.0 and not Quest.is_step_done(&"districts", &"usher"):
 		_usher_away_t = 20.0
 		create_tween().tween_property(_usher, "position", _usher_home + Vector3(-2, 0, 4.5), 1.0)
 		toast("The usher hears the queen calling, and steps aside to listen.")
@@ -701,16 +702,19 @@ func _on_plucked(s: Node) -> void:
 	if _ends_in(ends, _guild_pegs) and _guild_door.visible:
 		if absf(length - GUILD_STANDARD) < LOCK_TOL:
 			_open(_guild_door)
+			s.queue_free()  # the lock keeps the line it heard; nothing left to trip over
 			complete_step(&"foundry", &"door")
 			toast("The guild door hears its standard, and opens.")
 		else:
 			toast("The guild door does not care for that note. It sounds %s." % ("too high" if length < GUILD_STANDARD else "too low"))
 	if _ends_in(ends, _vault_pegs) and _vault_door.visible and absf(length - QUEENS_SPAN) < LOCK_TOL:
 		_open(_vault_door)
+		s.queue_free()
 		store("vault", true)
 		toast("The vault recognises the queen's span.")
 	if _ends_in(ends, _hall_pegs) and _cage.visible:
 		_open(_cage)
+		s.queue_free()
 		complete_step(&"court", &"dais")
 		_update_fragment()
 		toast("The case over the dais answers the court's standard and lifts away.")
