@@ -5,3 +5,7 @@
 /build/
 /shots/
 tools/.venv/
+# iCloud conflict copies
+* [2-9]
+* [2-9].*
+__pycache__/

@@ -92,3 +92,25 @@ Reveal recipe, used for every jaw-drop:
 - Strip music 3–5 s before every reveal. Silence is a tool.
 - Reverb decay scales with room size.
 - Prefer real Creative Commons recordings and music over synthesis. CC0 or CC-BY only; every file is logged in `CREDITS.md` (path, title, author, URL, licence) when added, and CC-BY items appear in the in-game credits.
+
+## 7. Typography and UI (anti-slop)
+
+The UI is modelled on real museum labels ("tombstone" labels), not on fantasy-game chrome.
+
+- Two type families in the whole game: one display face, one text face. No third face for labels.
+- Sentence case everywhere. No uppercase or small-caps labels, no letter-spacing above the font's default.
+- No eyebrow lines (a small label announcing the heading below it). If a label matters, it is the heading.
+- No middle-dot strings (`II · The Pinched Forest`), no decorative diamonds or bullets, no flourish dividers or ornaments, no arrows glued to text.
+- No single italic or coloured word inside a heading; a heading is one face, one weight, one colour. Italic is for titles of works only, as on a real label.
+- No chromatic aberration, glow or drop shadow on text. Legibility comes from a solid or blurred backing, never an effect.
+- Placards follow one label format, left-aligned: title; date; medium; acquisition number; then one short paragraph (40 words or fewer). In-world and on-screen placards use the same format.
+- Text is never smaller than 16 px at 1080p, never under 4.5:1 contrast, and never placed over the centre of the view.
+- Gold is an accent used sparingly (a rule, one key number), not the colour of every label.
+- The title screen shows the real game (the atrium, rendered live), never a generated illustration that the game does not look like.
+- HUD shows one line: the current objective. Everything else lives in the journal.
+- Generated images are used as materials (textures, decals, distant backdrops), never as a substitute for a modelled scene.
+
+## 8. Models
+
+- Hero architecture, props and characters are modelled in Blender to a finished standard: bevelled edges, real silhouettes, sculpted detail where the eye rests, proper UVs and PBR materials, LODs for anything repeated. A primitive (box, cone, cylinder, capsule) is never a final asset.
+- Every model is judged in-engine, lit, at the distance the player sees it, in a screenshot. If it reads as a placeholder there, it is one.
