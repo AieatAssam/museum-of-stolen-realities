@@ -592,13 +592,13 @@ func _build_windfall() -> void:
 	_post(A, Vector3(8, 0.5, -166), Vector3(-0.4, 0, 1), "The Old Tree", "Painted first, painted last", "Umber over an earlier blue", "001.5",
 		"X radiography shows a green tree beneath. The painter's notebook calls the umber a correction. It does not say what was wrong with the tree.")
 	# a U-shaped lookout around where the green will reach, and the horizon line from it
-	_block(A, "LookoutEast", Vector3(12.9, 23.4, -166), Vector3(19, 24.4, -176.5))
-	_block(A, "LookoutWest", Vector3(4.8, 23.4, -166), Vector3(10.9, 24.4, -176.5))
+	_block(A, "LookoutEast", Vector3(13.6, 23.4, -166), Vector3(19, 24.4, -176.5))
+	_block(A, "LookoutWest", Vector3(4.8, 23.4, -166), Vector3(10.0, 24.4, -176.5))   # the hole is the green column's, plus her shoulders
 	_block(A, "LookoutNorth", Vector3(4.8, 23.4, -163), Vector3(19, 24.4, -166))
 	_well(A, "lamp_oil", Vector3(-12, 0.5, -163), Vector3(-12, 0.5, -167), "yellow")
 	_well(A, "ultramarine_bank", Vector3(-26, 0.5, -185.5), Vector3(-8, 0.5, -185.5), "blue")
 	_well(A, "red_tube", Vector3(9, 0.5, -186), Vector3(12, 0.5, -186), "red")
-	_well(A, "pear", Vector3(2, 0.5, -181), Vector3(6, 0.5, -181), "yellow", {"hidden": true})
+	_well(A, "pear", Vector3(-4, 0.5, -181), Vector3(0, 0.5, -181), "yellow", {"hidden": true})
 	# the test strip (Provenance: the dried swatch). Sealed blue; it will not lift, only sink.
 	_block(A, "NicheBack", Vector3(23.5, 0.5, -179.5), Vector3(24, 3.2, -186.5), "wall")
 	_block(A, "NicheN", Vector3(18, 0.5, -179.5), Vector3(24, 3.2, -180), "wall")
@@ -679,7 +679,8 @@ func _build_river() -> void:
 	_well(A, "cave_lamp", Vector3(90, 0, -244), Vector3(95, 0, -244), "yellow")
 	_block(A, "CaveRoof", Vector3(82, 6, -204), Vector3(142, 7, -252), "weave")
 	_block(A, "CaveWallN", Vector3(82, 0, -204), Vector3(142, 6, -206), "weave")
-	_block(A, "CaveWallS", Vector3(82, 0, -250), Vector3(142, 6, -252), "weave")
+	_block(A, "CaveWallS", Vector3(82, 0, -250), Vector3(130, 6, -252), "weave")
+	_block(A, "CaveWallS2", Vector3(134, 0, -250), Vector3(142, 6, -252), "weave")   # the outflow's mouth
 	_stroke(A, "cave_pencil", [Vector3(100, 0, -228), Vector3(125, 0, -228)], "pencil", 2.0, {"k": "pencil"})
 	_ground(A, "Source", 125, -214, 140, -242, 0.0, "goal")
 	_zone(A, Vector3(125, -1, -214), Vector3(140, 4, -242), _reach_source)
@@ -724,7 +725,7 @@ func _build_corrections() -> void:
 	# the hand: its earlier pose is a ramp to a ledge (Provenance: the ferrule)
 	_stroke(A, "figure_hand", [Vector3(13, 0, -287), Vector3(19, 0, -287)], "umber", 6.0, {"up": true, "t": 0.6, "under": ["figure_hand_early"]})
 	_stroke(A, "figure_hand_early", [Vector3(12, 0.25, -290), Vector3(24, 3.25, -299)], "blue", 2.0, {"hidden": true})
-	_ground(A, "HandLedge", 21.5, -297, 28, -305, 3.0, "crust")
+	_ground(A, "HandLedge", 21.5, -296, 38, -306, 3.0, "crust")   # long: the pose is a wet rail and throws her
 	_pickup(A, "ferrule", Vector3(26, 3.7, -302), Color("b8913a"))
 	# the green, taught: yellow across this blue hedge grows a climbable column to a view
 	_stroke(A, "hedge", [Vector3(-12, 0, -306), Vector3(-12, 0, -314)], "blue", 1.0, {"up": true, "t": 0.5, "k": "fixed", "grow": 7.0})

@@ -48,9 +48,10 @@ func physics(delta: float) -> void:
 	climbing = not is_nan(top) and p.move_input().y < -0.2 and p.global_position.y < top
 	if climbing:
 		momentum = false
-		p.velocity = up * CLIMB + p.wish_dir() * 1.2
+		p.velocity = up * CLIMB   # straight up: drifting would walk her out of the column
 		if p.global_position.y > top - 0.3:
-			p.velocity = up * 4.5 + (-p.head.global_basis.z) * 2.5
+			var fwd := (-p.head.global_basis.z).slide(up).normalized()
+			p.velocity = up * 4.5 + fwd * 4.5   # over the lip, clear of the column's hole
 		p.move_and_slide()
 		return
 	# magnet

@@ -245,8 +245,8 @@ func _remove(st: Node3D) -> void:
 
 func _reveal(us: Node3D) -> void:
 	us.set_enabled(true)
-	us.scale = Vector3(1, 0.05, 1)
-	create_tween().tween_property(us, "scale", Vector3.ONE, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	us.visual.scale = Vector3(1, 0.05, 1)   # the mesh only: Jolt refuses non-uniform body scale
+	create_tween().tween_property(us.visual, "scale", Vector3.ONE, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _line(a: Vector3, b: Vector3) -> Array:

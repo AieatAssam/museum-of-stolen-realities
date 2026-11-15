@@ -184,7 +184,7 @@ func _wing() -> void:
 		await _corrections()
 	if from in ["", "pent"]:
 		if from != "":
-			await _jump_to("corrections", Vector3(0, 0, -325))
+			await _jump_to("pentimento", w.pts["rim"])
 		await _pentimento()
 	if from in ["", "pent", "green"]:
 		if from != "":
@@ -293,6 +293,8 @@ func _river() -> void:
 	check(Quest.is_done(&"river"), "river objective done by play")
 	# the outflow carries her to the Corrections
 	await walk_to(Vector3(132, 0, -234), 10.0, 0.5)
+	await steer(Vector3(132, 0.25, -250), 900, func() -> bool: return surfing("outflow"))
+	check(surfing("outflow"), "boarded the outflow")
 	await go(Vector3(4, 0, -285), func() -> bool: return _p().global_position.z < -272.0, 4800)
 	check(_p().global_position.z < -272.0 and _p().global_position.y > -0.5, "rode the outflow down to the Corrections")
 
@@ -348,6 +350,7 @@ func _pentimento() -> void:
 				await walk_to(_arena(a + 0.52, 33.0), 20.0, 1.0)
 			await steer(_arena(a + 0.17, 33.4), 600, func() -> bool: return surfing() or (_p().global_position - _arena(a + 0.17, 33.4)).length() < 1.0)
 			await steer(_arena(a, 33.4), 600, func() -> bool: return surfing())
+		print("  [dbg] try %d layer %d hill %d at %s surf %s" % [tries, layer, k, _p().global_position, _mode()])
 		if not surfing(hid):
 			if surfing():
 				await tap(&"crouch")
@@ -358,8 +361,7 @@ func _pentimento() -> void:
 			await look_at(target.centre() + Vector3(0, 0.75, 0), 30)
 			await tap(&"secondary")
 			check(not target.enabled, "scraped a seal riding the buckling hill (layer %d)" % layer)
-			if surfing():
-				await tap(&"crouch")
+			# ride on: the hill throws her off its raised end onto the arena floor
 		await ticks(600, func() -> bool: return on_floor() and not w._respawning)
 	var mins := (Engine.get_physics_frames() - t0) / 120.0 / 60.0
 	check(w.pent == 3, "three layers removed: the first composition (%d tries, %.1f min)" % [tries, mins])
@@ -372,19 +374,21 @@ func _green_and_horizon() -> void:
 	await go(Vector3(4, 1, -170), func() -> bool: return _p().global_position.z > -190.0, 4800)
 	check(_p().global_position.z > -190.0, "rode the kinder road back to the Old Tree")
 	check(w.canvas.get_stroke("old_tree").colour == "blue", "the Old Tree is blue again underneath")
-	await walk_to(Vector3(4, 0.5, -178.6), 15.0, 0.4)
-	await scrape(Vector3(4, 0.62, -181), "took yellow from the pear")
+	await walk_to(Vector3(-2, 0.5, -178.6), 15.0, 0.4)
+	await scrape(Vector3(-2, 0.62, -181), "took yellow from the pear")
+	check(w.canvas.load.get("c", "") == "yellow", "the pear is yellow")
 	await walk_to(Vector3(8, 0.5, -171.2), 15.0, 0.3)
 	await lay(Vector3(12, 1.2, -171.2), "laid yellow across the blue trunk")
 	check(Quest.is_step_done(&"edge", &"green"), "the Old Tree grows green")
-	await walk_to(Vector3(11.1, 0.5, -171.2), 6.0, 0.5)
+	await walk_to(Vector3(10.6, 0.5, -171.2), 6.0, 0.5)   # into the column: forward climbs
 	await steer(Vector3(16, 25, -171.2), 1800, func() -> bool: return _p().global_position.y > 23.5 and on_floor())
 	check(_p().global_position.y > 23.5, "climbed the green to the lookout (y=%.1f)" % _p().global_position.y)
 	await walk_to(Vector3(13, 24.4, -164.5), 10.0, 0.5)
 	await walk_to(Vector3(9.5, 24.4, -164.5), 10.0, 0.5)
 	await walk_to(Vector3(9.5, 24.4, -171.5), 10.0, 0.4)
 	await go(Vector3(-212, 22, -171.5), func() -> bool: return _p().global_position.x < -206.0, 4800)
-	check(Quest.is_done(&"edge"), "rode the horizon to the edge; edge objective done")
+	check(_p().global_position.x < -206.0, "rode the horizon to the edge")
+	check(Quest.is_done(&"edge"), "edge objective done by play")
 
 
 func _edge_and_heist() -> void:
