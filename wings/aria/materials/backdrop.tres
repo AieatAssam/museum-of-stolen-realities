@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://wings/aria/textures/backdrop.png" id="t0"]
+[ext_resource type="Texture2D" path="res://wings/aria/textures/backdrop.png" id="t1"]
+
+[resource]
+resource_name = "backdrop"
+albedo_texture = ExtResource("t0")
+albedo_color = Color(0.9, 0.9, 0.9, 1)
+roughness = 0.95
+emission_enabled = true
+emission_texture = ExtResource("t1")
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.15
+cull_mode = 0
+texture_filter = 5
