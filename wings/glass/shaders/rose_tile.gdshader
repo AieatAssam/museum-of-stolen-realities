@@ -10,7 +10,7 @@ uniform vec3 lantern_pos = vec3(1e6);  // hall-local
 uniform float lantern_r = 4.0;
 uniform float petals = 6.0;
 uniform float half_width = 0.31;
-uniform float edge = 0.035;
+uniform float edge = 0.08;
 uniform float omega = 0.11;
 uniform float r_in = 4.0;
 uniform float r_out = 20.0;
@@ -58,8 +58,9 @@ void fragment() {
 		glow = lit(wp - centre, ip);  // per pixel: the light's edge drawn exactly across the tile
 	} else if (phase == 2) {
 		float d = length(lp.xz - lantern_pos.xz);
+		float dp = length((wp - centre).xz - lantern_pos.xz);  // per pixel: a warm pool that falls off
 		on = step(0.5, kind) * step(kind, 1.5) * step(d, lantern_r);
-		glow = on * (1.0 - smoothstep(lantern_r * 0.6, lantern_r, d)) + step(0.5, kind) * step(kind, 1.5) * 0.04;
+		glow = on * pow(1.0 - smoothstep(0.0, lantern_r, dp), 1.6) + step(0.5, kind) * step(kind, 1.5) * 0.04;
 		col = vec3(1.0, 0.78, 0.45);
 	} else {
 		on = step(0.5, kind);
@@ -71,7 +72,7 @@ void fragment() {
 	float border = smoothstep(0.86, 0.9, max(q.x, q.y));
 	float diamond = smoothstep(0.03, 0.0, abs(q.x + q.y - 0.95)) * 0.6;
 	float lead = max(border, diamond);
-	vec3 c = col * (0.18 + (phase == 1 ? 3.2 : 1.9) * glow) * (0.85 + 0.3 * rnd);
+	vec3 c = col * (0.18 + (phase == 1 ? 1.5 : 1.2) * glow) * (0.85 + 0.3 * rnd);
 	ALBEDO = mix(c, vec3(0.0), lead) * max(on, 0.05);
 	ALPHA = 1.0;
 }

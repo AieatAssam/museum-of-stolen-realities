@@ -4,11 +4,11 @@
 
 [resource]
 shader = ExtResource("1")
-shader_parameter/tint = Color(0.012, 0.014, 0.024, 1)
+shader_parameter/tint = Color(0.02, 0.025, 0.05, 1)
 shader_parameter/pane = Vector2(1.5, 1.5)
 shader_parameter/facet = 0.06
-shader_parameter/rough = 0.03
-shader_parameter/glow = 0.0
+shader_parameter/rough = 0.1
+shader_parameter/glow = 0.2
 shader_parameter/vary = 0.25
 shader_parameter/proj = 0
 shader_parameter/stagger = 0.0

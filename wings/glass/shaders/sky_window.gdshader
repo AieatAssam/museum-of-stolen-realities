@@ -11,12 +11,12 @@ uniform vec3 sun_a = vec3(0.35, 0.55, -0.76);
 uniform vec3 sun_b = vec3(-0.62, 0.42, -0.66);
 uniform vec3 sun_c = vec3(0.1, 0.78, 0.62);
 uniform vec3 eye_dir = vec3(-0.75, 0.45, -0.48);
+uniform sampler2D dome : source_color, filter_linear_mipmap;
 uniform sampler2D onlooker : hint_default_white, filter_linear_mipmap;
-uniform vec2 onlooker_ext = vec2(2.3, 1.75);   // radians across, up
+uniform vec2 onlooker_ext = vec2(1.6, 1.2);   // radians across, up
 uniform float haze : hint_range(0.0, 1.0) = 1.0;
 uniform float reveal : hint_range(0.0, 1.0) = 0.0;
 uniform float dark : hint_range(0.0, 1.0) = 0.0;
-uniform float rings = 14.0;
 uniform float energy = 1.5;
 
 float h1(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -43,34 +43,18 @@ void sky() {
 	float el = asin(clamp(d.y, -1.0, 1.0));
 	float az = atan(d.x, d.z);
 	float e01 = clamp(el / 1.5708, 0.0, 1.0);
-	// rings: index and distance (radians) to the nearest ring lead
-	float rr = e01 * rings;
-	float ri = floor(rr);
-	float rf = fract(rr);
-	float d_ring = min(rf, 1.0 - rf) * 1.5708 / rings;
-	// sectors per ring shrink toward the crown, in multiples of 8 so the meridians run through
-	float nsec = max(8.0, floor(96.0 * cos((ri + 0.5) / rings * 1.5708) / 8.0) * 8.0);
-	float sa = (az / 6.2831853 + 0.5) * nsec;
-	float si = floor(sa);
-	float sf = fract(sa);
-	float d_sec = min(sf, 1.0 - sf) * 6.2831853 / nsec * cos(el);
-	float pid = h1(vec2(ri, si));
-	vec3 glass = pal(pid);
-	// painted grisaille and streaky antique glass inside each pane
-	vec2 local = vec2(sf, rf);
-	float streak = 0.88 + 0.12 * sin(local.y * 4.0 + sin(local.x * 5.0 + pid * 40.0) * 1.5);
-	float centre = 1.0 - 0.35 * length(local - 0.5);
-	glass *= streak * centre * (0.7 + 0.6 * h1(vec2(si, ri) + 3.3));
+	// the dome is one colossal wheel window (sky_rose), zenith at its boss, its rim on the horizon
+	vec2 pol = vec2(sin(az), cos(az)) * (1.0 - e01) * 0.5;
+	vec2 duv = 0.5 + pol;
 	float px = fwidth(el) + 0.0005;
-	float lead = 1.0 - smoothstep(0.0035, 0.0035 + px, min(d_ring, d_sec));
-	// the iron armature: every 8th meridian, every 4th ring, much heavier
-	float mer = abs(fract(az / 6.2831853 * 8.0 + 0.5 / 8.0 * 0.0) - 0.5) * 2.0;
-	float d_mer = (1.0 - mer) * 6.2831853 / 16.0 * cos(el);
-	float ring4 = abs(fract(rr / 4.0) - 0.5) * 2.0;
-	float d_r4 = (1.0 - ring4) * 1.5708 / rings * 2.0;
-	float iron = 1.0 - smoothstep(0.012, 0.012 + px, min(d_mer, d_r4));
-	iron = max(iron, 1.0 - smoothstep(0.02, 0.02 + px, 1.5708 - el));  // the boss at the crown
-
+	vec3 glass = textureLod(dome, duv, 0.0).rgb;
+	// hand-blown: streaks, seeds and uneven thickness, and an uneven light behind it
+	float streak = 0.85 + 0.15 * sin(duv.y * 900.0 + sin(duv.x * 140.0) * 3.0);
+	float seeds = 1.0 + 0.5 * step(0.995, h1(floor(duv * 700.0)));
+	float back = 0.55 + 0.9 * smoothstep(-0.3, 1.0, sin(az * 2.0 + 1.3) * 0.5 + sin(e01 * 5.0 + az) * 0.5);
+	glass *= streak * seeds * back * 1.6;
+	float lead = 1.0 - smoothstep(0.02, 0.06, dot(glass, vec3(0.33)));  // the art's own black tracery
+	float iron = 0.0;
 	float suns = sun(d, sun_a, 0.075) + sun(d, sun_b, 0.06) * 0.9 + sun(d, sun_c, 0.05) * 0.8;
 	float corona = pow(max(dot(d, normalize(sun_a)), 0.0), 10.0) * 1.6 + pow(max(dot(d, normalize(sun_b)), 0.0), 14.0) + pow(max(dot(d, normalize(sun_c)), 0.0), 16.0) * 0.7;
 	vec3 col = glass * energy * (0.55 + corona * 2.2 + 0.25 * e01);
@@ -87,10 +71,10 @@ void sky() {
 			vec2 ang = vec2(atan(dot(d, rgt), fz), atan(dot(d, up), fz));
 			vec2 uv = vec2(0.5 + ang.x / onlooker_ext.x, 0.5 - ang.y / onlooker_ext.y);
 			if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
-				float m = 1.0 - textureLod(onlooker, uv, 1.5).r;
+				float m = 1.0 - textureLod(onlooker, uv, 2.5).r;
 				float soft = 1.0 - textureLod(onlooker, uv, 3.5).r;
 				float rim = clamp(soft - m, 0.0, 1.0);
-				vec3 shadowed = col * 0.03 + vec3(0.003, 0.004, 0.008);
+				vec3 shadowed = min(col * 0.01, vec3(0.02)) + vec3(0.004, 0.005, 0.012);
 				col = mix(col, shadowed, clamp(max(m, soft * 0.6), 0.0, 1.0) * reveal);
 				col += vec3(1.0, 0.78, 0.5) * rim * rim * 1.2 * reveal * (1.0 - m);
 			}

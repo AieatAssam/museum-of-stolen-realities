@@ -212,7 +212,12 @@ func _run() -> void:
 			_cam.far = 800.0
 			get_tree().current_scene.add_child(_cam)
 		_cam.global_position = m[1]
-		_cam.look_at(m[2], Vector3.UP)
+		var aim: Vector3 = m[2]
+		if (m[0] as String).begins_with("09"):  # frame the onlooker wherever it has drifted, rooftops below
+			var e: Vector3 = _w.sky_mat.get_shader_parameter(&"eye_dir")
+			aim = (m[1] as Vector3) + (e.normalized() + Vector3(0, -0.25, 0)) * 30.0
+			print("[shots] onlooker eye=", e, " reveal=", _w.sky_mat.get_shader_parameter(&"reveal"), " haze=", _w.sky_mat.get_shader_parameter(&"haze"))
+		_cam.look_at(aim, Vector3.UP)
 		_cam.make_current()
 		# the carried lantern rides with the shot camera, as it would with the player's
 		var hl: Node3D = _w._hand_lantern

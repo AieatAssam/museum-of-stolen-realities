@@ -7,7 +7,7 @@ shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
 uniform vec4 tint : source_color = vec4(0.05, 0.07, 0.16, 1.0);
-uniform vec4 lead_color : source_color = vec4(0.012, 0.012, 0.016, 1.0);
+uniform vec4 lead_color : source_color = vec4(0.04, 0.04, 0.045, 1.0);
 uniform vec2 pane = vec2(0.9, 1.3);      // pane size in metres
 uniform float lead_w = 0.035;            // half-width of the came, metres
 uniform float facet = 0.22;              // how much each pane tilts
@@ -57,8 +57,8 @@ void fragment() {
 	}
 	NORMAL_MAP = normalize(vec3(tilt, 1.0)) * 0.5 + 0.5;
 	ALBEDO = mix(c, lead_color.rgb, lead);
-	ROUGHNESS = mix(rough, 0.42, lead);
-	METALLIC = lead * 0.6;
+	ROUGHNESS = mix(rough, 0.25, lead);  // lead catches bright specular edges
+	METALLIC = lead * 0.9;
 	SPECULAR = 0.6;
 	EMISSION = c * glow * (1.0 - lead);
 }

@@ -149,7 +149,7 @@ func _ready() -> void:
 	optics = GlassOptics.new()
 	optics.name = "Optics"
 	add_child(optics)
-	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember"]:
+	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister"]:
 		M[n] = load(MATS + n + ".tres")
 	_build_environment()
 	_build_cloister()
@@ -212,18 +212,30 @@ func _build_environment() -> void:
 	sky_mat = ShaderMaterial.new()
 	sky_mat.shader = load("res://wings/glass/shaders/sky_window.gdshader")
 	sky_mat.set_shader_parameter(&"onlooker", load("res://wings/glass/textures/onlooker.png"))
+	sky_mat.set_shader_parameter(&"dome", load("res://wings/glass/textures/sky_rose.png"))
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	env.sky = sky
 	# Value first: the interior is near-black; colour lives in the windows and the light they throw.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.08, 0.1, 0.22)
+	env.ambient_light_color = Color(0.16, 0.2, 0.36)
 	env.ambient_light_energy = AMBIENT
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_white = 10.0
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 1.5
+	# window emission and the colour it throws fill the rooms (bounce); lead stays black
+	env.sdfgi_enabled = true
+	env.sdfgi_cascades = 4
+	env.sdfgi_min_cell_size = 0.4
+	env.sdfgi_use_occlusion = false
+	env.sdfgi_energy = 1.4
+	env.sdfgi_read_sky_light = false
+	env.ssr_enabled = true
+	env.ssr_max_steps = 48
+	env.ssr_fade_in = 0.1
+	env.ssr_fade_out = 2.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.7
 	env.glow_bloom = 0.0
@@ -589,9 +601,9 @@ func _build_cloister() -> void:
 		var z := -4.0 + i * 2.0
 		_block(Vector3(-16.5 + i * 0.6, -2.5 - i * 0.7, z), Vector3(-14.5 + i * 0.5, -1.8 - i * 0.7, z + 1.1), "glass_red", false)
 	# outer walls (the north wall is the nave's west front, with its door)
-	_block(Vector3(-18.5, 0, 17.5), Vector3(18.5, 9, 18.5), "glass_wall")
-	_block(Vector3(17.5, 0, -17.5), Vector3(18.5, 9, 17.5), "glass_wall")
-	_block(Vector3(-18.5, 0, -17.5), Vector3(-17.5, 9, 17.5), "glass_wall")
+	_block(Vector3(-18.5, 0, 17.5), Vector3(18.5, 9, 18.5), "glazed_cloister")
+	_block(Vector3(17.5, 0, -17.5), Vector3(18.5, 9, 17.5), "glazed_cloister")
+	_block(Vector3(-18.5, 0, -17.5), Vector3(-17.5, 9, 17.5), "glazed_cloister")
 	_block(Vector3(-18.5, 0, -18.5), Vector3(-2.5, 26, -17.5), "glass_wall")
 	_block(Vector3(2.5, 0, -18.5), Vector3(18.5, 26, -17.5), "glass_wall")
 	_block(Vector3(-2.5, 4.5, -18.5), Vector3(2.5, 26, -17.5), "glass_wall")
@@ -629,6 +641,10 @@ func _build_cloister() -> void:
 	_lancet("c2", Vector3(17.45, 4.6, -8.5), 1.9, Vector3(-1, 0, 0), "cloister_2", 0.0, Vector3(13.5, 0, -6.0), 5.0)
 	_lancet("c3", Vector3(-17.45, 4.6, 14.0), 1.9, Vector3(1, 0, 0), "cloister_3", 0.0, Vector3(-13.5, 0, 14.0), 5.0)
 	_lancet("c4", Vector3(-8.0, 4.6, 17.45), 1.9, Vector3(0, 0, -1), "cloister_4", 0.0, Vector3(-6.0, 0, 13.5), 5.0)
+	for id: String in ["c1", "c2", "c3", "c4"]:  # the glazed walls carry these lancets; keep only their throw
+		for mi: Node in geo.get_children():
+			if mi is MeshInstance3D and (mi as MeshInstance3D).material_override == windows[id]:
+				mi.visible = false
 	# the first dial sits in a notch at the gap's edge, its lens at walking height
 	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.07, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
 	pts["d1_use"] = Vector3(14.2, 0, 6.5)
@@ -662,9 +678,9 @@ func _build_nave() -> void:
 	for part: String in isl:
 		_mm(part, isl[part])
 	# walls and vault (the nave is roofed: its sky is hidden in haze until the roof)
-	_block(Vector3(15.5, -12, -121), Vector3(16.5, 26, -17.5), "glass_wall")
-	_block(Vector3(-16.5, -3, -107.5), Vector3(-15.5, 26, -17.5), "glass_wall")
-	_block(Vector3(-16.5, -3, -121), Vector3(-15.5, 26, -111.5), "glass_wall")
+	_block(Vector3(15.5, -12, -121), Vector3(16.5, 26, -17.5), "glazed_nave")
+	_block(Vector3(-16.5, -3, -107.5), Vector3(-15.5, 26, -17.5), "glazed_nave")
+	_block(Vector3(-16.5, -3, -121), Vector3(-15.5, 26, -111.5), "glazed_nave")
 	_block(Vector3(-16.5, -3, -111.5), Vector3(-15.5, 8.9, -107.5), "glass_wall")
 	_block(Vector3(-16.5, 12, -111.5), Vector3(-15.5, 26, -107.5), "glass_wall")
 	_block(Vector3(-16.5, -12, -121), Vector3(-15.5, -3, -88), "glass_wall")
@@ -1013,9 +1029,9 @@ func _build_rose() -> void:
 	tear.material_override = tm
 	tear.position = HALL + Vector3(0, 1.2, 0)
 	geo.add_child(tear)
-	# THE ROSE WIDOW: an 18 m rose of modelled tracery; her petals of panes light with her floor.
-	var rw := _window("rose", HALL + Vector3(-27.4, 16, 0), Vector2(18, 18), Vector3(1, 0, 0), "win_rose", 0.0, "rose_pane")
-	rw.scale = Vector3.ONE * 9.0
+	# THE ROSE WIDOW: a 23 m rose of modelled tracery; her petals of panes light with her floor.
+	var rw := _window("rose", HALL + Vector3(-27.4, 12, 0), Vector2(23, 23), Vector3(1, 0, 0), "win_rose", 0.0, "rose_pane")
+	rw.scale = Vector3.ONE * 11.5  # the whole end wall: 23 m, floor to cornice
 	_rose_pane_mat = windows["rose"]
 	_rose_pane_mat.set_shader_parameter(&"figure_c", Vector2(0.5, 0.5))
 	_rose_pane_mat.set_shader_parameter(&"rose", true)
