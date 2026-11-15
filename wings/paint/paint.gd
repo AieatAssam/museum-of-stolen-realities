@@ -739,7 +739,7 @@ func _build_corrections() -> void:
 		"The painter mixed red into blue only to put something away. Violet is heavy here. The barrier was blue at accession and is listed as violet in a condition report that predates it.")
 	pts["corrections"] = Vector3(0, 0, -282)
 	pts["hand_stand"] = Vector3(16, 0, -282)
-	pts["ramp_start"] = Vector3(12, 0, -288.6)
+	pts["ramp_start"] = Vector3(10.4, 0, -288.8)
 	pts["hand_ledge"] = Vector3(26, 3, -302)
 	pts["corr_red"] = Vector3(10, 0.12, -322)
 	pts["barrier_stand"] = Vector3(0, 0, -331.5)

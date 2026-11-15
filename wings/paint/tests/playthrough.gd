@@ -305,8 +305,8 @@ func _corrections() -> void:
 	await scrape(Vector3(16, 3, -287), "scraped the half-finished hand")
 	check(w.canvas.get_stroke("figure_hand_early").enabled, "an earlier pose shows through")
 	await lay(Vector3(16, 0, -275), "set the umber down")
-	await walk_to(Vector3(12, 0, -288.2), 15.0, 0.4)
-	await go(Vector3(24, 3, -299), func() -> bool: return _p().global_position.y > 2.8)
+	await walk_to(Vector3(10.4, 0, -288.8), 15.0, 0.4)   # behind the pose's foot, in line with it
+	await go(Vector3(24, 3.25, -299), func() -> bool: return _p().global_position.y > 2.8)
 	await walk_to(Vector3(25.5, 3, -301), 10.0, 0.6)
 	await use(w.uses["ferrule"].get_parent())
 	await ticks(420, func() -> bool: return Quest.has_provenance(W, &"ferrule"))
