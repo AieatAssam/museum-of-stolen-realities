@@ -18,6 +18,10 @@ const DOOR_BAY := 4
 const THIEF_BAY := 2
 const ALCOVE_BAY := 6
 const MATS: Array = ["res://hub/materials", MaterialLib.CORE_DIR]
+## The hub theme ("Immersed", Kevin MacLeod, CC-BY): seven band layers of one recording, 64 bpm 4/4.
+## Layer 0 (the low band) plays from the start; each returned Fragment brings back the next band, so
+## the music grows clearer as your world does. Changes wait for a bar line.
+const THEME_BAR := 3.75
 
 const MEDIUM := {
 	&"glass": "Stained glass, lead, a standing sun",
@@ -51,7 +55,12 @@ var _shard_gap: float = 0.16
 var _chips: Array[Dictionary] = []  # {node, r, a, y, speed, spin}
 var _docents: Array[Dictionary] = []  # {root, head, next_sketch}
 var _thief: Node3D
+var _thief_fig: Dictionary = {}  # {body, head, arm, arm_rest}: the figure on the pedestal, idling
 var _plaques: Dictionary = {}    # name -> Placard
+var _skin: ShaderMaterial
+var _weather: Dictionary = {}    # wing id -> 0..1, that wing's inner weather in Exhibit 0
+var _thief_stage: int = 0
+var _relics: Array[Dictionary] = []  # {wing, title, node} per filled vitrine
 var _shafts: Array[SpotLight3D] = []
 var _probe: ReflectionProbe
 var _distant_t: float = 25.0
@@ -70,6 +79,7 @@ func objectives() -> Array[Dictionary]:
 
 
 func _ready() -> void:
+	music_intensity = Quest.fragment_count() / 6.0  # read by Game.register_wing when it starts the bed
 	var steps: Array[AudioStream] = []
 	for i in range(1, 9):
 		steps.append(_cc("step_marble_hall_%d" % i))
@@ -86,6 +96,7 @@ func _ready() -> void:
 	_build_bench(Vector3(0, 0, 11.5))
 	_build_atmosphere()
 	_build_placards()
+	_build_shot_marks()
 
 
 func on_enter(_first_time: bool) -> void:
@@ -97,6 +108,7 @@ func on_enter(_first_time: bool) -> void:
 	elif Game.arrival == &"_template":
 		_spawn_facing(entry_point(&"_template"), 3.0)
 	Game.arrival = &""
+	Audio.music_bar = THEME_BAR
 	Audio.emitter(Audio.stream("sphere_hum"), _sphere, -8.0, 6.0)
 	var hub: Dictionary = Save.data["hub"]
 	if not hub.get("seen_intro", false):
@@ -131,6 +143,27 @@ func start_finale(choice: StringName) -> void:
 	Save.save_game()
 	finale_finished.emit(choice)
 	Game.quit_to_title()
+
+
+## What the hub currently shows for one wing (tests read this to check that a return changed it).
+func debug_state(id: StringName) -> Dictionary:
+	var shard_on := false
+	for s: Dictionary in _shards:
+		if s["wing"] == id and (s["node"] as MeshInstance3D).visible:
+			shard_on = true
+	var titles: Array = []
+	for r: Dictionary in _relics:
+		if r["wing"] == id:
+			titles.append(r["title"])
+	var f: Dictionary = _frames[id]
+	return {
+		"placed": _is_placed(id),
+		"shard_visible": shard_on,
+		"weather": float(_weather.get(id, 0.0)),
+		"relics": titles,
+		"frame_body": (f["placard"] as Placard).body,
+		"thief_stage": _thief_stage,
+	}
 
 
 # --- layout helpers --------------------------------------------------------------------------
@@ -302,6 +335,7 @@ func _build_dais_and_sphere() -> void:
 	_sphere = _model("sphere", Transform3D(Basis(), Vector3(0, SPHERE_Y, 0)))
 	var skin := ShaderMaterial.new()
 	skin.shader = load("res://hub/shaders/exhibit_skin.gdshader")
+	_skin = skin
 	var core := ShaderMaterial.new()
 	core.shader = load("res://hub/shaders/exhibit_core.gdshader")
 	var world := ShaderMaterial.new()
@@ -310,7 +344,8 @@ func _build_dais_and_sphere() -> void:
 		for i in mi.mesh.get_surface_count():
 			var src := mi.mesh.surface_get_material(i)
 			var nm := src.resource_name if src else ""
-			mi.set_surface_override_material(i, skin if nm == "exhibit_skin" else (world if nm == "exhibit_world" else core))
+			var glass := skin if not String(mi.name).begins_with("chip_") else _chip_skin(skin)
+			mi.set_surface_override_material(i, glass if nm == "exhibit_skin" else (world if nm == "exhibit_world" else core))
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if String(mi.name) == "world":
 			continue
@@ -325,9 +360,12 @@ func _build_dais_and_sphere() -> void:
 			wing = StringName(nm2.split("_")[1])
 		_shards.append({"node": mi, "dir": c.normalized(), "phase": randf() * TAU, "wing": wing})
 		mi.visible = wing == &"" or _is_placed(wing)
+	for id in WING_ORDER:
+		_weather[id] = 1.0 if _is_placed(id) else 0.0
+		skin.set_shader_parameter("w_" + String(id), _weather[id])
 	_sphere_light = OmniLight3D.new()
-	_sphere_light.light_color = Color(1.0, 0.72, 0.38)
-	_sphere_light.omni_range = 12.0
+	_sphere_light.light_color = _sphere_tint()
+	_sphere_light.omni_range = 17.0  # the brightest pool in the hall: the floor glows round the dais
 	_sphere_light.light_energy = 2.6
 	_sphere_light.shadow_enabled = false
 	_sphere_light.light_volumetric_fog_energy = 2.5
@@ -428,7 +466,7 @@ func _build_door() -> void:
 	root.add_child(under)
 	var sign := Label3D.new()
 	sign.text = "Conservation, staff only"
-	sign.font = Style.spaced(Style.CATALOG, 8)
+	sign.font = Style.CATALOG
 	sign.font_size = 64
 	sign.pixel_size = 0.0022
 	sign.modulate = Style.GOLD
@@ -455,8 +493,10 @@ func _build_alcove() -> void:
 	var damask := _mat("res://assets/materials/damask.tres")
 	var depth := 8.5
 	_model("wall", Transform3D(Basis(), Vector3(0, 0, -depth - 0.6)), root)
-	for s: float in [-1.0, 1.0]:
-		_box(Vector3(0.6, 17.0, depth + 0.6), Transform3D(Basis(), Vector3(s * 6.4, 8.5, -depth * 0.5)), damask, true, root)
+	for s: float in [-1.0, 1.0]:  # side walls: the hall's wall bay, narrowed; an unseen box collides
+		_box(Vector3(0.6, 17.0, depth + 0.6), Transform3D(Basis(), Vector3(s * 6.4, 8.5, -depth * 0.5)), damask, true, root).visible = false
+		var side := Basis(Vector3.UP, -s * PI * 0.5) * Basis.from_scale(Vector3((depth + 0.6) / 12.9, 1.0, 1.0))
+		_model("wall", Transform3D(side, Vector3(s * 6.1, 0, 0.3 - (depth + 0.6) * 0.5)), root)
 	_model("alcove", Transform3D.IDENTITY, root)
 	var key := SpotLight3D.new()  # lights the proscenium and cartouche from the hall
 	key.light_color = Color(1.0, 0.82, 0.6)
@@ -466,53 +506,18 @@ func _build_alcove() -> void:
 	key.light_volumetric_fog_energy = 0.0
 	key.transform = _aim(Vector3(0, 11.0, 8.0), Vector3(0, 7.2, 0))
 	root.add_child(key)
-	_box(Vector3(12.9, 10.1, 0.4), Transform3D(Basis(), Vector3(0, 11.95, -0.6)), damask, false, root)
+	_model("wall", Transform3D(Basis.from_scale(Vector3(1.0, 10.1 / 17.0, 1.0)), Vector3(0, 6.9, -0.4)), root)  # header
 	# 18 vitrines, 3 rows of 6; row = provenance index, column = wing
-	var found: Dictionary = Save.data["provenances"]
 	for wi in WING_ORDER.size():
-		var wid := WING_ORDER[wi]
-		var info := Game.registry.get_info(wid)
-		var list: Array = found.get(String(wid), [])
 		for row in 3:
 			var p := Vector3(-4.5 + wi * 1.8, 0, -1.8 - row * 2.2)
 			_model("plinth", Transform3D(Basis(), p), root)
-			var card := Label3D.new()
-			card.font = Style.spaced(Style.CATALOG, 4)
-			card.font_size = 32
-			card.pixel_size = 0.0012
-			card.shaded = false
-			card.position = p + Vector3(0, 0.98, 0.36)
-			card.rotation.x = deg_to_rad(-30)
-			root.add_child(card)
-			if row < list.size():
-				card.text = "%s, no. %d" % [info.numeral, row + 1]
-				card.modulate = Style.GOLD
-				var m := StandardMaterial3D.new()
-				m.albedo_color = info.palette[row % 3]
-				m.metallic = 0.3
-				m.roughness = 0.12
-				m.emission_enabled = true
-				m.emission = info.palette[row % 3]
-				m.emission_energy_multiplier = 0.9
-				m.rim_enabled = true
-				m.rim = 0.6
-				var relic := _model("relics", Transform3D(Basis(Vector3.UP, 0.4 - 0.25 * row), p + Vector3(0, 1.05, 0)), root)
-				for c: Node in relic.get_children():
-					if c.name != "relic_%d" % row:
-						c.free()
-				for mi: MeshInstance3D in relic.find_children("*", "MeshInstance3D", true, false):
-					for si in mi.mesh.get_surface_count():
-						var sm := mi.mesh.surface_get_material(si)
-						if sm and sm.resource_name == "relic_tint":
-							mi.set_surface_override_material(si, m)
-			else:
-				card.text = "Reserved"
-				card.modulate = Color(Style.IVORY_DIM, 0.6)
+			_build_vitrine(root, WING_ORDER[wi], row, p)
 	var lamp := SpotLight3D.new()
 	lamp.light_color = Color(1.0, 0.86, 0.66)
-	lamp.light_energy = 22.0
+	lamp.light_energy = 55.0
 	lamp.spot_range = 12.0
-	lamp.spot_angle = 70.0
+	lamp.spot_angle = 78.0
 	lamp.shadow_enabled = true
 	lamp.light_volumetric_fog_energy = 0.0
 	lamp.position = Vector3(0, 5.9, -4.0)
@@ -520,16 +525,79 @@ func _build_alcove() -> void:
 	root.add_child(lamp)
 	var wash := SpotLight3D.new()  # warm wash on the back damask so the recess has a back
 	wash.light_color = Color(1.0, 0.72, 0.45)
-	wash.light_energy = 9.0
+	wash.light_energy = 24.0
 	wash.spot_range = 14.0
 	wash.spot_angle = 55.0
 	wash.light_volumetric_fog_energy = 0.0
 	wash.transform = _aim(Vector3(0, 5.8, -0.5), Vector3(0, 2.6, -8.5))
 	root.add_child(wash)
+	var coffer := OmniLight3D.new()  # (6) the coffered ceiling catches the lamp's bounce
+	coffer.light_color = Color(1.0, 0.76, 0.5)
+	coffer.light_energy = 3.0
+	coffer.omni_range = 9.0
+	coffer.light_volumetric_fog_energy = 0.0
+	coffer.position = Vector3(0, 4.2, -4.0)
+	root.add_child(coffer)
 	var plq := Placard.new()
 	plq.position = Vector3(-4.7, 1.55, 0.8)
 	root.add_child(plq)
 	_plaques["alcove"] = plq
+
+
+## One vitrine: the wing's `row`-th recovered provenance (in the order found), modelled
+## (hub/models/provenance_relics.glb, `relic_<wing>_<id>`; the generic relics for unknown ids) with a
+## tombstone on the plinth front. Empty vitrines carry a dim "awaiting" label.
+func _build_vitrine(root: Node3D, wid: StringName, row: int, p: Vector3) -> void:
+	var info := Game.registry.get_info(wid)
+	var list: Array = (Save.data["provenances"] as Dictionary).get(String(wid), [])
+	var plq := Placard.new()
+	plq.size = Vector2(0.46, 0.32)
+	plq.position = p + Vector3(0, 0.66, 0.3)  # clear of the plinth cornice
+	plq.rotation.x = deg_to_rad(-12)
+	var acq := "Acq. no. %s.%d" % [info.acquisition_no, row + 1]
+	if row >= list.size():
+		plq.readable = false
+		plq.set_label(Placard.fields("Awaiting acquisition", "", info.title, acq, ""), false)
+		root.add_child(plq)
+		return
+	var pid := String(list[row])
+	var meta: Dictionary = ((Save.data.get("provenance_info", {}) as Dictionary).get(String(wid), {}) as Dictionary).get(pid, {})
+	var title := String(meta.get("name", "Provenance, %s" % info.title))
+	plq.set_label(Placard.fields(title, DATE[wid], "From %s" % info.title, acq, String(meta.get("line", ""))), false)
+	root.add_child(plq)
+	var tint := StandardMaterial3D.new()
+	tint.albedo_color = info.palette[row % 3]
+	tint.metallic = 0.3
+	tint.roughness = 0.2
+	tint.emission_enabled = true
+	tint.emission = info.palette[row % 3]
+	tint.emission_energy_multiplier = 0.6
+	var xf := Transform3D(Basis(Vector3.UP, 0.3 - 0.3 * row), p + Vector3(0, 1.05, 0))
+	var want := "relic_%s_%s" % [wid, pid]
+	var relic := _model("provenance_relics", xf, root)
+	if relic.find_child(want, false, false) == null:
+		relic.free()
+		relic = _model("relics", xf, root)
+		want = "relic_%d" % row
+	for c: Node in relic.get_children():
+		if c.name != want:
+			c.free()
+	relic.name = "Relic_%s_%d" % [wid, row]
+	for mi: MeshInstance3D in relic.find_children("*", "MeshInstance3D", true, false):
+		for si in mi.mesh.get_surface_count():
+			var sm := mi.mesh.surface_get_material(si)
+			if sm and sm.resource_name == "relic_tint":
+				mi.set_surface_override_material(si, tint)
+	_relics.append({"wing": wid, "title": title, "node": relic})
+	var pin := SpotLight3D.new()  # each relic gets its own pin light from the vitrine lid
+	pin.light_color = Color(1.0, 0.9, 0.74)
+	pin.light_energy = 3.0
+	pin.spot_range = 1.2
+	pin.spot_angle = 30.0
+	pin.light_volumetric_fog_energy = 0.0
+	pin.position = p + Vector3(0, 1.52, 0.12)
+	pin.rotation.x = -PI * 0.5
+	root.add_child(pin)
 
 
 ## THE THIEF, ACQUIRED: a pedestal waiting for you. One stage per fragment returned.
@@ -539,9 +607,15 @@ func _build_thief() -> void:
 	_thief.transform = _bay_xform(THIEF_BAY, 14.5)
 	add_child(_thief)
 	var n := Quest.fragment_count()
+	_thief_stage = n
 	_model("pedestal", Transform3D.IDENTITY, _thief)
+	# the thief herself, in plaster, caught mid-reach on the pedestal top (faces the sphere)
+	var fig := _model("thief", Transform3D(Basis(), Vector3(0, 0.42, 0)), _thief)
+	var arm: Node3D = fig.find_child("thief_arm", true, false)
+	_thief_fig = {"body": fig.find_child("thief", true, false), "head": fig.find_child("thief_head", true, false),
+		"arm": arm, "arm_rest": arm.rotation if arm else Vector3.ZERO}
 	var plate := Label3D.new()
-	plate.font = Style.spaced(Style.CATALOG, 6)
+	plate.font = Style.CATALOG
 	plate.font_size = 48
 	plate.modulate = Style.GOLD
 	plate.text = "Reserved" if n < 3 else "The thief, acquired"
@@ -568,18 +642,11 @@ func _build_thief() -> void:
 	if n >= 1:  # stage 1: a sketch of the hands, pinned up
 		var easel := _model("easel", Transform3D(Basis(), Vector3(0, 1.12, 1.2)), _thief)
 		var card: MeshInstance3D = easel.find_child("card", true, false)
-		var sketch := StandardMaterial3D.new()
-		sketch.albedo_texture = load("res://assets/ui/vesper_sketch.png" if n >= 6 else "res://assets/ui/hands_sketch.png")
-		sketch.roughness = 0.9
-		var q := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(0.27, 0.34)
-		q.mesh = qm
-		q.material_override = sketch
-		q.position = Vector3(0, 1.12 + 0.29, 1.2)
-		_thief.add_child(q)
-		if card:
-			card.visible = false
+		if card:  # the sketch is drawn on the easel's own card
+			var sketch := StandardMaterial3D.new()
+			sketch.albedo_texture = load("res://assets/ui/vesper_sketch.png" if n >= 6 else "res://assets/ui/hands_sketch.png")
+			sketch.roughness = 0.9
+			card.material_override = sketch
 	if n >= 2:  # stage 2: the velvet rope
 		for k in 4:
 			var a := float(k) * TAU / 4.0 + PI / 4.0
@@ -612,19 +679,19 @@ func _build_thief() -> void:
 func _build_docents() -> void:
 	var spots: Array[Transform3D] = [
 		_bay_xform(9, 16.0),
-		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 0.9), _bay_xform(THIEF_BAY, 11.0).origin + Vector3(-2.5, 0, 1.0)),
+		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 1.9), _bay_xform(THIEF_BAY, 11.0).origin + Vector3(-2.5, 0, 1.0)),
 		_bay_xform(7, 15.5),
-		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 1.1), _bay_xform(THIEF_BAY, 12.0).origin + Vector3(3.0, 0, -3.2)),
+		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 0.1), _bay_xform(THIEF_BAY, 12.0).origin + Vector3(3.0, 0, -3.2)),
 		_bay_xform(10, 13.0),
 	]
 	var count := clampi(1 + Quest.fragment_count(), 1, spots.size())
 	for i in count:
 		var xf: Transform3D = spots[i]
-		# models face -Z; the bay transform faces +Z inward, so turn round
-		xf.basis = xf.basis * Basis(Vector3.UP, PI)
 		var d := _model("docent", xf)
 		var head: Node3D = d.find_child("head", true, false)
-		_docents.append({"root": d, "head": head, "next": 4.0 + randf() * 6.0})
+		_docents.append({"root": d, "head": head, "next": 4.0 + randf() * 6.0, "phase": float(i) * 1.7,
+			"arms": [d.find_child("arm_L", true, false), d.find_child("arm_R", true, false)],
+			"pencil": d.find_child("pencil", true, false)})
 
 
 func _build_bench(p: Vector3) -> void:
@@ -665,11 +732,19 @@ func _build_atmosphere() -> void:
 		add_child(s)
 		s.look_at(shafts[i][1], Vector3.FORWARD)
 		_shafts.append(s)
+	# LIGHTING RECIPE (the hall's light-dark arc, read from the entrance):
+	#   1 entrance + foreground floor: a dim warm pool, enough to read the marble inlay (gallery key)
+	#   2 the hall falls darker between pools; columns rim-lit from their feet
+	#   3 the centre: Exhibit 0 is the brightest thing, its omni pooling on the dais and floor
+	#   4 the frames: each a coloured window spilling its world onto the floor
+	#   5 the dome: a warm cove wash from the cornice up into the coffers, peaking at the oculus shaft
+	#   6 the Private Collection: a warm, close, lamp-lit room at the end of the arc
+	#   7 the thief: the one cold light
 	# low warm fill so the hall reads as a room, not a void
 	var fill := OmniLight3D.new()
 	fill.light_color = Color(1.0, 0.78, 0.5)
-	fill.light_energy = 0.5
-	fill.omni_range = 30.0
+	fill.light_energy = 1.4
+	fill.omni_range = 40.0
 	fill.omni_attenuation = 1.6
 	fill.light_volumetric_fog_energy = 0.0
 	fill.position = Vector3(0, 3.0, 0)
@@ -699,6 +774,42 @@ func _build_atmosphere() -> void:
 		up.light_specular = 0.8
 		up.transform = _aim(dir * (r - 2.4) + Vector3(0, 0.2, 0), dir * (r - 0.6) + Vector3(0, 16.0, 0))
 		add_child(up)
+	# (5) cove wash: six spots on the cornice, aimed across and up into the far side of the dome
+	for i in 6:
+		var a := (float(i) + 0.25) * TAU / 6.0
+		var cove := SpotLight3D.new()
+		cove.light_color = Color(1.0, 0.74, 0.46)
+		cove.light_energy = 70.0
+		cove.spot_range = 50.0
+		cove.spot_angle = 40.0
+		cove.spot_attenuation = 0.7
+		cove.light_volumetric_fog_energy = 0.0
+		cove.light_specular = 0.3
+		cove.transform = _aim(Vector3(sin(a), 0, cos(a)) * (APOTHEM - 2.0) + Vector3(0, 18.5, 0),
+			Vector3(-sin(a), 0, -cos(a)) * 6.0 + Vector3(0, 36.0, 0))
+		add_child(cove)
+	# (2) perimeter wash: the damask between the frames reads as wall, not void (dimmer than any pool)
+	for i in 12:
+		var a := float(i) * TAU / 12.0
+		var wash := OmniLight3D.new()
+		wash.light_color = Color(1.0, 0.74, 0.5)
+		wash.light_energy = 4.0
+		wash.omni_range = 12.0
+		wash.omni_attenuation = 0.9
+		wash.light_volumetric_fog_energy = 0.0
+		wash.light_specular = 0.2
+		wash.position = Vector3(sin(a), 0, cos(a)) * (APOTHEM - 5.0) + Vector3(0, 6.0, 0)
+		add_child(wash)
+	# (1) foreground key: from the gallery over the entrance, a soft pool on the near floor
+	var near := SpotLight3D.new()
+	near.light_color = Color(1.0, 0.8, 0.56)
+	near.light_energy = 9.0
+	near.spot_range = 34.0
+	near.spot_angle = 30.0
+	near.spot_attenuation = 1.2
+	near.light_volumetric_fog_energy = 0.4
+	near.transform = _aim(Vector3(0, 21.0, 3.0), Vector3(0, 0, 13.0))
+	add_child(near)
 	# ponytail: no ReflectionProbe (cost ~1.5 ms at 1440p); SSR carries the floor reflections
 
 
@@ -839,6 +950,33 @@ func _refresh_placards(animate: bool) -> void:
 	(_plaques["alcove"] as Placard).set_label(Placard.fields("The private collection", "Ongoing", "Things you brought back. By appointment.", "", a), anim)
 
 
+## Camera marks for tests/shots.tscn (`-- --wing=atrium`): every surface the player judges the hall by.
+func _build_shot_marks() -> void:
+	var marks := Node3D.new()
+	marks.name = "ShotMarks"
+	add_child(marks)
+	var add := func(n: String, at: Vector3, look: Vector3) -> void:
+		var m := Marker3D.new()
+		m.name = n
+		m.transform = _aim(at, look)
+		marks.add_child(m)
+	add.call("01_entrance", Vector3(0.0, 1.7, 19.0), Vector3(0.0, 5.0, 0.0))
+	add.call("02_sphere", Vector3(3.4, 4.0, 5.6), Vector3(0.0, 6.2, 0.0))
+	add.call("03_sphere_low", Vector3(-2.2, 1.6, 6.8), Vector3(0.0, 6.0, 0.0))
+	add.call("04_dome", Vector3(2.0, 1.7, 12.0), Vector3(0.0, 34.0, -6.0))
+	add.call("05_floor", Vector3(6.0, 0.9, 16.5), Vector3(-4.0, 2.0, 0.0))
+	for i in WING_ORDER.size():
+		var a := float(FRAME_BAYS[i]) * TAU / 12.0
+		var f := Vector3(sin(a), 0, cos(a)) * (APOTHEM - 0.5) + Vector3(0, 3.6, 0)
+		var at := Vector3(sin(a + 0.22), 0, cos(a + 0.22)) * 14.0 + Vector3(0, 1.7, 0)
+		add.call("1%d_frame_%s" % [i, WING_ORDER[i]], at, f)
+	add.call("20_alcove", Vector3(1.5, 1.7, -16.5), Vector3(0.0, 1.4, -28.0))
+	add.call("21_relics", Vector3(1.6, 1.6, -23.6), Vector3(-0.6, 1.15, -27.0))
+	var ta := float(THIEF_BAY) * TAU / 12.0
+	add.call("30_thief", Vector3(sin(ta + 0.2), 0, cos(ta + 0.2)) * 10.0 + Vector3(0, 1.7, 0), Vector3(sin(ta), 0, cos(ta)) * 14.5 + Vector3(0, 1.5, 0))
+	add.call("31_docent", Vector3(-12.5, 1.6, 2.0), Vector3(-16.0, 1.8, 0.0))
+
+
 # --- per frame --------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
@@ -846,6 +984,7 @@ func _process(delta: float) -> void:
 	var dt := delta * Game.world_time_scale
 	if _sphere:
 		_sphere.rotate_y(dt * 0.05)
+		_skin.set_shader_parameter("centre", _sphere.global_position)
 		_sphere.position.y = SPHERE_Y + sin(_t * 0.4) * 0.08
 		for s: Dictionary in _shards:
 			if s.get("fly", false):
@@ -881,13 +1020,22 @@ func _process(delta: float) -> void:
 			if head == null:
 				continue
 			var local := root.to_local(p.global_position)
-			var want := clampf(atan2(-local.x, -local.z), -1.3, 1.3) if local.length() < 18.0 else 0.0
+			var want := clampf(atan2(local.x, local.z), -1.3, 1.3) if local.length() < 18.0 else 0.0  # models face +Z
 			head.rotation.y = lerp_angle(head.rotation.y, want, 1.0 - exp(-2.5 * delta))
 			d["next"] = float(d["next"]) - delta
 			if float(d["next"]) <= 0.0:
 				d["next"] = 6.0 + randf() * 8.0
 				if local.length() < 12.0:
 					Audio.sfx(Audio.stream("sketch"), root.global_position + Vector3(0, 1.2, 0), -10.0, 0.4, randf_range(0.9, 1.1))
+			var ph: float = d["phase"]
+			for arm: Node3D in d["arms"]:  # breathing: a slow lift of the shoulders
+				if arm:
+					arm.rotation.x = 0.03 * sin(_t * 1.1 + ph)
+			var pencil: Node3D = d["pencil"]
+			if pencil:  # sketching: small quick strokes while you are near, still otherwise
+				var near := 1.0 if local.length() < 12.0 else 0.0
+				pencil.rotation.z = near * 0.12 * sin(_t * 7.0) * maxf(0.0, sin(_t * 0.9 + ph))
+		_animate_thief(p, delta)
 	_distant_t -= delta
 	if _distant_t <= 0.0:
 		_distant_t = randf_range(45.0, 90.0)
@@ -897,6 +1045,27 @@ func _process(delta: float) -> void:
 	var touch: Interactable = _sphere.get_node_or_null("SphereTouch") if _sphere else null
 	if touch:
 		touch.enabled = finale_available() and not _finale_running
+
+
+## The thief idles: breath in the chest, the reaching arm drifting, the head following you once
+## you are close enough to be the thing she lost.
+func _animate_thief(p: Node3D, delta: float) -> void:
+	var head: Node3D = _thief_fig.get("head")
+	var arm: Node3D = _thief_fig.get("arm")
+	var body: Node3D = _thief_fig.get("body")
+	if body:
+		body.position.y = 0.006 * sin(_t * 1.25)
+	if arm:
+		var rest: Vector3 = _thief_fig["arm_rest"]
+		arm.rotation = rest + Vector3(0.05 * sin(_t * 0.43), 0.0, 0.03 * sin(_t * 0.31 + 1.0))
+	if head:
+		var local := head.get_parent_node_3d().to_local(p.global_position + Vector3(0, 1.5, 0)) - head.position
+		var near := local.length() < 9.0
+		var yaw := clampf(atan2(local.x, local.z), -1.0, 1.0) if near else 0.25 * sin(_t * 0.17)
+		var pitch := clampf(atan2(-local.y, Vector2(local.x, local.z).length()), -0.4, 0.4) if near else 0.0
+		var k := 1.0 - exp(-1.6 * delta)
+		head.rotation.y = lerp_angle(head.rotation.y, yaw, k)
+		head.rotation.x = lerp_angle(head.rotation.x, pitch, k)
 
 
 # --- placement of returned fragments (the hub half of the Fragment ceremony) ------------------
@@ -984,6 +1153,23 @@ func _mark_placed(pending: Array[StringName]) -> void:
 		s["fly"] = false
 		(s["node"] as MeshInstance3D).visible = s["wing"] == &"" or _is_placed(s["wing"])
 	_shard_gap = 0.16 - 0.02 * Quest.fragment_count()
+	Audio.set_intensity(Quest.fragment_count() / 6.0, 6.0)  # one more band of the theme, on the bar
+	for id in pending:  # the returned weather pours in over a few seconds
+		_weather[id] = 1.0
+		_tween_param(create_tween(), _skin, "w_" + String(id), 1.0, 4.0).set_trans(Tween.TRANS_SINE)
+	create_tween().tween_property(_sphere_light, "light_color", _sphere_tint(), 4.0)
+
+
+## The sphere's light: warm gold, taking on a little of each returned world's key colour.
+func _sphere_tint() -> Color:
+	var c := Color(1.0, 0.72, 0.38)
+	var acc := Color(0, 0, 0)
+	var n := 0
+	for id in WING_ORDER:
+		if _is_placed(id):
+			acc += Game.registry.get_info(id).palette[0]
+			n += 1
+	return c if n == 0 else c.lerp(acc / float(n), 0.08 * n).lerp(Color.WHITE, 0.15)
 
 
 # --- intro --------------------------------------------------------------------------------
@@ -1001,6 +1187,9 @@ func _intro() -> void:
 	var c2 := Transform3D(Basis.looking_at(Vector3(0, SPHERE_Y - 0.6, 0) - c2p, Vector3.UP), c2p)
 	var c3p := Vector3(1.4, 1.7, 13.4)
 	var c3 := Transform3D(Basis.looking_at(Vector3(0, SPHERE_Y - 0.2, 0) - c3p, Vector3.UP), c3p)
+	Game.player.teleport(find_checkpoint(&"start").global_transform)  # stand her where the camera lands
+	await get_tree().physics_frame
+	var eye := Game.player.camera.global_transform
 	await Cinematics.play([
 		{"fade": 1.0, "t": 0.0},
 		{"call": _intro_dark},
@@ -1020,6 +1209,8 @@ func _intro() -> void:
 		{"fade": 0.0, "t": 2.5},
 		{"wait": 7.5},
 		{"card": "The thief, acquired.", "sub": "Exhibit pending", "t": 5.0, "style": "display"},
+		# handover: glide from the last shot into Vesper's own eye, field of view easing to hers
+		{"cam": [c3, c3.interpolate_with(eye, 0.45), eye], "t": 4.0, "fov": 64.0, "fov_to": Game.player.base_fov},
 		{"call": _intro_done, "always": true},
 	])
 
@@ -1089,6 +1280,7 @@ func _open_choice() -> void:
 	back.pressed.connect(_close_choice)
 	box.add_child(back)
 	add_child(_choice)
+	(box.get_child(2) as Button).grab_focus()  # keyboard and pad choose too
 	Game.player.input_enabled = false
 	Game.player.look_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -1186,6 +1378,15 @@ func _break_open() -> void:
 func _shake(v: float) -> void:
 	if Game.player:
 		Game.player.add_trauma(v)
+
+
+## The loose splinters share the vessel's glass but sit outside it: no interior to march.
+var _chip_mat: ShaderMaterial
+func _chip_skin(skin: ShaderMaterial) -> ShaderMaterial:
+	if _chip_mat == null:
+		_chip_mat = skin.duplicate() as ShaderMaterial
+		_chip_mat.set_shader_parameter("volume", 0.0)
+	return _chip_mat
 
 
 ## Tween a shader uniform via set_shader_parameter (property paths fail when the renderer has
