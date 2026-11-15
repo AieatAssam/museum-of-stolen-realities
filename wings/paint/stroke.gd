@@ -331,3 +331,20 @@ func end_point(at_start: bool) -> Vector3:
 
 func centre() -> Vector3:
 	return sample(length * 0.5)
+
+
+var _bb := AABB()
+var _bb_xf := Transform3D(Basis.IDENTITY * 0.0, Vector3.INF)
+
+
+## Global AABB of the centreline (cached until the stroke moves).
+func bounds() -> AABB:
+	var xf := global_transform
+	if xf != _bb_xf:
+		_bb_xf = xf
+		_bb = AABB(xf * pts[0], Vector3.ZERO)
+		for p in pts:
+			_bb = _bb.expand(xf * p)
+		if upright:
+			_bb = _bb.expand(_bb.end + Vector3.UP * width)
+	return _bb

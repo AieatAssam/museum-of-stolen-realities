@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://wings/paint/paint.gd" id="1"]
+
+[node name="Paint" type="Node3D"]
+script = ExtResource("1")
+wing_id = &"paint"
+spawn_checkpoint = &"start"
+start_mode = &"paint"
+void_height = -150.0
