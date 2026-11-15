@@ -1,0 +1,1526 @@
+extends Wing
+## THE VITRINE KINGDOM — Acq. No. 214, "For the Light Alone".
+## A kingdom glazed entire. Its one rule is LIGHTWALKING (optics.gd): coloured light is solid.
+##
+## Route (−Z is east, toward the altar):
+##   Cloister (spawn, one beam, one dial) → Nave (a clockwork dial and a mirror schedule light across
+##   the abyss) → Choir → Crypt (a prism splits white; mirrors and a lens recombine it; colour-keyed
+##   gates; three saints turned face-up) → glass passage → Tower stair → Roof (THE SKY IS ONE WINDOW,
+##   and something leans in) → the Rose Widow's hall (set-piece) → north triforium → Choir lens →
+##   the East Window shatters (the wind never stops; the way home seals) → heist along dying beams.
+##
+## The whole level is built in code from the coordinates below so the optics line up by
+## construction (receptors are placed along the prism's actual output directions).
+
+const Dial := preload("res://wings/glass/dial.gd")
+const LightwalkMode := preload("res://wings/glass/lightwalk_mode.gd")
+const RoseWidow := preload("res://wings/glass/rose_widow.gd")
+const MATS := "res://wings/glass/materials/"
+const SND := "res://wings/glass/audio/"
+const MODELS := "res://wings/glass/models/"
+
+const HALL := Vector3(-60, 14, -95)
+const PRISM_O := Vector3(0, -7.88, -92)
+const LENS_POS := Vector3(0, 2.95, -100.7)
+const EAST_AIM := Vector3(0, 6.05, -120.8)
+const HEIST_DEADLINES := [9.0, 15.0, 21.0, 27.0]
+
+var optics: GlassOptics
+var geo: Node3D
+var M: Dictionary = {}
+## Test- and cinematic-facing handles: interactables and named points by id.
+var uses: Dictionary = {}
+var pts: Dictionary = {}
+var dials: Dictionary = {}
+var mirrors: Dictionary = {}
+var receptors: Dictionary = {}
+var srcs: Dictionary = {}
+var windows: Dictionary = {}   # id -> ShaderMaterial
+var prism: GlassOptics.Prism
+var lens_crypt: GlassOptics.Lens
+var lens_choir: GlassOptics.Lens
+var rose: RoseWidow
+var sky_mat: ShaderMaterial
+var env: Environment
+var shattered: bool = false
+var heist_on: bool = false
+var heist_t: float = 0.0
+var lantern_carried: bool = false
+
+var _gates: Dictionary = {}     # id -> Node3D (solid gate)
+var _west_door: Node3D
+var _fragment: Pickup
+var _frag_spot: Node3D
+var _hand_lantern: Node3D
+var _lens_lantern: Node3D
+var _rose_lights: Array = []
+var _east_mesh: MeshInstance3D
+var _wind_fx: GPUParticles3D
+var _last_pos: Vector3 = Vector3.INF
+var _music_now: StringName = &""
+var _reliquary_lid: Node3D
+var _prov_spots: Dictionary = {}
+var _sconce_lights: Array = []
+
+
+# =============================================================================================
+# Wing contract
+
+func objectives() -> Array[Dictionary]:
+	return [
+		{"id": "light", "title": "Let the light into the nave", "steps": [
+			{"id": "cloister_dial", "title": "Bridge the cloister with the sun-dial"},
+			{"id": "clockwork", "title": "Ride the clockwork across the nave"},
+			{"id": "choir", "title": "Reach the choir"}],
+			"hint": "Interact with a dial to turn its beam. A beam you can see is a beam you can stand on."},
+		{"id": "saints", "title": "Turn the saints face-up", "steps": [
+			{"id": "azure", "title": "Saint Azure (blue)"},
+			{"id": "ruby", "title": "Saint Ruby (red, behind the gold gate)"},
+			{"id": "verdance", "title": "Saint Verdance (green: gold and blue together)"}],
+			"hint": "Under the choir grate a prism splits white light. Each face-down pane wants exactly its own colour."},
+		{"id": "east", "title": "Unglaze the Curator's window", "steps": [
+			{"id": "widow", "title": "Cross the Rose Widow's hall"},
+			{"id": "lens", "title": "Set her lantern in the choir lens"},
+			{"id": "shatter", "title": "Light the East Window with every saint at once"}],
+			"hint": "The roof is reached from the crypt passage. Ruby, Azure and Verdance together make white."},
+	]
+
+
+func provenances() -> Array[Dictionary]:
+	return [
+		{"id": "face", "name": "The face of St. Lumen, leaded out", "line": "Removed in the re-glazing. She is still smiling at the miracle she was cut from."},
+		{"id": "veil", "name": "A thread of the Widow's veil", "line": "Violet. Kept in a reliquary that opens only to the colours of mourning."},
+		{"id": "iron", "name": "A glazier's grozing iron", "line": "Left on the roof by whoever re-leaded the sky. The handle is worn to the shape of a much larger hand."},
+	]
+
+
+func fragment() -> Dictionary:
+	return {"name": "The Fourth Sun", "line": "A pane of the sky. Where it was, the onlooker's loupe has nothing left to look through but the hole."}
+
+
+func register_modes(player: Player) -> void:
+	var lw := LightwalkMode.new()
+	lw.wind = _wind_at
+	player.add_mode(&"lightwalk", lw)
+	var steps: Array[AudioStream] = []
+	for i in range(1, 7):
+		steps.append(load(SND + "step_glass_%d.ogg" % i))
+	Audio.register_footsteps(&"glass", steps)
+
+
+func save_state() -> Dictionary:
+	return {"lantern": lantern_carried}
+
+
+func on_enter(first_time: bool) -> void:
+	_apply_progress()
+	_last_pos = Game.player.global_position
+	_music_for(Game.player.global_position)
+	if first_time:
+		await Cinematics.play([
+			{"card": "For the Light Alone", "sub": "THE VITRINE KINGDOM  ·  ACQ. NO. 214", "t": 4.0, "style": "display"},
+		])
+		toast("Lightwalking: coloured light here is solid. Turn the sun-dial to lay a beam across the gap.", "The Vitrine Kingdom")
+
+
+# =============================================================================================
+# Build
+
+func _ready() -> void:
+	geo = Node3D.new()
+	geo.name = "Geometry"
+	add_child(geo)
+	optics = GlassOptics.new()
+	optics.name = "Optics"
+	add_child(optics)
+	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember"]:
+		M[n] = load(MATS + n + ".tres")
+	_build_environment()
+	_build_cloister()
+	_build_nave()
+	_build_choir()
+	_build_crypt()
+	_build_passage_and_tower()
+	_build_roof()
+	_build_rose()
+	_build_east_and_heist()
+	_build_provenances()
+	_build_checkpoints()
+
+
+func _build_environment() -> void:
+	env = Environment.new()
+	env.background_mode = Environment.BG_SKY
+	var sky := Sky.new()
+	sky_mat = ShaderMaterial.new()
+	sky_mat.shader = load("res://wings/glass/shaders/sky_window.gdshader")
+	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.35
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.tonemap_mode = Environment.TONE_MAPPER_AGX
+	env.tonemap_white = 8.0
+	env.glow_enabled = true
+	env.glow_intensity = 0.9
+	env.glow_bloom = 0.12
+	env.glow_hdr_threshold = 1.1
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	env.ssao_enabled = true
+	env.volumetric_fog_enabled = true
+	env.volumetric_fog_density = 0.012
+	env.volumetric_fog_albedo = Color(0.55, 0.6, 0.95)
+	env.volumetric_fog_emission = Color(0.012, 0.016, 0.05)
+	env.volumetric_fog_anisotropy = 0.55
+	env.volumetric_fog_length = 90.0
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.name = "Sun"
+	sun.light_color = Color("ffe2a8")
+	sun.light_energy = 1.1
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 90.0
+	sun.light_volumetric_fog_energy = 1.5
+	add_child(sun)
+	sun.look_at_from_position(Vector3.ZERO, Vector3(-0.35, -0.55, 0.76), Vector3.UP)
+
+
+# --- primitives --------------------------------------------------------------------------------
+
+func _block(a: Vector3, b: Vector3, mat: String, solid: bool = true, parent: Node3D = null) -> MeshInstance3D:
+	var lo := a.min(b)
+	var hi := a.max(b)
+	var size := hi - lo
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = M[mat]
+	mi.position = (lo + hi) * 0.5
+	(parent if parent else geo).add_child(mi)
+	if solid:
+		_solid(mi, size)
+	return mi
+
+
+func _solid(mi: Node3D, size: Vector3) -> StaticBody3D:
+	var sb := StaticBody3D.new()
+	sb.collision_layer = 1
+	sb.collision_mask = 0
+	sb.set_meta(&"surface", "glass")
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	sb.add_child(cs)
+	mi.add_child(sb)
+	return sb
+
+
+## A slab whose top centre-line runs from a to b.
+func _ramp(a: Vector3, b: Vector3, w: float, mat: String, solid: bool = true) -> MeshInstance3D:
+	var d := b - a
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(w, 0.4, d.length())
+	mi.mesh = bm
+	mi.material_override = M[mat]
+	var basis := Basis.looking_at(d.normalized(), Vector3.UP)
+	mi.transform = Transform3D(basis, (a + b) * 0.5 - basis.y * 0.2)
+	geo.add_child(mi)
+	if solid:
+		_solid(mi, bm.size)
+	return mi
+
+
+func _light(pos: Vector3, col: Color, energy: float, rng: float, parent: Node3D = null) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.light_color = col
+	l.light_energy = energy
+	l.omni_range = rng
+	l.omni_attenuation = 1.2
+	l.position = pos
+	(parent if parent else geo).add_child(l)
+	return l
+
+
+func _spot(from: Vector3, to: Vector3, col: Color, energy: float, angle: float, rng: float) -> SpotLight3D:
+	var s := SpotLight3D.new()
+	s.light_color = col
+	s.light_energy = energy
+	s.spot_angle = angle
+	s.spot_range = rng
+	s.light_volumetric_fog_energy = 3.0
+	geo.add_child(s)
+	s.look_at_from_position(from, to, Vector3.UP if absf(from.direction_to(to).y) < 0.98 else Vector3.FORWARD)
+	return s
+
+
+func _window(id: String, centre: Vector3, size: Vector2, facing: Vector3, tex: String, edited: float = 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = size
+	mi.mesh = q
+	var m := ShaderMaterial.new()
+	m.shader = load("res://wings/glass/shaders/window.gdshader")
+	m.set_shader_parameter(&"window_tex", load("res://wings/glass/textures/%s.png" % tex))
+	m.set_shader_parameter(&"edited", edited)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	geo.add_child(mi)
+	mi.global_transform = Transform3D(Basis.looking_at(-facing, Vector3.UP if absf(facing.y) < 0.9 else Vector3.FORWARD), centre)
+	windows[id] = m
+	return mi
+
+
+func _model(name: String) -> Node3D:
+	var path := MODELS + name + ".glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	MaterialLib.apply(n, ["res://wings/glass/materials", MaterialLib.CORE_DIR])
+	return n
+
+
+func _mesh_of(name: String) -> Mesh:
+	var n := _model(name)
+	if n == null:
+		return null
+	var found := n.find_children("*", "MeshInstance3D", true, false)
+	var mesh: Mesh = (found[0] as MeshInstance3D).mesh if not found.is_empty() else null
+	n.free()
+	return mesh
+
+
+func _use(id: String, pos: Vector3, size: Vector3, prompt: String, cb: Callable, hold: float = 0.0) -> Interactable:
+	var it := Interactable.make_box(size, prompt)
+	it.position = pos
+	it.hold_time = hold
+	it.interacted.connect(func(_p: Player) -> void: cb.call())
+	geo.add_child(it)
+	uses[id] = it
+	return it
+
+
+func _catch(a: Vector3, b: Vector3) -> void:
+	var tz := TriggerZone.make_box((b - a).abs(), false)
+	tz.position = (a + b) * 0.5
+	tz.triggered.connect(func(_p: Player) -> void: Game.respawn())
+	add_child(tz)
+
+
+func _zone(a: Vector3, b: Vector3, cb: Callable, once: bool = true) -> TriggerZone:
+	var tz := TriggerZone.make_box((b - a).abs(), once)
+	tz.position = (a + b) * 0.5
+	tz.triggered.connect(func(_p: Player) -> void: cb.call())
+	add_child(tz)
+	return tz
+
+
+func _placard(pos: Vector3, facing: Vector3, heading: String, title: String, cat: String, body: String) -> Placard:
+	var p := Placard.new()
+	geo.add_child(p)
+	p.global_transform = Transform3D(Basis.looking_at(-facing, Vector3.UP), pos)
+	p.set_text(heading, title, cat, body, false)
+	return p
+
+
+func _dial(id: String, pos: Vector3, aims: Array, mask: int, prompt: String, cycle: Array = []) -> Node3D:
+	var d: Dial = Dial.new()
+	d.id = id
+	d.aims = aims
+	d.cycle = cycle
+	d.position = pos
+	var model := _model("dial")
+	if model == null:
+		model = Node3D.new()
+		var base := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.45
+		cm.bottom_radius = 0.6
+		cm.height = 0.5
+		base.mesh = cm
+		base.material_override = M["brass"]
+		base.position.y = -0.1
+		model.add_child(base)
+	d.setup(optics, mask, model, prompt)
+	geo.add_child(d)
+	var lensv := MeshInstance3D.new()
+	var lm := CylinderMesh.new()
+	lm.top_radius = 0.28
+	lm.bottom_radius = 0.28
+	lm.height = 0.12
+	lensv.mesh = lm
+	lensv.rotation.x = PI / 2
+	lensv.position.z = -0.35
+	var gm := StandardMaterial3D.new()
+	gm.albedo_color = GlassOptics.color(mask)
+	gm.emission_enabled = true
+	gm.emission = GlassOptics.color(mask)
+	gm.emission_energy_multiplier = 3.0
+	lensv.material_override = gm
+	d.head.add_child(lensv)
+	dials[id] = d
+	uses[id] = d.interact
+	return d
+
+
+func _mirror(id: String, pos: Vector3, from: Vector3, targets: Array, index: int = 0, face: float = 1.1) -> GlassOptics.Mirror:
+	var m := GlassOptics.Mirror.new()
+	for t: Vector3 in targets:
+		m.normals.append(GlassOptics.mirror_normal(pos, from, t))
+	m.index = index
+	m.position = pos
+	optics.add_child(m)
+	m.setup(Vector2(face, face))
+	optics.add_element(m)
+	var disc := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = face * 0.5
+	cm.bottom_radius = face * 0.5
+	cm.height = 0.06
+	disc.mesh = cm
+	disc.material_override = M["silver"]
+	disc.rotation.x = PI / 2
+	m.head.add_child(disc)
+	var rim := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = face * 0.5
+	tm.outer_radius = face * 0.5 + 0.07
+	rim.mesh = tm
+	rim.material_override = M["brass"]
+	rim.rotation.x = PI / 2
+	m.head.add_child(rim)
+	var post := MeshInstance3D.new()
+	var pm := CylinderMesh.new()
+	pm.top_radius = 0.06
+	pm.bottom_radius = 0.18
+	pm.height = 0.9
+	post.mesh = pm
+	post.material_override = M["lead"]
+	post.position = Vector3(0, -0.5, 0)
+	m.add_child(post)
+	mirrors[id] = m
+	_use(id, pos + Vector3(0, 0.3, 0), Vector3(1.4, 1.6, 1.4), "Turn the mirror", func() -> void:
+		m.turn()
+		Audio.sfx(load(SND + "mirror_turn.ogg"), pos, -3.0, 0.4, randf_range(0.95, 1.05)))
+	return m
+
+
+func _receptor(id: String, pos: Vector3, want: int, size: Vector3, cb: Callable) -> GlassOptics.Receptor:
+	var r := GlassOptics.Receptor.new()
+	r.want = want
+	r.position = pos
+	optics.add_child(r)
+	r.make_body(size)
+	optics.add_element(r)
+	r.satisfied.connect(cb)
+	receptors[id] = r
+	return r
+
+
+func _source(id: String, pos: Vector3, target: Vector3, mask: int, on: bool = true) -> GlassOptics.Source:
+	var s := GlassOptics.Source.new()
+	s.position = pos
+	s.dir = pos.direction_to(target)
+	s.mask = mask
+	s.on = on
+	optics.add_child(s)
+	optics.add_source(s)
+	srcs[id] = s
+	return s
+
+
+func _icons(xforms: Array, tint: Color) -> void:
+	# The kneeling congregation: hinged, hieratic glass icons — one MultiMesh, hundreds of saints.
+	var mesh := _mesh_of("icon_kneel")
+	if mesh == null:
+		var pm := PrismMesh.new()
+		pm.size = Vector3(0.5, 1.1, 0.35)
+		mesh = pm
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	mm.instance_count = xforms.size()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 214
+	var pal := [Color("2b54c9"), Color("b22242"), Color("e8b54a"), Color("1a7a5e"), Color("8a3fd1")]
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+		mm.set_instance_color(i, (pal[rng.randi() % pal.size()] as Color).lerp(tint, 0.2))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.emission_enabled = true
+	m.emission_energy_multiplier = 0.6
+	m.roughness = 0.25
+	m.metallic = 0.1
+	if mesh is PrismMesh:
+		mmi.material_override = m
+	geo.add_child(mmi)
+
+
+# --- CLOISTER ------------------------------------------------------------------------------------
+
+func _build_cloister() -> void:
+	# Walks around a void garth, |x|,|z| in [11, 17.5]. The east walk is broken (z -5..5), the west
+	# walk collapsed (no way round). Spawn on the south walk.
+	_block(Vector3(-17.5, -1, 11), Vector3(17.5, 0, 17.5), "glass_floor")
+	_block(Vector3(-17.5, -1, -17.5), Vector3(17.5, 0, -11), "glass_floor")
+	_block(Vector3(11, -1, 5), Vector3(17.5, 0, 11), "glass_floor")
+	_block(Vector3(11, -1, -11), Vector3(17.5, 0, -5), "glass_floor")
+	_block(Vector3(-17.5, -1, 5), Vector3(-11, 0, 11), "glass_floor")
+	_block(Vector3(-17.5, -1, -11), Vector3(-11, 0, -5), "glass_floor")
+	# rubble of the collapsed west walk, hanging over nothing
+	for i in 5:
+		var z := -4.0 + i * 2.0
+		_block(Vector3(-16.5 + i * 0.6, -2.5 - i * 0.7, z), Vector3(-14.5 + i * 0.5, -1.8 - i * 0.7, z + 1.1), "glass_red", false)
+	# outer walls (the north wall is the nave's west front, with its door)
+	_block(Vector3(-18.5, 0, 17.5), Vector3(18.5, 9, 18.5), "glass_wall")
+	_block(Vector3(17.5, 0, -17.5), Vector3(18.5, 9, 17.5), "glass_wall")
+	_block(Vector3(-18.5, 0, -17.5), Vector3(-17.5, 9, 17.5), "glass_wall")
+	_block(Vector3(-18.5, 0, -18.5), Vector3(-2.5, 26, -17.5), "glass_wall")
+	_block(Vector3(2.5, 0, -18.5), Vector3(18.5, 26, -17.5), "glass_wall")
+	_block(Vector3(-2.5, 4.5, -18.5), Vector3(2.5, 26, -17.5), "glass_wall")
+	_west_door = _block(Vector3(-2.5, 0, -18.2), Vector3(2.5, 4.5, -17.8), "lead")
+	_west_door.visible = false
+	(_west_door.get_child(0) as StaticBody3D).collision_layer = 0
+	# arcade around the garth: lead-framed glass piers, a glazed roof over the walks
+	for side in 4:
+		for k in 8:
+			var u := -10.5 + k * 3.0
+			var p := Vector3(u, 0, 11) if side == 0 else (Vector3(u, 0, -11) if side == 1 else (Vector3(11, 0, u) if side == 2 else Vector3(-11, 0, u)))
+			if side >= 2 and absf(u) < 5.5:
+				continue
+			_block(p + Vector3(-0.3, 0, -0.3), p + Vector3(0.3, 5.2, 0.3), "glass_gold")
+	_block(Vector3(-17.5, 5.6, 11), Vector3(17.5, 5.9, 17.5), "glass_quarry", false)
+	_block(Vector3(-17.5, 5.6, -17.5), Vector3(17.5, 5.9, -11), "glass_quarry", false)
+	_block(Vector3(11, 5.6, -11), Vector3(17.5, 5.9, 11), "glass_quarry", false)
+	_block(Vector3(-17.5, 5.6, -11), Vector3(-11, 5.9, 11), "glass_quarry", false)
+	# the garth is a light-well: a column of white falls into it forever
+	_spot(Vector3(0, 40, 0), Vector3(0, -20, 0), Color("fff1d2"), 6.0, 14.0, 70.0)
+	_light(Vector3(0, 3, 14), Color("e8b54a"), 1.6, 12.0)
+	_light(Vector3(14, 3, 0), Color("2b54c9"), 1.4, 10.0)
+	_light(Vector3(0, 3, -14), Color("b22242"), 1.4, 12.0)
+	_light(Vector3(-14, 3, 8), Color("1a7a5e"), 1.2, 10.0)
+	# the first dial sits in a notch at the gap's edge, its lens at walking height
+	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.25, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
+	pts["d1_use"] = Vector3(14.2, 0, 6.5)
+	pts["gap_south"] = Vector3(14.2, 0, 5.4)
+	pts["gap_north"] = Vector3(14.2, 0, -6.5)
+	_zone(Vector3(11, 0, -10), Vector3(17.5, 3, -6), func() -> void: complete_step(&"light", &"cloister_dial"))
+	# congregation along the south and north walks, facing east (−Z)
+	var xf: Array = []
+	for k in 10:
+		xf.append(Transform3D(Basis.from_euler(Vector3(0, 0, 0)), Vector3(-15 + k * 1.3, 0, 16.6)))
+		xf.append(Transform3D(Basis.IDENTITY, Vector3(-15 + k * 1.3, 0, -12.2)))
+	_icons(xf, Color("8a3fd1"))
+	_placard(Vector3(-3.5, 1.5, 17.4), Vector3(0, 0, -1), "214", "For the Light Alone",
+		"The Vitrine Kingdom  ·  Acq. No. 214  ·  leaded glass, light",
+		"A kingdom glazed entire. Its light is load-bearing. Visitors walk only on beams that are switched on. The museum accepts no liability for beams that have been switched off.")
+	_placard(Vector3(8, 1.5, 17.4), Vector3(0, 0, -1), "—", "Kneeling Congregation", "Glass, lead, in perpetuity",
+		"They kneel toward the east window. Their veils are violet: in the Kingdom the colour of mourning, in its schools the colour of knowledge. Conservators note these are the same colour.")
+
+
+# --- NAVE --------------------------------------------------------------------------------------
+
+func _build_nave() -> void:
+	# west bay, then the abyss (z -34..-80), two islands, the choir beyond.
+	_block(Vector3(-15.5, -1, -34), Vector3(15.5, 0, -17.5), "glass_floor")
+	_block(Vector3(-4, -0.6, -48), Vector3(4, 0, -43), "glass_floor")    # P1
+	_block(Vector3(-4, -0.6, -65), Vector3(4, 0, -59), "glass_floor")    # P2
+	for p: Vector3 in [Vector3(0, -0.6, -45.5), Vector3(0, -0.6, -62)]:
+		_block(p + Vector3(-1.2, -14, -1.2), p + Vector3(1.2, 0, 1.2), "glass_gold", false)
+	# walls and vault (the nave is roofed: its sky is hidden in haze until the roof)
+	_block(Vector3(15.5, -12, -121), Vector3(16.5, 26, -17.5), "glass_wall")
+	_block(Vector3(-16.5, -3, -107.5), Vector3(-15.5, 26, -17.5), "glass_wall")
+	_block(Vector3(-16.5, -3, -121), Vector3(-15.5, 26, -111.5), "glass_wall")
+	_block(Vector3(-16.5, -3, -111.5), Vector3(-15.5, 8.9, -107.5), "glass_wall")
+	_block(Vector3(-16.5, 12, -111.5), Vector3(-15.5, 26, -107.5), "glass_wall")
+	_block(Vector3(-16.5, -12, -121), Vector3(-15.5, -3, -88), "glass_wall")
+	_block(Vector3(-16.5, 25.5, -121), Vector3(16.5, 26.5, -17.5), "glass_quarry", false)
+	# piers of the arcade
+	for k in 9:
+		var z := -22.0 - k * 11.0
+		for x: float in [-9.5, 9.5]:
+			_block(Vector3(x - 0.6, -12 if z < -34 and z > -80 else 0, z - 0.6), Vector3(x + 0.6, 25.5, z + 0.6), "glass_red" if k % 2 == 0 else "glass_gold", z > -34 or z < -80)
+	# triforium: south gallery over the nave (Provenance A), north stub over the choir (the way back
+	# from the Rose hall)
+	_block(Vector3(12, 8.6, -80), Vector3(15.5, 9, -20), "glass_floor")
+	_block(Vector3(12, 9, -80), Vector3(12.3, 10, -54), "glass_quarry")
+	_block(Vector3(12, 9, -50), Vector3(12.3, 10, -20), "glass_quarry")
+	_block(Vector3(-15.5, 8.6, -112), Vector3(-12, 9, -100), "glass_floor")
+	# windows: the nave's history windows (go dark during the heist) and the gold window W_N
+	var hist := 0
+	for z: float in [-28.0, -42.0, -72.0]:
+		for s: float in [-1.0, 1.0]:
+			_window("hist_%d" % hist, Vector3(15.45 * s, 17, z), Vector2(7, 7), Vector3(-s, 0, 0), "win_history")
+			hist += 1
+	_window("w_n", Vector3(-15.45, 18, -58), Vector2(8, 8), Vector3(1, 0, 0), "win_history")
+	_source("w_n", Vector3(-15.0, 18, -58.5), Vector3(-2, 0.12, -63.8), GlassOptics.GOLD)
+	_spot(Vector3(-15, 18, -58), Vector3(-2, 0, -63.8), Color("e8b54a"), 5.0, 18.0, 40.0)
+	_spot(Vector3(15, 18, -28), Vector3(4, 0, -24), Color("2b54c9"), 4.0, 20.0, 30.0)
+	_spot(Vector3(-15, 18, -42), Vector3(-2, 0, -30), Color("b22242"), 4.0, 20.0, 30.0)
+	_light(Vector3(0, 4, -25), Color("fff1d2"), 1.4, 14.0)
+	_light(Vector3(0, 3, -46), Color("e8b54a"), 1.0, 8.0)
+	_light(Vector3(0, 3, -62), Color("2b54c9"), 1.0, 8.0)
+	# Escalation 1½: a clockwork dial — light on a timetable. A: bridge to P1. B: onto mirror M1.
+	_dial("d2", Vector3(-4, -0.35, -34.3),
+		[Vector3(-6, -12, -42), Vector3(-1.5, -0.25, -43.0), Vector3(2, 0.12, -46.5)], GlassOptics.GOLD,
+		"Wind the clockwork dial", [[1, 7.0], [2, 9.0], [0, 2.5]])
+	pts["d2_use"] = Vector3(-4, 0, -32.3)
+	pts["lip"] = Vector3(-1.6, 0, -33.8)
+	# M1 on P1: north (rest) / P2 / south
+	_mirror("m1", Vector3(2, 0.12, -46.5), Vector3(-4, -0.07, -34.3),
+		[Vector3(-15, 0.1, -52), Vector3(2.5, -0.25, -59.0), Vector3(15, 0.1, -50)], 0)
+	pts["p1"] = Vector3(-1.5, 0, -45)
+	pts["p1_far"] = Vector3(2.3, 0, -47.6)
+	# M2 on P2 catches the gold window: abyss (rest) / choir / triforium (Provenance A)
+	_mirror("m2", Vector3(-2, 0.12, -63.8), Vector3(-15, 18, -58.5),
+		[Vector3(-2, -10, -75), Vector3(-1, 2.25, -80.0), Vector3(12, 8.75, -52)], 0)
+	pts["p2"] = Vector3(2.5, 0, -60.5)
+	pts["p2_m2"] = Vector3(-1.2, 0, -62.0)
+	_zone(Vector3(-4, 0, -65), Vector3(4, 3, -59), func() -> void: complete_step(&"light", &"clockwork"))
+	_catch(Vector3(-15.5, -4, -80), Vector3(15.5, -3, -34))
+	_placard(Vector3(7, 1.5, -18.2), Vector3(0, 0, -1), "—", "Windows of the Nave", "Re-leaded under the present administration",
+		"Each saint has been lifted out of her own miracle and replaced by a pedestal. The miracles proceed regardless. The pedestals are empty. This is described as an improvement.")
+
+
+# --- CHOIR ---------------------------------------------------------------------------------------
+
+func _build_choir() -> void:
+	_block(Vector3(-15.5, 2.1, -110), Vector3(15.5, 2.5, -80), "glass_floor")
+	_block(Vector3(-15.5, 2.1, -121), Vector3(15.5, 2.5, -114), "glass_floor")
+	_block(Vector3(14, 2.1, -114), Vector3(15.5, 2.5, -110), "glass_floor")
+	_block(Vector3(-15.5, -12, -80.4), Vector3(15.5, 2.1, -80), "glass_crypt")   # choir front face
+	# crypt stair: one long ramp down the slot at the east end
+	_ramp(Vector3(14, 2.5, -112), Vector3(-12, -8, -112), 3.0, "glass_floor")
+	_block(Vector3(-3, 2.5, -103), Vector3(3, 2.8, -97), "glass_gold")       # lens dais
+	pts["choir"] = Vector3(0, 2.5, -84)
+	pts["ramp_top"] = Vector3(14.6, 2.5, -112)
+	pts["ramp_bottom"] = Vector3(-13.5, -8, -112)
+	_zone(Vector3(-15.5, 2.5, -88), Vector3(15.5, 5.5, -80.5), func() -> void: complete_step(&"light", &"choir"))
+	# grate over the prism (decorative lead lattice)
+	for k in 5:
+		_block(Vector3(-1.2 + k * 0.6, 2.5, -93.2), Vector3(-1.15 + k * 0.6, 2.56, -90.8), "lead", false)
+	# saint windows (edited until restored) and their mirrors
+	_window("ruby", Vector3(15.45, 17, -92.5), Vector2(8, 8), Vector3(-1, 0, 0), "win_ruby", 1.0)
+	_window("azure", Vector3(-15.45, 17, -92.5), Vector2(8, 8), Vector3(1, 0, 0), "win_azure", 1.0)
+	_window("verdance", Vector3(15.45, 17, -105.5), Vector2(8, 8), Vector3(-1, 0, 0), "win_verdance", 1.0)
+	var sr := Vector3(10.5, 2.95, -92.5)
+	var sa := Vector3(-8.5, 2.95, -92.5)
+	var sv := Vector3(10.5, 2.95, -105.5)
+	_source("ruby", Vector3(15.0, 16.5, -92.5), sr, GlassOptics.RED, false)
+	_source("azure", Vector3(-15.0, 16.5, -92.5), sa, GlassOptics.BLUE, false)
+	_source("verdance", Vector3(15.0, 16.5, -105.5), sv, GlassOptics.GOLD | GlassOptics.BLUE, false)
+	_mirror("s_r", sr, Vector3(15.0, 16.5, -92.5), [sr + Vector3(-1.5, -0.45, 0.6), LENS_POS], 0, 0.9)
+	_mirror("s_a", sa, Vector3(-15.0, 16.5, -92.5), [sa + Vector3(1.5, -0.45, 0.6), LENS_POS], 0, 0.9)
+	_mirror("s_v", sv, Vector3(15.0, 16.5, -105.5), [sv + Vector3(-1.5, -0.45, -0.6), LENS_POS], 0, 0.9)
+	_spot(Vector3(15, 17, -92.5), Vector3(8, 2.5, -94), Color("b22242"), 3.0, 16.0, 30.0)
+	_spot(Vector3(-15, 17, -92.5), Vector3(-6, 2.5, -94), Color("2b54c9"), 3.0, 16.0, 30.0)
+	_spot(Vector3(15, 17, -105.5), Vector3(8, 2.5, -104), Color("1a7a5e"), 3.0, 16.0, 30.0)
+	# the lens holder: a cradle, empty until the Widow's lantern is set in it
+	lens_choir = GlassOptics.Lens.new()
+	lens_choir.position = LENS_POS
+	lens_choir.out_dir = LENS_POS.direction_to(EAST_AIM)
+	optics.add_child(lens_choir)
+	lens_choir.make_body(Vector3(0.9, 0.9, 0.9))
+	lens_choir.body.collision_layer = 0
+	optics.add_element(lens_choir)
+	var cradle := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.42
+	tm.outer_radius = 0.55
+	cradle.mesh = tm
+	cradle.material_override = M["brass"]
+	cradle.rotation.x = PI / 2
+	cradle.position = LENS_POS
+	geo.add_child(cradle)
+	_use("lens_holder", LENS_POS, Vector3(1.2, 1.4, 1.2), "Set the Widow's lantern in the lens", _place_lantern)
+	pts["lens"] = Vector3(0, 2.8, -99.0)
+	_light(Vector3(0, 6, -100), Color("fff1d2"), 1.2, 14.0)
+	_light(Vector3(0, 5, -88), Color("e8b54a"), 1.0, 12.0)
+
+
+# --- CRYPT ---------------------------------------------------------------------------------------
+
+func _build_crypt() -> void:
+	# floor (with the channel pit x 5..11, z -84..-104 — Saint Azure lies across it)
+	_block(Vector3(-15, -9, -122), Vector3(5, -8, -82), "glass_crypt")
+	_block(Vector3(5, -9, -122), Vector3(15, -8, -104), "glass_crypt")
+	_block(Vector3(5, -9, -84), Vector3(15, -8, -82), "glass_crypt")
+	_block(Vector3(11, -9, -104), Vector3(15, -8, -84), "glass_crypt")
+	_catch(Vector3(5, -12, -104), Vector3(11, -11, -84))
+	# walls; west wall has the white gate (z -86..-83.6) to the passage
+	_block(Vector3(15, -8, -122), Vector3(15.5, 2.1, -80.4), "glass_crypt")
+	_block(Vector3(-15.5, -8, -122), Vector3(-15, 2.1, -86), "glass_crypt")
+	_block(Vector3(-15.5, -8, -83.6), Vector3(-15, 2.1, -80.4), "glass_crypt")
+	_block(Vector3(-15.5, -4.5, -86), Vector3(-15, 2.1, -83.6), "glass_crypt")
+	_block(Vector3(-15.5, -8, -122.5), Vector3(15.5, 2.1, -122), "glass_crypt")
+	_gates["white"] = _block(Vector3(-15.4, -8, -86), Vector3(-15.1, -4.5, -83.6), "glass_quarry")
+	# Ruby chapel x -15..-10, z -90..-106, behind the gold gate; a slit admits red at z -92.7
+	_block(Vector3(-10.25, -8, -92.45), Vector3(-9.95, -3, -90), "glass_red")
+	_block(Vector3(-10.25, -8, -98.9), Vector3(-9.95, -3, -92.95), "glass_red")
+	_block(Vector3(-10.25, -8, -106), Vector3(-9.95, -3, -101.3), "glass_red")
+	_block(Vector3(-15, -8, -90.3), Vector3(-10, -3, -90), "glass_red")
+	_block(Vector3(-15, -8, -106), Vector3(-10, -3, -105.7), "glass_red")
+	_gates["gold"] = _block(Vector3(-10.2, -8, -101.3), Vector3(-10.0, -3, -98.9), "glass_gold")
+	_light(Vector3(-12.5, -5, -98), Color("b22242"), 1.2, 7.0)
+	_light(Vector3(0, -3, -100), Color("8a3fd1"), 1.4, 18.0)
+	_light(Vector3(12, -5, -94), Color("2b54c9"), 1.2, 8.0)
+	_light(Vector3(0, -5, -118), Color("1a7a5e"), 1.2, 9.0)
+	# White light falls through the choir grate onto the prism.
+	_source("shaft", Vector3(0, 1.8, -92), PRISM_O, GlassOptics.WHITE)
+	prism = GlassOptics.Prism.new()
+	prism.yaws = [160.0, 45.0, -51.0, 0.0]
+	prism.position = PRISM_O
+	optics.add_child(prism)
+	prism.setup()
+	optics.add_element(prism)
+	var pv := MeshInstance3D.new()
+	var pmesh := PrismMesh.new()
+	pmesh.size = Vector3(0.9, 0.8, 0.9)
+	pv.mesh = pmesh
+	var pg := StandardMaterial3D.new()
+	pg.albedo_color = Color(0.9, 0.95, 1.0, 0.35)
+	pg.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pg.emission_enabled = true
+	pg.emission = Color("fff1d2")
+	pg.emission_energy_multiplier = 1.4
+	pg.roughness = 0.02
+	pv.material_override = pg
+	prism.head.add_child(pv)
+	_block(PRISM_O + Vector3(-0.6, -0.12, -0.6), PRISM_O + Vector3(0.6, -0.4, 0.6), "brass", false)
+	_use("prism", PRISM_O + Vector3(0, 0.4, 0), Vector3(1.6, 1.6, 1.6), "Turn the prism", func() -> void:
+		prism.turn()
+		Audio.sfx(load(SND + "mirror_turn.ogg"), PRISM_O, 0.0, 0.5, 0.8))
+	pts["prism"] = PRISM_O + Vector3(0, -0.12, 1.6)
+	# Receptors are placed ON the prism's real output lines.
+	var d_az := GlassOptics.dir_yaw(45.0 + 35.0)
+	var d_gold := GlassOptics.dir_yaw(-51.0)
+	var d_red := GlassOptics.dir_yaw(-51.0 - 35.0)
+	var at_az := PRISM_O + d_az * ((12.8 - PRISM_O.x) / d_az.x)
+	_receptor("azure", at_az, GlassOptics.BLUE, Vector3(1.2, 0.7, 1.2), func() -> void: _restore(&"azure"))
+	_pane(at_az, "win_azure")
+	var t_gate := (-10.1 - PRISM_O.x) / d_gold.x
+	_receptor("gold_gate", PRISM_O + d_gold * t_gate, GlassOptics.GOLD, Vector3(0.4, 0.8, 2.2), _open_gold_gate)
+	var t_slit := (-13.0 - PRISM_O.x) / d_red.x
+	var m4 := PRISM_O + d_red * t_slit
+	var bier := Vector3(-13, -7.88, -102.5)
+	_mirror("m4", m4, PRISM_O, [Vector3(-15, -7.88, -87.5), bier], 0, 0.8)
+	_receptor("ruby", bier, GlassOptics.RED, Vector3(1.2, 0.7, 1.2), func() -> void: _restore(&"ruby"))
+	_pane(bier, "win_ruby")
+	pts["chapel_in"] = Vector3(-11.5, -8, -100.1)
+	pts["gate_out"] = Vector3(-8.5, -8, -100.1)
+	pts["m4"] = m4 + Vector3(0.9, -0.12, -1.0)
+	# yaw 0: gold straight on to the lens; blue +35 to M6; red -35 to the reliquary
+	var d_b := GlassOptics.dir_yaw(35.0)
+	var d_r := GlassOptics.dir_yaw(-35.0)
+	var m6 := PRISM_O + d_b * 7.0
+	var reliq := PRISM_O + d_r * 9.8
+	lens_crypt = GlassOptics.Lens.new()
+	lens_crypt.position = Vector3(0, -7.88, -108)
+	lens_crypt.out_dir = Vector3(0, 0, -1)
+	optics.add_child(lens_crypt)
+	lens_crypt.make_body(Vector3(0.9, 0.9, 0.9))
+	optics.add_element(lens_crypt)
+	var lv := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.38
+	sm.height = 0.5
+	lv.mesh = sm
+	lv.material_override = pg
+	lens_crypt.add_child(lv)
+	_mirror("m6", m6, PRISM_O, [Vector3(10, -7.88, m6.z - 1.0), lens_crypt.position, reliq], 0, 0.8)
+	pts["m6"] = m6 + Vector3(-1.0, -0.12, 0.6)
+	_receptor("verdance", Vector3(0, -7.88, -121.4), GlassOptics.GOLD | GlassOptics.BLUE, Vector3(1.6, 1.2, 0.6), func() -> void: _restore(&"verdance"))
+	_pane(Vector3(0, -7.88, -121.3), "win_verdance", true)
+	_receptor("reliquary", reliq, GlassOptics.RED | GlassOptics.BLUE, Vector3(1.3, 0.8, 1.3), _open_reliquary)
+	_block(reliq + Vector3(-0.5, -0.12, -0.4), reliq + Vector3(0.5, 0.25, 0.4), "glass_gold", true)
+	_reliquary_lid = _block(reliq + Vector3(-0.55, 0.25, -0.45), reliq + Vector3(0.55, 0.38, 0.45), "brass", false)
+	_prov_spots["veil"] = reliq + Vector3(0, 0.62, 0)
+	pts["reliquary"] = reliq + Vector3(0.9, -0.12, 0.8)
+	_placard(Vector3(-3, -6.5, -82.6), Vector3(0, 0, -1), "—", "Original Glazing, Face-Down", "Stored per conservation guidance",
+		"Panes removed in the re-leading are kept face-down, which is how glass is stored and how saints are kept quiet. Light of a pane's own colour, applied from behind, will regrettably turn it over.")
+	pts["white_gate"] = Vector3(-14, -8, -84.8)
+
+
+## A face-down saint's pane lying on a bier (or set in a niche): a quad of the saint's window, face
+## to the floor; restoring it lifts it upright and lights it.
+func _pane(pos: Vector3, tex: String, upright: bool = false) -> void:
+	_block(pos + Vector3(-0.9, -0.12, -0.6), pos + Vector3(0.9, -0.07, 0.6), "lead", true)
+	var id := tex.trim_prefix("win_")
+	var mi := _window("pane_" + id, pos + Vector3(0, 0.14 if not upright else 1.1, 0), Vector2(1.6, 1.6) if not upright else Vector2(2.0, 2.0), Vector3.DOWN if not upright else Vector3(0, 0, 1), tex)
+	(windows["pane_" + id] as ShaderMaterial).set_shader_parameter(&"dark", 0.85)
+	mi.set_meta(&"pane_up", pos + Vector3(0, 1.1, 0))
+
+
+# --- PASSAGE & TOWER --------------------------------------------------------------------------
+
+func _build_passage_and_tower() -> void:
+	# corridor west out of the crypt, then a glass tube south through the dark beside the nave
+	_block(Vector3(-19, -9, -86), Vector3(-15.5, -8, -83.6), "glass_crypt")
+	_block(Vector3(-19, -9, -86), Vector3(-16, -8, -30), "glass_floor")
+	_block(Vector3(-19.4, -8, -86.4), Vector3(-19, -5, -30), "glass_quarry")
+	_block(Vector3(-16, -8, -83.6), Vector3(-15.6, -5, -30), "glass_quarry")
+	_block(Vector3(-19.4, -5, -86.4), Vector3(-15.5, -4.7, -30), "glass_quarry")
+	_block(Vector3(-19.4, -8, -86.4), Vector3(-15.5, -4.7, -86), "glass_crypt")
+	_catch(Vector3(-19.5, -4.6, -86), Vector3(-15.4, -3.6, -30))
+	for k in 7:
+		_light(Vector3(-17.5, -5.8, -80 + k * 8.0), Color("2b54c9") if k % 2 else Color("1a7a5e"), 0.9, 6.0)
+	# tower: x -28..-16, z -30..-18; ten switchback legs, -8 → 16
+	_block(Vector3(-28, -9, -30), Vector3(-16, -8, -18), "glass_floor")
+	_block(Vector3(-28.5, -8, -18), Vector3(-15.5, 19, -17.5), "glass_wall")
+	_block(Vector3(-28.5, -8, -30), Vector3(-28, 19, -18), "glass_wall")
+	_block(Vector3(-16, -8, -29.6), Vector3(-15.5, 19, -18), "glass_wall")
+	_block(Vector3(-28.5, -5, -30.5), Vector3(-16, 16, -30), "glass_wall")
+	_block(Vector3(-28.5, -8, -30.5), Vector3(-19.4, -5, -30), "glass_wall")
+	_block(Vector3(-28.5, 19, -30.5), Vector3(-15.5, 19.4, -17.5), "glass_quarry", false)
+	_block(Vector3(-28.5, 16, -30.5), Vector3(-21.5, 19, -30), "glass_wall")
+	var y := -8.0
+	for leg in 10:
+		var west := leg % 2 == 0
+		var lane_z := -25.8 if west else -20.6
+		var xa := -18.5 if west else -25.5
+		var xb := -25.5 if west else -18.5
+		_ramp(Vector3(xa, y, lane_z), Vector3(xb, y + 2.4, lane_z), 2.6, "glass_gold" if west else "glass_red")
+		y += 2.4
+		var lx := Vector2(-28, -25.5) if west else Vector2(-18.5, -16)
+		var lz := Vector2(-27.3, -19.1) if leg < 9 else Vector2(-30, -19.1)
+		_block(Vector3(lx.x, y - 0.4, lz.x), Vector3(lx.y, y, lz.y), "glass_floor")
+		if leg % 3 == 1:
+			_light(Vector3((lx.x + lx.y) * 0.5, y + 1.6, -23), Color("e8b54a"), 1.0, 7.0)
+	_block(Vector3(-21.5, 15.6, -30.5), Vector3(-16, 16, -27.3), "glass_floor")
+	pts["tower_in"] = Vector3(-17.5, -8, -28.5)
+	pts["tower_top"] = Vector3(-17.5, 16, -26)
+	_window("tower_w", Vector3(-27.95, 8, -24), Vector2(6, 6), Vector3(1, 0, 0), "win_history")
+
+
+# --- ROOF ---------------------------------------------------------------------------------------
+
+func _build_roof() -> void:
+	_block(Vector3(-21.5, 15.6, -100), Vector3(-16.5, 16, -30.5), "glass_floor")
+	# parapet with gaps at the buttress ramp (z -60) and the bridge (z -95)
+	for seg: Vector2 in [Vector2(-58.8, -30.5), Vector2(-93.5, -61.2), Vector2(-100, -96.5)]:
+		_block(Vector3(-21.8, 16, seg.x), Vector3(-21.5, 16.9, seg.y), "lead")
+	_block(Vector3(-21.8, 16, -100.3), Vector3(-16.5, 16.9, -100), "lead")
+	# flying buttresses: outer pinnacles and arches leaning on the clerestory
+	for k in 8:
+		var z := -36.0 - k * 9.0
+		_block(Vector3(-25, 0, z - 0.7), Vector3(-23.6, 23, z + 0.7), "glass_red", true)
+		var tip := MeshInstance3D.new()
+		var pm := PrismMesh.new()
+		pm.size = Vector3(1.4, 3.0, 1.4)
+		tip.mesh = pm
+		tip.material_override = M["glass_gold"]
+		tip.position = Vector3(-24.3, 24.5, z)
+		geo.add_child(tip)
+		_ramp(Vector3(-23.6, 21.5, z), Vector3(-16.5, 24.5, z), 0.7, "glass_gold", false)
+	# the hidden one: a fallen buttress you can climb, to a pinnacle niche (Provenance C)
+	_ramp(Vector3(-20.5, 16, -60), Vector3(-23.6, 18.3, -60), 1.6, "glass_red")
+	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.4, 18.3, -58.8), "glass_floor")
+	_prov_spots["iron"] = Vector3(-24.3, 18.8, -60)
+	pts["iron"] = Vector3(-22.5, 17.4, -60)
+	# THE REVEAL: crest the stair and the sky is one window, and something leans in to look.
+	_zone(Vector3(-21.5, 15.8, -34), Vector3(-16.5, 19, -31), _reveal_sky)
+	# heliostat to the Rose hall
+	_dial("d3", Vector3(-21.9, 15.65, -95), [Vector3(-26, 40, -95), Vector3(-32.0, 13.75, -95)], GlassOptics.RED | GlassOptics.BLUE, "Turn the heliostat")
+	pts["d3_use"] = Vector3(-20.0, 16, -95)
+	pts["roof_end"] = Vector3(-21.0, 16, -95)
+	_placard(Vector3(-16.6, 17.2, -40), Vector3(-1, 0, 0), "—", "The Sky, Glazed", "Firmament, leaded, three suns",
+		"The heaven of the Vitrine Kingdom is a single window. It has been cleaned once. Whoever cleaned it is still looking in.")
+
+
+# --- ROSE HALL ----------------------------------------------------------------------------------
+
+func _build_rose() -> void:
+	var r := 28.0
+	for i in 36:
+		var a := TAU * i / 36.0
+		var deg := rad_to_deg(wrapf(a, -PI, PI))
+		if absf(deg) < 9.0 or (deg > -40.0 and deg < -24.0):
+			continue
+		var c := HALL + Vector3(cos(a) * r, 6, sin(a) * r)
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(1.0, 34, TAU * r / 36.0 + 0.2)
+		mi.mesh = bm
+		mi.material_override = M["glass_wall"]
+		geo.add_child(mi)
+		mi.global_transform = Transform3D(Basis(Vector3.UP, -a), c)
+	_block(HALL + Vector3(23.4, -0.4, -2), HALL + Vector3(28, 0, 2), "glass_floor")           # balcony
+	_block(HALL + Vector3(-22, -0.4, -4), HALL + Vector3(-13, 0, 4), "glass_floor")           # dais
+	_block(HALL + Vector3(20, -0.4, -18), HALL + Vector3(25.5, 0, -11), "glass_floor")        # exit landing
+	var boss := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 3.9
+	cm.bottom_radius = 3.9
+	cm.height = 0.4
+	boss.mesh = cm
+	boss.material_override = M["glass_red"]
+	boss.position = HALL + Vector3(0, -0.2, 0)
+	geo.add_child(boss)
+	var sb := StaticBody3D.new()
+	sb.set_meta(&"surface", "glass")
+	var cs := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 3.9
+	cyl.height = 0.4
+	cs.shape = cyl
+	sb.add_child(cs)
+	boss.add_child(sb)
+	var tear := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.2
+	tear.mesh = sm
+	var tm := StandardMaterial3D.new()
+	tm.albedo_color = Color("8a3fd1")
+	tm.emission_enabled = true
+	tm.emission = Color("8a3fd1")
+	tm.emission_energy_multiplier = 4.0
+	tear.material_override = tm
+	tear.position = HALL + Vector3(0, 1.2, 0)
+	geo.add_child(tear)
+	_window("rose", HALL + Vector3(-27.4, 16, 0), Vector2(22, 22), Vector3(1, 0, 0), "win_rose")
+	(windows["rose"] as ShaderMaterial).set_shader_parameter(&"figure_c", Vector2(0.5, 0.5))
+	for k in 6:
+		var a := TAU * k / 6.0
+		var l := _spot(HALL + Vector3(-26, 18, 0), HALL + Vector3(cos(a) * 12, 0, sin(a) * 12), RoseWidow.PETAL_COLORS[k], 2.5, 12.0, 60.0)
+		_rose_lights.append(l)
+	rose = RoseWidow.new()
+	rose.name = "RoseWidow"
+	rose.path = PackedVector3Array([Vector3(-13.5, 0, 0), Vector3(-6, 0, -5), Vector3(5, 0, -1), Vector3(8, 0, -9), Vector3(14, 0, -11), Vector3(21, 0, -14)])
+	rose.sconces = PackedVector3Array([Vector3(5, 0, -1), Vector3(14, 0, -11)])
+	rose.bridge = PackedVector3Array([Vector3(24, 0, 0), Vector3(3.5, 0, 0)])
+	rose.position = HALL
+	add_child(rose)
+	var tile := BoxMesh.new()
+	tile.size = Vector3(1.47, 0.1, 1.47)
+	rose.build(tile, load("res://wings/glass/shaders/rose_tile.gdshader"))
+	for s: Vector3 in rose.sconces:
+		var sl := _light(HALL + s + Vector3(0, 1.4, 0), Color("ffc27a"), 0.0, 5.0)
+		_sconce_lights.append(sl)
+		_block(HALL + s + Vector3(-0.15, -3, -0.15), HALL + s + Vector3(0.15, -0.3, 0.15), "lead", false)
+	_catch(HALL + Vector3(-28, -8, -28), HALL + Vector3(28, -7, 28))
+	_use("lantern", HALL + Vector3(-19, 1.0, 0), Vector3(1.4, 2.0, 1.4), "Take the Widow's lantern", _take_lantern)
+	var lantern := _lantern_mesh()
+	lantern.position = HALL + Vector3(-19, 1.1, 0)
+	lantern.name = "WidowLantern"
+	geo.add_child(lantern)
+	pts["balcony"] = HALL + Vector3(25.5, 0, 0)
+	pts["balcony_edge"] = HALL + Vector3(23.7, 0, 0)
+	pts["dais"] = HALL + Vector3(-15, 0, 0)
+	pts["lantern"] = HALL + Vector3(-17.2, 0, 0)
+	pts["landing"] = HALL + Vector3(22.5, 0, -14.5)
+	for p: Vector3 in rose.path:
+		pts["path_%d" % pts.size()] = HALL + p
+	_zone(HALL + Vector3(20, 0, -18), HALL + Vector3(25.5, 3, -11), _cross_rose)
+	# exit corridor down to the north triforium and a drop into the choir
+	_ramp(HALL + Vector3(25.5, 0, -14.5), Vector3(-15.5, 9, -109.5), 3.0, "glass_floor")
+	_block(Vector3(-16.6, 9, -111.5), Vector3(-15.4, 12, -107.5), "glass_quarry", false)
+	pts["corridor_end"] = Vector3(-14.5, 9, -109.5)
+	pts["triforium_drop"] = Vector3(-10.5, 2.5, -106)
+	_placard(HALL + Vector3(27.6, 1.5, 2.6), Vector3(-1, 0, 0), "—", "The Rose Widow", "Rose window, six petals, in mourning",
+		"She grieves in six colours, slowly. Her floor exists only where her light falls. Cross while she breathes out. Do not take her lantern. Visitors take her lantern.")
+
+
+func _lantern_mesh() -> Node3D:
+	var m := _model("lantern")
+	if m:
+		return m
+	var n := Node3D.new()
+	var body := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.12
+	cm.bottom_radius = 0.16
+	cm.height = 0.4
+	body.mesh = cm
+	body.material_override = M["ember"]
+	n.add_child(body)
+	var cap := MeshInstance3D.new()
+	var pm := PrismMesh.new()
+	pm.size = Vector3(0.36, 0.2, 0.36)
+	cap.mesh = pm
+	cap.material_override = M["lead"]
+	cap.position.y = 0.3
+	n.add_child(cap)
+	_light(Vector3(0, 0.1, 0), Color("ffc27a"), 1.8, 5.0, n)
+	return n
+
+
+# --- EAST WINDOW & HEIST -------------------------------------------------------------------------
+
+func _build_east_and_heist() -> void:
+	# end wall with the East Window (x -9..9, y 6.3..24.3) and a sill outward
+	_block(Vector3(-16.5, -12, -122), Vector3(16.5, 6.3, -121), "glass_wall")
+	_block(Vector3(-16.5, 6.3, -122), Vector3(-9, 26, -121), "glass_wall")
+	_block(Vector3(9, 6.3, -122), Vector3(16.5, 26, -121), "glass_wall")
+	_block(Vector3(-9, 24.3, -122), Vector3(9, 26, -121), "glass_wall")
+	_block(Vector3(-2.5, 5.9, -124.5), Vector3(2.5, 6.3, -122), "glass_floor")
+	_east_mesh = _window("east", Vector3(0, 15.3, -121.5), Vector2(18, 18), Vector3(0, 0, 1), "win_east")
+	(windows["east"] as ShaderMaterial).set_shader_parameter(&"figure_r", Vector2(0.0, 0.0))
+	_receptor("east", Vector3(0, 15.3, -121.2), GlassOptics.WHITE, Vector3(18, 20, 0.6), _shatter)
+	_spot(Vector3(0, 16, -121), Vector3(0, 2.5, -95), Color("e8b54a"), 3.0, 30.0, 40.0)
+	# the museum pedestal glazed into every scene, here for real, holding the fourth sun
+	_frag_spot = Node3D.new()
+	_frag_spot.position = Vector3(0, 6.3, -123.3)
+	geo.add_child(_frag_spot)
+	var ped := _model("pedestal")
+	if ped == null:
+		ped = _block(Vector3(-0.4, 0, -0.4), Vector3(0.4, 1.05, 0.4), "museum_white", false, _frag_spot)
+	else:
+		_frag_spot.add_child(ped)
+	var shard := MeshInstance3D.new()
+	var pm := PrismMesh.new()
+	pm.size = Vector3(0.45, 0.6, 0.12)
+	shard.mesh = pm
+	var sm := StandardMaterial3D.new()
+	sm.albedo_color = Color("fff1d2")
+	sm.emission_enabled = true
+	sm.emission = Color("ffd98a")
+	sm.emission_energy_multiplier = 6.0
+	shard.material_override = sm
+	shard.position.y = 1.45
+	shard.name = "Shard"
+	_frag_spot.add_child(shard)
+	_fragment = Pickup.new()
+	_fragment.kind = &"fragment"
+	_fragment.prompt = "Take the Fourth Sun"
+	_fragment.visual = shard
+	var cs := CollisionShape3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.7
+	cs.shape = sph
+	_fragment.add_child(cs)
+	_fragment.position.y = 1.4
+	_frag_spot.add_child(_fragment)
+	_fragment.picked.connect(_start_heist)
+	uses["fragment"] = _fragment
+	pts["sill"] = Vector3(0, 6.3, -122.2)
+	pts["fragment"] = Vector3(0, 6.3, -122.4)
+	# escape platforms out in the sky, joined by heliostat beams that die one by one
+	var plats := [Vector3(7, 5.5, -136), Vector3(2, 4.5, -150), Vector3(-6, 3.5, -163), Vector3(-8, 2.5, -178)]
+	var prev := Vector3(0, 6.3, -124.5)
+	for i in plats.size():
+		var p: Vector3 = plats[i]
+		_block(p + Vector3(-2, -0.5, -2), p + Vector3(2, 0, 2), "glass_floor" if i < 3 else "glass_gold")
+		_block(p + Vector3(-0.5, -12, -0.5), p + Vector3(0.5, -0.5, 0.5), "glass_red", false)
+		var from := prev + Vector3(0, -0.07, -0.08)
+		var to := p + Vector3(0.3 * signf(prev.x - p.x), -0.25, 2.0)
+		_source("h%d" % i, from, to, GlassOptics.GOLD if i % 2 == 0 else GlassOptics.RED, false)
+		pts["h%d" % i] = p
+		prev = p + Vector3(0, 0, -2.0)
+	var ex: Vector3 = plats[3]
+	var frame := _model("frame_exit")
+	if frame == null and ResourceLoader.exists("res://hub/models/frame.glb"):
+		frame = MaterialLib.instance("res://hub/models/frame.glb")
+	if frame:
+		frame.position = ex + Vector3(0, 0, -1.5)
+		geo.add_child(frame)
+	_light(ex + Vector3(0, 2, 0), Color("ffd98a"), 2.0, 8.0)
+	_zone(ex + Vector3(-2, 0, -2), ex + Vector3(2, 3, 1), func() -> void:
+		if heist_on:
+			heist_on = false
+			Audio.sfx(load(SND + "pane_restore.ogg"), null, 0.0)
+			finish())
+	_catch(Vector3(-20, -6, -190), Vector3(20, -5, -124))
+	_placard(Vector3(4.2, 4.0, -120.4), Vector3(0, 0, 1), "—", "The East Window", "The Curator's own glazing",
+		"A procession around an empty pedestal. It admits only the light of every saint at once, which the Curator considered impossible to arrange.")
+
+
+# --- PROVENANCES & CHECKPOINTS -------------------------------------------------------------------
+
+func _build_provenances() -> void:
+	_prov_spots["face"] = Vector3(14.2, 9.6, -50)
+	pts["face"] = Vector3(13.5, 9, -51.5)
+	pts["triforium_face"] = Vector3(12.6, 9, -52)
+
+
+func _spawn_provenance(id: String) -> void:
+	if Quest.has_provenance(wing_id, StringName(id)):
+		return
+	var at: Vector3 = _prov_spots[id]
+	var mesh := MeshInstance3D.new()
+	var pm := PrismMesh.new()
+	pm.size = Vector3(0.24, 0.32, 0.08)
+	mesh.mesh = pm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("e8b54a")
+	mat.emission_enabled = true
+	mat.emission = Color("e8b54a")
+	mat.emission_energy_multiplier = 2.5
+	mat.metallic = 1.0
+	mesh.material_override = mat
+	mesh.position = at
+	geo.add_child(mesh)
+	var spin := mesh.create_tween().set_loops()
+	spin.tween_property(mesh, "rotation:y", TAU, 4.0).as_relative()
+	var pick := Pickup.new()
+	pick.kind = &"provenance"
+	pick.item_id = StringName(id)
+	pick.prompt = "Take: " + String((provenances().filter(func(p: Dictionary) -> bool: return p["id"] == id)[0] as Dictionary)["name"])
+	pick.visual = mesh
+	var cs := CollisionShape3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.5
+	cs.shape = sph
+	pick.add_child(cs)
+	pick.position = at
+	geo.add_child(pick)
+	uses["prov_" + id] = pick
+	_light(at + Vector3(0, 0.4, 0), Color("e8b54a"), 0.8, 3.0)
+
+
+func _build_checkpoints() -> void:
+	var cps := {
+		"start": [Vector3(0, 0.05, 14), Vector3(0, 0, 0)],
+		"cloister_gap": [Vector3(14.2, 0.05, -8.5), Vector3(0, 0, -14)],
+		"nave": [Vector3(0, 0.05, -24), Vector3(0, 0, -40)],
+		"lip": [Vector3(-1, 0.05, -31.5), Vector3(-1.5, 0, -45)],
+		"p1": [Vector3(-1.5, 0.05, -45.5), Vector3(2.5, 0, -60)],
+		"p2": [Vector3(2.5, 0.05, -61), Vector3(0, 2.5, -85)],
+		"choir": [Vector3(0, 2.55, -84), Vector3(0, 2.5, -100)],
+		"crypt": [Vector3(-11, -7.95, -114), Vector3(0, -8, -92)],
+		"passage": [Vector3(-17.5, -7.95, -80), Vector3(-17.5, -8, -40)],
+		"tower": [Vector3(-17.5, -7.95, -28.5), Vector3(-25, -8, -26)],
+		"roof": [Vector3(-19, 16.05, -36), Vector3(-19, 16, -80)],
+		"rose_balcony": [HALL + Vector3(25.8, 0.05, 0), HALL],
+		"rose_dais": [HALL + Vector3(-16.5, 0.05, 0), HALL],
+		"triforium": [Vector3(-14, 9.05, -106), Vector3(0, 2.5, -100)],
+		"heist": [Vector3(0, 6.35, -122.2), Vector3(7, 5.5, -136)],
+	}
+	var node := Node3D.new()
+	node.name = "Checkpoints"
+	add_child(node)
+	for id: String in cps:
+		var c := Checkpoint.new()
+		c.id = StringName(id)
+		c.name = id
+		var at: Vector3 = cps[id][0]
+		var look: Vector3 = cps[id][1]
+		var f := Vector3(look.x - at.x, 0, look.z - at.z).normalized()
+		c.transform = Transform3D(Basis.looking_at(f, Vector3.UP), at)
+		c.radius = 2.0
+		node.add_child(c)
+	(node.get_node("crypt") as Checkpoint).toast = "Below the choir, the original glazing waits face-down."
+	(node.get_node("roof") as Checkpoint).radius = 3.0
+
+
+# --- MUSIC (follows position twice a second; zones would double up at seams) -------------------
+
+func _music_for(p: Vector3) -> void:
+	var want: StringName
+	if heist_on:
+		want = &"heist"
+	elif p.y < -3.0:
+		want = &"crypt"
+	elif p.distance_to(HALL) < 32.0:
+		want = &"rose"
+	elif p.x < -16.0 and p.y > 10.0:
+		want = &"roof"
+	else:
+		want = &"nave"
+	if want == _music_now:
+		return
+	_music_now = want
+	var stems: Array[AudioStream] = []
+	match want:
+		&"nave":
+			for n: String in ["nave_0", "nave_1", "nave_2"]:
+				stems.append(load(SND + n + ".ogg"))
+			Audio.play_music(stems, 4.0, 0.2 + 0.4 * float(Quest.is_done(&"light")))
+			Audio.play_ambience(load(SND + "amb_glass.ogg"))
+		&"crypt":
+			for n: String in ["crypt_0", "crypt_1"]:
+				stems.append(load(SND + n + ".ogg"))
+			Audio.play_music(stems, 4.0, 0.3)
+			Audio.play_ambience(load(SND + "amb_crypt.ogg"))
+		&"roof":
+			for n: String in ["nave_0", "nave_2"]:
+				stems.append(load(SND + n + ".ogg"))
+			Audio.play_music(stems, 6.0, 0.6)
+			Audio.play_ambience(load(SND + "wind_loop.ogg"), 3.0, -10.0)
+		&"rose":
+			for n: String in ["rose_0", "rose_1"]:
+				stems.append(load(SND + n + ".ogg"))
+			Audio.play_music(stems, 5.0, 0.0)
+			Audio.play_ambience(load(SND + "amb_glass.ogg"))
+		&"heist":
+			for n: String in ["heist_0", "heist_1"]:
+				stems.append(load(SND + n + ".ogg"))
+			Audio.play_music(stems, 0.5, 1.0)
+
+
+# =============================================================================================
+# Progress
+
+func _apply_progress() -> void:
+	for id: StringName in [&"azure", &"ruby", &"verdance"]:
+		if Quest.is_step_done(&"saints", id):
+			_restore(id, true)
+	if recall("gold_gate", false) or Quest.is_step_done(&"saints", &"ruby"):
+		_open_gold_gate(true)
+	if Quest.is_done(&"saints"):
+		_open_white_gate(true)
+	if Quest.has_provenance(wing_id, &"veil") or recall("reliquary", false):
+		_open_reliquary(true)
+	_spawn_provenance("face")
+	_spawn_provenance("iron")
+	lantern_carried = bool(recall("lantern", false)) and not Quest.is_step_done(&"east", &"lens")
+	if recall("sky", false):
+		sky_mat.set_shader_parameter(&"haze", 0.0)
+		sky_mat.set_shader_parameter(&"reveal", 1.0)
+	if Quest.is_step_done(&"east", &"widow"):
+		rose.set_phase(3)
+		_rose_dark(true)
+	elif lantern_carried:
+		rose.set_phase(2)
+		_rose_dark(true)
+	if lantern_carried:
+		_hold_lantern(true)
+	if Quest.is_step_done(&"east", &"lens"):
+		_place_lantern(true)
+	if Quest.is_step_done(&"east", &"shatter"):
+		_shatter(true)
+	_update_fragment()
+	(uses["lens_holder"] as Interactable).enabled = lantern_carried
+	(uses["lantern"] as Interactable).enabled = not lantern_carried and not Quest.is_step_done(&"east", &"widow")
+
+
+func _restore(id: StringName, instant: bool = false) -> void:
+	var sid := String(id)
+	if not instant:
+		if Quest.is_step_done(&"saints", id):
+			return
+		complete_step(&"saints", id)
+		Audio.sfx(load(SND + "pane_restore.ogg"), null, -2.0, 0.6)
+		toast({"azure": "Saint Azure is face-up. High in the choir, her window remembers her.",
+			"ruby": "Saint Ruby is face-up. Her window above the choir is hers again.",
+			"verdance": "Saint Verdance is face-up. Green, which is gold and blue agreeing."}[sid], "Restored")
+	var pm: ShaderMaterial = windows["pane_" + sid]
+	var t := create_tween().set_parallel()
+	t.tween_property(pm, "shader_parameter/dark", 0.0, 0.1 if instant else 2.0)
+	var wm: ShaderMaterial = windows[sid]
+	t.tween_property(wm, "shader_parameter/edited", 0.0, 0.1 if instant else 4.0)
+	(srcs[sid] as GlassOptics.Source).on = true
+	if not instant:
+		_light(receptors[sid].global_position + Vector3(0, 1.5, 0), GlassOptics.color((receptors[sid] as GlassOptics.Receptor).want), 2.0, 6.0)
+	if Quest.is_done(&"saints"):
+		_open_white_gate(instant)
+
+
+func _open_gold_gate(instant: bool = false) -> void:
+	store("gold_gate", true)
+	_open_gate("gold", instant)
+	if not instant:
+		toast("The gold gate admits gold. It was always going to.", "Colour-keyed")
+
+
+func _open_white_gate(instant: bool = false) -> void:
+	_open_gate("white", instant)
+	if not instant:
+		toast("All three saints face-up: the white gate in the crypt's west wall has opened.", "Restored")
+
+
+func _open_gate(id: String, instant: bool) -> void:
+	var g: MeshInstance3D = _gates[id]
+	if not g.visible:
+		return
+	(g.get_child(0) as StaticBody3D).collision_layer = 0
+	if instant:
+		g.visible = false
+		return
+	Audio.sfx(load(SND + "gate_open.ogg"), g.global_position, 0.0, 0.5)
+	var t := create_tween()
+	t.tween_property(g, "position:y", g.position.y - 3.6, 2.0).set_trans(Tween.TRANS_SINE)
+	t.tween_callback(func() -> void: g.visible = false)
+
+
+func _open_reliquary(instant: bool = false) -> void:
+	store("reliquary", true)
+	if is_instance_valid(_reliquary_lid):
+		if instant:
+			_reliquary_lid.visible = false
+		else:
+			Audio.sfx(load(SND + "gate_open.ogg"), _reliquary_lid.global_position, -3.0, 0.5, 1.3)
+			create_tween().tween_property(_reliquary_lid, "position:y", _reliquary_lid.position.y + 1.6, 1.5)
+			toast("Violet: red and blue together. The reliquary of the veil opens to mourning.", "Reliquary")
+	if not uses.has("prov_veil"):
+		_spawn_provenance("veil")
+
+
+# --- the jaw-drop ---------------------------------------------------------------------------------
+
+func _reveal_sky() -> void:
+	if recall("sky", false):
+		return
+	store("sky", true)
+	Audio.reveal(load(SND + "sky_reveal.ogg"), 2.2)
+	var t := create_tween()
+	t.tween_interval(2.0)
+	t.tween_method(func(v: float) -> void: sky_mat.set_shader_parameter(&"haze", v), 1.0, 0.0, 3.5).set_trans(Tween.TRANS_SINE)
+	t.tween_method(func(v: float) -> void: sky_mat.set_shader_parameter(&"reveal", v), 0.0, 1.0, 5.0).set_trans(Tween.TRANS_SINE)
+	t.tween_callback(func() -> void:
+		Game.player.add_trauma(0.25)
+		toast("The sky is one window. Something on the other side of it is looking in.", "The Sky, Glazed"))
+
+
+# --- the Rose Widow -------------------------------------------------------------------------------
+
+func _take_lantern() -> void:
+	if lantern_carried:
+		return
+	lantern_carried = true
+	store("lantern", true)
+	(uses["lantern"] as Interactable).enabled = false
+	Audio.sfx(load(SND + "going_dark.ogg"), null, 0.0, 0.6)
+	rose.set_phase(2)
+	_rose_dark(false)
+	_hold_lantern(false)
+	toast("She has gone dark. Only the old processional path remains, and only near her lantern.", "The Rose Widow")
+
+
+func _rose_dark(instant: bool) -> void:
+	var wm: ShaderMaterial = windows["rose"]
+	var t := create_tween().set_parallel()
+	t.tween_property(wm, "shader_parameter/dark", 0.9, 0.1 if instant else 3.0)
+	for l: SpotLight3D in _rose_lights:
+		t.tween_property(l, "light_energy", 0.0, 0.1 if instant else 2.5)
+
+
+func _hold_lantern(_instant: bool) -> void:
+	var wl := geo.get_node_or_null("WidowLantern")
+	if wl:
+		wl.visible = false
+	if _hand_lantern == null:
+		_hand_lantern = _lantern_mesh()
+		_hand_lantern.position = Vector3(0.32, -0.42, -0.6)
+		_hand_lantern.scale = Vector3.ONE * 0.6
+		Game.player.camera.add_child(_hand_lantern)
+	_hand_lantern.visible = true
+	(uses["lens_holder"] as Interactable).enabled = true
+
+
+func _cross_rose() -> void:
+	if Quest.is_step_done(&"east", &"widow") or rose.phase != 2:
+		return
+	rose.set_phase(3)
+	complete_step(&"east", &"widow")
+	Audio.sfx(load(SND + "pane_restore.ogg"), null, -2.0, 0.6)
+	toast("Crossed. The path stays lit behind you, faintly, the way grief does.", "The Rose Widow")
+
+
+func _place_lantern(instant: bool = false) -> void:
+	if not instant:
+		if not lantern_carried:
+			toast("The cradle is empty. It is shaped for a lantern.", "The Choir Lens")
+			return
+		complete_step(&"east", &"lens")
+		Audio.sfx(load(SND + "gate_open.ogg"), LENS_POS, 0.0, 0.5, 0.8)
+		toast("The lantern sits in the lens. Turn the saints' mirrors toward it.", "The Choir Lens")
+	lantern_carried = false
+	store("lantern", false)
+	if _hand_lantern:
+		_hand_lantern.visible = false
+	(uses["lens_holder"] as Interactable).enabled = false
+	lens_choir.body.collision_layer = GlassOptics.OPTICS_LAYER
+	if _lens_lantern == null:
+		_lens_lantern = _lantern_mesh()
+		_lens_lantern.position = LENS_POS
+		geo.add_child(_lens_lantern)
+
+
+# --- Escalation 3: the shatter --------------------------------------------------------------------
+
+func _shatter(instant: bool = false) -> void:
+	if shattered:
+		return
+	shattered = true
+	(receptors["east"] as GlassOptics.Receptor).body.collision_layer = 0
+	_west_door.visible = true
+	(_west_door.get_child(0) as StaticBody3D).collision_layer = 1
+	dials["d2"].jammed = true
+	if not instant:
+		complete_step(&"east", &"shatter")
+		var wm: ShaderMaterial = windows["east"]
+		var t := create_tween()
+		t.tween_method(func(v: float) -> void: wm.set_shader_parameter(&"crack", v), 0.0, 1.0, 1.6)
+		t.tween_callback(func() -> void:
+			_east_mesh.visible = false
+			_burst(Vector3(0, 15, -121.4))
+			Audio.sfx(load(SND + "shatter.ogg"), Vector3(0, 12, -118), 3.0, 0.7)
+			Game.player.add_trauma(0.6)
+			toast("The East Window is open. The wind through the hole will not stop. Behind you, the west door has sealed.", "Escalation"))
+	else:
+		_east_mesh.visible = false
+	_start_wind()
+	_update_fragment()
+
+
+func _burst(at: Vector3) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 900
+	p.lifetime = 3.5
+	p.one_shot = true
+	p.explosiveness = 0.95
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(8, 8, 0.2)
+	pm.direction = Vector3(0, 0.2, 1)
+	pm.spread = 50.0
+	pm.initial_velocity_min = 4.0
+	pm.initial_velocity_max = 14.0
+	pm.gravity = Vector3(0, -12, 0)
+	pm.angular_velocity_min = -720
+	pm.angular_velocity_max = 720
+	pm.scale_min = 0.6
+	pm.scale_max = 1.8
+	var grad := Gradient.new()
+	grad.colors = PackedColorArray([Color("b22242"), Color("2b54c9"), Color("e8b54a"), Color("1a7a5e")])
+	grad.offsets = PackedFloat32Array([0.0, 0.33, 0.66, 1.0])
+	var gt := GradientTexture1D.new()
+	gt.gradient = grad
+	pm.color_initial_ramp = gt
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.35, 0.28)
+	var qm := StandardMaterial3D.new()
+	qm.vertex_color_use_as_albedo = true
+	qm.emission_enabled = true
+	qm.emission_energy_multiplier = 2.0
+	qm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	q.material = qm
+	p.draw_pass_1 = q
+	p.position = at
+	geo.add_child(p)
+	p.emitting = true
+	get_tree().create_timer(5.0).timeout.connect(p.queue_free)
+
+
+func _start_wind() -> void:
+	var holder := Node3D.new()
+	holder.position = Vector3(0, 8, -118)
+	geo.add_child(holder)
+	Audio.emitter(load(SND + "wind_loop.ogg"), holder, 2.0, 30.0)
+	_wind_fx = GPUParticles3D.new()
+	_wind_fx.amount = 260
+	_wind_fx.lifetime = 6.0
+	_wind_fx.visibility_aabb = AABB(Vector3(-16, -10, -10), Vector3(32, 30, 110))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(8, 8, 1)
+	pm.direction = Vector3(0, -0.05, 1)
+	pm.spread = 8.0
+	pm.initial_velocity_min = 10.0
+	pm.initial_velocity_max = 18.0
+	pm.gravity = Vector3.ZERO
+	pm.scale_min = 0.6
+	pm.scale_max = 1.4
+	_wind_fx.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.03, 0.9)
+	var qm := StandardMaterial3D.new()
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	qm.albedo_color = Color(0.85, 0.9, 1.0, 0.25)
+	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	q.material = qm
+	_wind_fx.draw_pass_1 = q
+	_wind_fx.position = Vector3(0, 12, -119)
+	geo.add_child(_wind_fx)
+
+
+func _wind_at(p: Vector3) -> Vector3:
+	if not shattered:
+		return Vector3.ZERO
+	if absf(p.x) < 15.5 and p.z < -17.5 and p.z > -124.0 and p.y > -1.0:
+		return Vector3(0, 0, 1.2)
+	return Vector3.ZERO
+
+
+# --- the heist ---------------------------------------------------------------------------------
+
+func _update_fragment() -> void:
+	if not is_instance_valid(_fragment):
+		return
+	var ready := Quest.main_objectives_done() and not Quest.has_fragment(wing_id)
+	_fragment.enabled = ready
+	_frag_spot.visible = shattered or ready
+
+
+func _start_heist() -> void:
+	heist_on = true
+	heist_t = 0.0
+	for i in 4:
+		(srcs["h%d" % i] as GlassOptics.Source).on = true
+	_music_now = &""
+	toast("Run. The suns are going out behind you, window by window.", "The Heist")
+
+
+func _heist_tick(dt: float) -> void:
+	var before := heist_t
+	heist_t += dt
+	for i in 4:
+		var dl: float = HEIST_DEADLINES[i]
+		if before < dl and heist_t >= dl:
+			(srcs["h%d" % i] as GlassOptics.Source).on = false
+			Audio.sfx(load(SND + "going_dark.ogg"), null, -4.0, 0.5, 1.0 + i * 0.08)
+			for k in 2:
+				var id := "hist_%d" % (i * 2 + k) if i < 3 else ("w_n" if k == 0 else "ruby")
+				if windows.has(id):
+					create_tween().tween_property(windows[id], "shader_parameter/dark", 1.0, 1.2)
+	sky_mat.set_shader_parameter(&"dark", clampf(heist_t / 30.0, 0.0, 0.8))
+
+
+func _heist_reset() -> void:
+	heist_t = 0.0
+	for i in 4:
+		(srcs["h%d" % i] as GlassOptics.Source).on = true
+	sky_mat.set_shader_parameter(&"dark", 0.0)
+
+
+# =============================================================================================
+# Per-frame
+
+func _physics_process(delta: float) -> void:
+	var p := Game.player
+	if p == null:
+		return
+	var pos := p.global_position
+	if _last_pos != Vector3.INF and pos.distance_to(_last_pos) > 6.0:
+		_on_respawned()
+	_last_pos = pos
+	var dt := delta * Game.world_time_scale
+	if heist_on:
+		_heist_tick(dt)
+	if rose.phase == 2:
+		var lp := rose.to_local(pos)
+		rose.lantern_pos = Vector3(lp.x, 0, lp.z)
+		for i in rose.sconces.size():
+			var on: bool = Vector2(lp.x - rose.sconces[i].x, lp.z - rose.sconces[i].z).length() < 2.4
+			if on:
+				(_sconce_lights[i] as OmniLight3D).light_energy = 2.5
+	rose.set_active(pos.distance_to(HALL) < 45.0)
+
+
+func _process(_delta: float) -> void:
+	if Game.player and Engine.get_process_frames() % 30 == 0:
+		_music_for(Game.player.global_position)
+	if is_instance_valid(_frag_spot) and _frag_spot.visible:
+		var s := _frag_spot.get_node_or_null("Shard")
+		if s:
+			s.rotate_y(_delta * 0.8)
+
+
+func _on_respawned() -> void:
+	if heist_on:
+		_heist_reset()
+	if rose.phase == 2:
+		rose.lantern_age = 0.0
