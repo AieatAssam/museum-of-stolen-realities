@@ -626,85 +626,95 @@ def B_dais():
 
 # --- throne --------------------------------------------------------------------------------------
 
+def _t_radii(z):
+    """Backrest shell radii (along X, along Y) at height z: a tapering, segmenting shell."""
+    tz = (z - 0.7) / 2.4
+    sw = 1.0 + 0.15 * math.sin(math.pi * (((z - 0.7) / 0.6) % 1.0))
+    return (0.92 - 0.2 * tz) * sw, (0.62 - 0.12 * tz) * sw
+
+
+def _t_back(th, z, off=0.0):
+    """A point on the backrest at angle th (back is +Y), height z, pulled in by off."""
+    a, b = _t_radii(z)
+    return Vector(((a - off) * math.cos(th), 0.25 + (b - off) * math.sin(th), z))
+
+
 def B_throne():
-    """The moulted throne, front -Y, floor centre, about 2.4 wide, 1.8 deep, 4.0 tall: a hollow split
-    thorax as the back, wing-case armrests, an empty head capsule as the crown, a wax cushion."""
-    yc, t, phc = 0.25, 0.05, -math.pi / 2
+    """The moulted throne on the floor (z 0), front -Y: a wax plinth with a brass band and drips, a molt seat pan
+    with a wax cushion, two split backrest shells rising to z 4 under a pronotum collar, armrests grown from
+    shed forelegs, and brass rivets."""
+    PHI = math.pi / 2  # back is +Y
+    ZB, ZT = 0.62, 4.0
 
-    def ab(z):
-        tz = (z - 0.7) / 2.4
-        sw = 1.0 + 0.15 * math.sin(math.pi * (((z - 0.7) / 0.6) % 1.0))  # swell between collars, so the shell itself segments
-        return (0.92 - 0.2 * tz) * sw, (0.62 - 0.12 * tz) * sw
+    plinth = Mesh()
+    superq(plinth, (0, 0, 0.21), (1.12, 0.9, 0.21), e1=0.4, e2=0.6, nu=24, nv=10)
+    plinth.done("plinth", "wax")
 
-    def carc(z, ph, a, b):  # open toward the front (-Y): the split
-        return Vector((a * math.cos(ph), yc + b * math.sin(ph), z))
-
-    def arc_ph(z, k, n):
-        return phc + 0.5 + 0.15 * ((z * 1.3) % 1.0) + (TAU - 2 * (0.5 + 0.15 * ((z * 1.3) % 1.0))) * k / n
-
-    NA, NZ = 22, 26
-    molt = Mesh()
+    band = Mesh()  # brass band round the plinth, squared ellipse
     rings = []
-    for j in range(NZ + 1):
-        z = 0.7 + 2.4 * j / NZ
-        a, b = ab(z)
-        ring = [carc(z, arc_ph(z, k, NA), a, b) for k in range(NA + 1)]
-        ring += [carc(z, arc_ph(z, k, NA), a - t, b - t) for k in range(NA, -1, -1)]
-        rings.append(ring)
-    loft(molt, rings, caps=False, wrap=False)
-    molt.done("thorax", "molt")
+    for z, g in ((0.17, 0.0), (0.21, 0.02), (0.25, 0.0)):
+        rings.append([Vector(((1.14 + g) * _sp(math.cos(t), 0.4), (0.92 + g) * _sp(math.sin(t), 0.4), z))
+                      for t in [TAU * k / 48 for k in range(48)]])
+    loft(band, rings, caps=False)
+    band.done("plinth_band", "brass")
 
-    col = Mesh()
-    for zc in (1.3, 1.9, 2.5, 3.1):  # segment collars
-        a, b = ab(zc)
-        path = [carc(zc, arc_ph(zc, k, 16), a - 0.02, b - 0.02) for k in range(17)]  # sunk into the shell, no standoff
-        sweep(col, path, _circ(lambda t: 0.05, 8), up=(0, 0, 1))
-    col.done("thorax_collars", "carapace_dull")
+    drips = Mesh()  # wax runs down the front of the plinth
+    for x, L in ((-0.8, 0.22), (-0.35, 0.12), (0.1, 0.28), (0.55, 0.15), (0.92, 0.1)):
+        top = Vector((x, -0.9, 0.36))
+        bot = Vector((x, -0.93, 0.36 - L))
+        sweep(drips, [top, top.lerp(bot, 0.5), bot], _circ(lambda t: 0.035 * (1 - t) + 0.012 * t, 8))
+    drips.done("plinth_drips", "wax")
 
-    head = Mesh()
-    v0 = -0.4 * math.pi
-    # wider and flatter crown (e1 0.6); inner radii sit 0.04 smaller on every axis so the rim join holds
-    Go = superq(head, (0, 0.12, 3.44), (0.6, 0.52, 0.34), e1=0.6, e2=0.9, nu=24, nv=12, v0=v0)
-    Gi = superq(head, (0, 0.12, 3.44), (0.56, 0.48, 0.30), e1=0.6, e2=0.9, nu=24, nv=12, v0=v0)
-    for i in range(24):  # rim joins outer and inner shells into one closed, hollow capsule
-        i2 = (i + 1) % 24
-        head.f([Go[i][0], Go[i2][0], Gi[i2][0], Gi[i][0]])
-    head.done("head_capsule", "molt")
-    eyes = Mesh()
-    for sx in (-1, 1):  # ink eyes on the face, so the mandibles attach to a face
-        superq(eyes, (sx * 0.24, -0.42, 3.41), (0.1, 0.08, 0.1), nu=12, nv=8)
-    eyes.done("head_eyes", "ink")
+    seat = Mesh()
+    superq(seat, (0, 0.05, 0.56), (0.98, 0.8, 0.14), e1=0.5, e2=0.7, nu=20, nv=10)
+    seat.done("seat_pan", "molt")
+    cush = Mesh()
+    superq(cush, (0, 0.05, 0.72), (0.9, 0.72, 0.1), e1=0.5, e2=0.7, nu=20, nv=10)
+    cush.done("cushion", "wax")
 
-    mand = Mesh()  # head mandibles: curved, tapering toward a point, clear of the body
-    for sx in (-1, 1):
-        mpts = [Vector((sx * x, y, z)) for x, y, z in ((0.22, -0.28, 3.2), (0.2, -0.5, 3.12), (0.15, -0.66, 3.0), (0.08, -0.74, 2.9))]
-        sweep(mand, mpts, _circ(lambda t: 0.075 * (1 - t) + 0.01 * t, 6), up=(0, 0, 1))
-    mand.done("head_mandibles", "carapace")
+    back = Mesh()  # two shells, split down the back midline, each a thick sheet
+    for side in (1, -1):
+        def f(u, v, side=side, off=0.0):
+            return _t_back(PHI + side * (0.08 + u * 1.52), ZB + (ZT - ZB) * v, off)
+        thick_sheet(back, lambda u, v, side=side: f(u, v, side, 0.0),
+                    lambda u, v, side=side: f(u, v, side, 0.05), 30, 26)
+    back.done("backrest_shells", "molt")
 
-    spikes = Mesh()
-    for k in range(5):
-        a = -math.pi * (0.85 - 0.175 * k)
-        base = Vector((0.45 * math.cos(a), 0.12 + 0.39 * math.sin(a), 3.6))
-        tip = base + Vector((math.cos(a), math.sin(a), 0.0)) * 0.1 + Vector((0, 0, 0.35))
-        sweep(spikes, [base, tip], _circ(lambda t: 0.05 * (1 - t) + 0.005 * t, 6), up=(0, 0, 1))
-    spikes.done("crown_spikes", "carapace")
+    col = Mesh()  # pronotum collar: a hood ring round the top of the shells
+    rings = []
+    for z, g in ((3.5, 0.12), (3.64, 0.08), (3.82, 0.1), (4.0, 0.12)):
+        a, b = _t_radii(z)
+        rings.append([Vector(((a + g) * math.cos(TAU * k / 40), 0.25 + (b + g) * math.sin(TAU * k / 40), z))
+                      for k in range(40)])
+    loft(col, rings, caps=False)
+    col.done("pronotum_collar", "carapace")
 
-    arms = Mesh()
+    rivets = Mesh()  # brass rivets on the band and along the shell split edges
+    for k in range(12):
+        t = TAU * k / 12 + 0.26
+        superq(rivets, (1.16 * _sp(math.cos(t), 0.4), 0.94 * _sp(math.sin(t), 0.4), 0.21),
+               (0.028, 0.028, 0.028), nu=8, nv=6)
+    for z in (1.1, 1.9, 2.7, 3.3):
+        for side in (1, -1):
+            superq(rivets, _t_back(PHI + side * 0.08, z, -0.03), (0.034, 0.034, 0.034), nu=8, nv=6)
+    rivets.done("rivets", "brass")
+
+    arms = Mesh()  # armrests: flattened forelegs, joint collars, a curled claw at the front
     sup = Mesh()
-    for sg in (-1, 1):  # arms grow out of the thorax flank: flattened section, flaring toward the front
+    for sg in (-1, 1):
         path = [(0.72, 0.2, 0.95), (0.88, -0.05, 1.02), (0.98, -0.25, 1.08), (1.02, -0.5, 1.13), (1.03, -0.7, 1.16), (1.02, -0.85, 1.14)]
-        sweep(arms, [Vector((sg * x, y, z)) for x, y, z in path],
-              lambda t: [((0.14 + 0.08 * t) * math.cos(TAU * k / 12), (0.09 + 0.05 * t) * math.sin(TAU * k / 12)) for k in range(12)])
+        P = [Vector((sg * x, y, z)) for x, y, z in path]
+        sweep(arms, P, lambda t: [((0.14 + 0.08 * t) * math.cos(TAU * k / 12), (0.09 + 0.05 * t) * math.sin(TAU * k / 12))
+                                  for k in range(12)])
+        for idx in (2, 4):
+            d = (P[idx + 1] - P[idx - 1]).normalized()
+            sweep(arms, [P[idx] - d * 0.03, P[idx] + d * 0.03], _circ(lambda t: 0.19, 10))
+        claw = [P[-1], Vector((sg * 1.0, -0.95, 1.02)), Vector((sg * 0.98, -0.98, 0.9))]
+        sweep(arms, claw, _circ(lambda t: 0.05 * (1 - t) + 0.01 * t, 6))
         sweep(sup, [Vector((sg * 0.95, -0.45, 0.45)), Vector((sg * 1.0, -0.55, 0.98))], _circ(lambda t: 0.07, 8), up=(0, 1, 0))
     arms.done("armrests", "carapace")
     sup.done("arm_supports", "carapace_dull")
 
-    plinth = Mesh()
-    superq(plinth, (0, 0, 0.22), (1.05, 0.9, 0.22), e1=0.4, e2=0.6, nu=24, nv=10)
-    plinth.done("plinth", "carapace_dull")
-    cush = Mesh()
-    superq(cush, (0, 0.05, 0.62), (0.98, 0.78, 0.16), e1=0.5, e2=0.7, nu=20, nv=10)
-    cush.done("cushion", "wax")
     finish("throne")
 
 
