@@ -417,8 +417,23 @@ func _edge_and_heist() -> void:
 	back.reverse()
 	for q: Vector3 in back:
 		await walk_to(q, 15.0, 0.4)
-	# the heist: board, take the red branch over its gap, jump the knot, home before it dries
+	# the heist, first the long blue way: board, take the blue branch, jump its first knot, then step
+	# off into the void; a fall after the junction respawns her on heist_0 12 m before it
 	await steer(Vector3(-205, 21, -166), 1200, func() -> bool: return surfing("heist_0"))
+	await steer(Vector3(-120, 13.5, -152), 2400, func() -> bool: return surfing("heist_blue_1") and w.surf.s > 25.5)
+	check(w.heist_ridden.has("heist_blue_1"), "took the blue branch")
+	await tap(&"jump")
+	check(w.surf.last_left != null and w.surf.last_left.sid == "heist_blue_1", "jumped the first blue knot")
+	await ticks(240, func() -> bool: return surfing("heist_blue_1") and w.surf.s > 31.0)
+	if surfing("heist_blue_1"):
+		await tap(&"crouch")
+	var h0: Node3D = w.canvas.get_stroke("heist_0")
+	var again: Vector3 = h0.sample(h0.length - 12.0)
+	await ticks(4800, func() -> bool: return _p().global_position.distance_to(again) < 3.0 and _p().input_enabled,
+		"off the blue branch into the void: respawned on the long stroke before the junction")
+	check(w.heist and not w.heist_ridden.has("heist_blue_1"), "the respawn re-wets the heist")
+	# then the red branch over its gap, jump the knot, home before it dries
+	await steer(Vector3(-150, 15, -150), 600, func() -> bool: return surfing("heist_0"))
 	await steer(Vector3(-100, 12, -112), 2400, func() -> bool: return surfing("heist_red_2") or surfing("heist_final"))
 	check(w.heist_ridden.has("heist_red_1"), "took the red branch")
 	await steer(Vector3(-20, 3, -30), 2400, func() -> bool: return surfing("heist_final") and w.surf.s > 15.5)
@@ -442,3 +457,14 @@ func _audit() -> void:
 	check(labels >= 12 and long == 0, "%d museum labels in the wing, none over 40 words" % labels)
 	check(w.get_node("ShotMarks").get_child_count() == 12 and get_tree().get_nodes_in_group(&"shot_marks").size() == 12, "12 shot marks")
 	check(w.provenances().size() == 3, "three provenances declared")
+	# no authored rail runs through a solid at chest height (the surf would stop her there)
+	check(w.surf._blocked(Vector3(100, -1, -200), Vector3(100, -1, -210)), "the rail wall probe sees the cave wall")
+	var pierced: Array = []
+	for st: Node3D in w.canvas.strokes.values():
+		var d := 0.0
+		while d + 1.0 <= st.length:
+			if w.surf._blocked(st.sample(d), st.sample(d + 1.0)):
+				pierced.append("%s@%.0f" % [st.sid, d])
+				break
+			d += 1.0
+	check(pierced.is_empty(), "no rail passes through solid geometry %s" % [pierced])
