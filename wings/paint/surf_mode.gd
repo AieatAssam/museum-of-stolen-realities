@@ -73,7 +73,7 @@ func attach() -> bool:
 	else:
 		var look := -p.head.global_basis.z
 		dir = 1.0 if look.dot(t) >= 0.0 else -1.0
-	if s < 0.6:
+	if s < 0.6 or stroke.rec.get("oneway", false):
 		dir = 1.0
 	elif s > stroke.length - 0.6:
 		dir = -1.0

@@ -285,7 +285,7 @@ func lay(p: Player) -> String:
 		var a := feet + flat * 1.2
 		a.y = feet.y + 0.02
 		var hit := _ray(o, o + d * 40.0)
-		var b: Vector3 = hit["position"] if not hit.is_empty() else o + d * L
+		var b: Vector3 = hit["position"] if not hit.is_empty() else a + d * L   # aimed at nothing: along the look, from her feet
 		var h := Vector2(b.x - a.x, b.z - a.z).length()
 		b.y = clampf(b.y, a.y - h * tan(MAX_SLOPE), a.y + h * tan(MAX_SLOPE))
 		if a.distance_to(b) > L:

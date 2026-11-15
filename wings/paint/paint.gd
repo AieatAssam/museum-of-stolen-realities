@@ -139,7 +139,9 @@ func _ready() -> void:
 	canvas.laid.connect(_on_laid)
 	canvas.blended.connect(_on_blended)
 	canvas.sank.connect(func(_s: Node3D) -> void: _sfx("sink", null, -4.0); _nudge_mood(-0.01))
-	canvas.burned.connect(func(_id: String) -> void: _sfx("burn", null, -2.0))
+	canvas.burned.connect(func(_id: String) -> void:
+		_sfx("burn", null, -2.0)
+		complete_step(&"river", &"burn"))
 	canvas.refused.connect(func(_w: String) -> void: _sfx("refuse", null, -10.0))
 	canvas._refresh()
 
@@ -352,8 +354,10 @@ func _on_laid(_st: Node3D) -> void:
 	_nudge_mood(0.01)
 
 
-func _on_blended(_a: Node3D, _b: Node3D, _c: String) -> void:
+func _on_blended(a: Node3D, b: Node3D, c: String) -> void:
 	_sfx("blend", null, -3.0)
+	if c == "green" and (a.sid == "old_tree" or b.sid == "old_tree"):
+		complete_step(&"edge", &"green")
 
 
 func _on_surf(ev: String, data: Variant) -> void:
@@ -362,6 +366,10 @@ func _on_surf(ev: String, data: Variant) -> void:
 			_sfx("board", Game.player.global_position, -6.0, 0.9 + 0.05 * surf.chain)
 			if surf.chain >= 2:
 				_nudge_mood(0.006 * minf(surf.chain, 5))
+			if surf.chain >= 3 and String(data.sid).begins_with("bough_"):
+				complete_step(&"orchard", &"chain")
+			if data.rec.has("fl"):
+				complete_step(&"river", &"float")
 		"kick":
 			_sfx("kick", Game.player.global_position, -4.0)
 
@@ -665,6 +673,7 @@ func _build_river() -> void:
 		"The water here rises and falls according to whatever stands in its way. Conservators have stopped standing in its way. The level shown is the level at the time of writing.")
 	# the source bank: varnish, then the dark
 	_ground(A, "SourceBank", 66, -206, 100, -250, 0.0)
+	_well(A, "terrace_blue", Vector3(18, 0, -232), Vector3(18, 0, -236), "blue")
 	_well(A, "cinnabar", Vector3(72, 0, -240), Vector3(72, 0, -245), "red")
 	canvas.add_varnish("crust", Vector3(80, 0, -206), Vector3(82, 7, -250), _area(A))
 	_well(A, "cave_lamp", Vector3(90, 0, -244), Vector3(95, 0, -244), "yellow")
@@ -757,7 +766,7 @@ func _build_pentimento() -> void:
 		var rim := C + Vector3(sin(a), 0, cos(a)) * PENT_R
 		var xf := Transform3D(Basis.looking_at((C - rim).normalized(), Vector3.UP), rim)
 		var holder := _area(A + "/Hill_%d" % k)
-		var st: Node3D = canvas.add(Stroke.make("hill_%d" % k, [Vector3(0, 0.25, 0), Vector3(0, 2.8, -11), Vector3(0, 5.5, -22)], "umber"), holder)
+		var st: Node3D = canvas.add(Stroke.make("hill_%d" % k, [Vector3(0, 0.25, 0), Vector3(0, 2.8, -11), Vector3(0, 5.5, -22)], "umber", 2.0, {"oneway": true}), holder)
 		st.set_meta(&"unsafe", true)
 		st.transform = xf
 		hills.append([st, xf, k])
@@ -775,7 +784,7 @@ func _build_pentimento() -> void:
 
 func _hill_start(k: int) -> Vector3:
 	var a := k * TAU / 6.0
-	return PENT_C + Vector3(sin(a), 0, cos(a)) * (PENT_R + 1.2)
+	return PENT_C + Vector3(sin(a), 0, cos(a)) * (PENT_R + 0.6)
 
 
 func _in_arena(p: Vector3) -> bool:
@@ -975,7 +984,7 @@ func _build_heist() -> void:
 	_stroke(A, "heist_0", [Vector3(-215, 21.85, -168), Vector3(-185, 19.5, -162), Vector3(-150, 15, -150)], "blue", 2.0, h)
 	_stroke(A, "heist_red_1", [Vector3(-150, 15, -150), Vector3(-125, 13, -130), Vector3(-100, 12, -112)], "red", 2.0, h)
 	_stroke(A, "heist_red_2", [Vector3(-94.5, 10.5, -108), Vector3(-70, 9, -88), Vector3(-40, 6, -62)], "red", 2.0, h)
-	_stroke(A, "heist_blue_1", [Vector3(-150, 15, -150), Vector3(-170, 13, -110), Vector3(-130, 10, -72), Vector3(-80, 8, -56), Vector3(-40, 6, -62)], "blue", 2.0, h)
+	_stroke(A, "heist_blue_1", [Vector3(-150, 15, -150), Vector3(-120, 13.5, -152), Vector3(-90, 12, -140), Vector3(-70, 10, -115), Vector3(-55, 8, -90), Vector3(-40, 6, -62)], "blue", 2.0, h)
 	_stroke(A, "heist_final", [Vector3(-40, 6, -62), Vector3(-20, 3.5, -30), Vector3(0, 1.5, -10), Vector3(0, 0.75, 2)], "blue", 2.0, h)
 	for id: String in HEIST_IDS:
 		(canvas.get_stroke(id) as Node3D).set_meta(&"unsafe", true)

@@ -147,5 +147,281 @@ func _course() -> void:
 
 # --- part 2: the wing ------------------------------------------------------------------------
 
+func on_floor() -> bool:
+	return _p().is_on_floor() and _mode() == &"paint"
+
+
+## Scrape the stroke at `at` (looking at it from where she stands).
+func scrape(at: Vector3, what: String) -> void:
+	await look_at(at)
+	await tap(&"secondary")
+	check(not w.canvas.load.is_empty(), what)
+
+
+func lay(at: Vector3, what: String) -> void:
+	await look_at(at)
+	var n: int = w.canvas.laid_n
+	await tap(&"primary")
+	check(w.canvas.laid_n > n, what)
+
+
+## Ride/walk toward `target` holding forward until on the ground past `cond`.
+func go(target: Vector3, cond: Callable, n: int = 2400) -> bool:
+	return await steer(target, n, func() -> bool: return cond.call() and on_floor())
+
+
 func _wing() -> void:
-	pass
+	var from := OS.get_environment("PAINT_FROM")   # dev only: resume a later section
+	_audit()
+	if from == "":
+		await _orchard()
+		await _windfall()
+		await _unpainted()
+	if from in ["", "river"]:
+		if from != "":
+			await _jump_to("windfall", Vector3(0, 0.5, -170))
+		await _river()
+		await _corrections()
+	if from in ["", "pent"]:
+		if from != "":
+			await _jump_to("corrections", Vector3(0, 0, -325))
+		await _pentimento()
+	if from in ["", "pent", "green"]:
+		if from != "":
+			w.pent = 3
+			w._apply_pent(true)
+			await _jump_to("pentimento", Vector3(6, 0, -351))
+		await _green_and_horizon()
+	if from in ["", "pent", "green", "edge"]:
+		if from != "":
+			await _jump_to("edge", Vector3(-214, 21.6, -171.5))
+		await _edge_and_heist()
+
+
+func _jump_to(cp: String, pos: Vector3) -> void:
+	w.canvas.has_knife = true
+	await teleport(pos, pos + Vector3(0, 0, -5))
+
+
+func _orchard() -> void:
+	await teleport(w.pts["start"], Vector3(0, 0, -30))
+	await go(Vector3(0, 0, -50), func() -> bool: return _p().global_position.z < -44.0)
+	check(Quest.is_step_done(&"orchard", &"ride"), "rode the shore bough over the first void")
+	await steer(Vector3(0, -2, -140), 2400, func() -> bool: return surfing("bough_3") and w.surf.s > 16.2)
+	check(Quest.is_step_done(&"orchard", &"chain"), "chained three boughs")
+	await tap(&"jump")
+	await ticks(480, on_floor)
+	check(Quest.is_step_done(&"orchard", &"crown"), "kicked off the impasto to the crown (%s)" % _p().global_position)
+	await walk_to(Vector3(0.5, 0.5, -145), 10.0, 0.4)
+	await use(w.uses["knife"])
+	check(w.canvas.has_knife, "took the painter's knife")
+	await scrape(w.canvas.get_stroke("stray_bough").centre() + Vector3(0, 0.7, 0), "scraped the stray bough")
+	await walk_to(w.pts["crown_edge"], 10.0, 0.3)
+	await lay(w.pts["windfall_near"], "laid it across the gap")
+	await go(Vector3(0, 0.5, -166), func() -> bool: return _p().global_position.z < -160.0)
+	check(Quest.is_done(&"orchard"), "orchard objective done by play")
+
+
+func _windfall() -> void:
+	# the test strip: sealed blue; red across it makes violet, which sinks (Provenance: swatch)
+	await walk_to(Vector3(10.5, 0.5, -183.5), 15.0, 0.4)
+	await scrape(Vector3(10.5, 0.62, -186), "scraped red from the tube")
+	await walk_to(w.pts["strip_stand"], 10.0, 0.3)
+	await lay(Vector3(17.5, 1.0, -183), "laid red across the blue test strip")
+	await ticks(360)
+	var strip: Node3D = w.canvas.get_stroke("test_strip")
+	check(strip.colour == "violet" and strip.position.y < -3.0, "violet: the strip sank")
+	await walk_to(Vector3(20.2, 0.5, -183), 10.0, 0.4)
+	await use(w.uses["swatch"].get_parent())
+	await ticks(420, func() -> bool: return Quest.has_provenance(W, &"swatch"))
+	check(Quest.has_provenance(W, &"swatch"), "Provenance: the dried swatch")
+
+
+func _unpainted() -> void:
+	for i in 2:
+		await walk_to(Vector3(-12, 0.5, -169.2), 20.0, 0.4)
+		await scrape(w.pts["lamp_oil"], "took yellow from the lamp oil (%d)" % i)
+		var stand: Vector3 = w.pts["unpainted_edge"] if i == 0 else w.pts["pencil_1_end"]
+		await go(stand, func() -> bool: return absf(_p().global_position.x - stand.x) < 0.8, 2400)
+		await lay(stand + Vector3(-8, 1.62, 0), "laid light into the dark (%d)" % i)
+		await ticks(30)
+	check(w.canvas.get_stroke("pencil_2").enabled, "the underdrawing is solid in the light")
+	await go(w.pts["pedestal"], func() -> bool: return _p().global_position.x < -56.0)
+	await use(w.uses["stub"].get_parent())
+	await ticks(420, func() -> bool: return Quest.has_provenance(W, &"stub"))
+	check(Quest.has_provenance(W, &"stub"), "Provenance: the pencil stub")
+	# back to the windfall, over her own light
+	await go(Vector3(-5, 0.5, -172), func() -> bool: return _p().global_position.x > -12.0)
+
+
+func _river() -> void:
+	# float: blue laid on water floats; ride it across
+	await walk_to(Vector3(-17, 0.5, -183.6), 20.0, 0.4)
+	await scrape(w.pts["bank_well"], "took ultramarine from the bank")
+	await walk_to(w.pts["bank"], 15.0, 0.3)
+	await lay(w.pts["beach"], "laid blue on the river")
+	var raft: Node3D = w.canvas.get_stroke("laid_%d" % w.canvas.laid_n)
+	check(raft != null and raft.rec.has("fl"), "the blue floats")
+	await go(w.pts["terrace"], func() -> bool: return _p().global_position.z < -207.0)
+	check(Quest.is_step_done(&"river", &"float"), "crossed the river on floating paint")
+	# dam: a blue wall across the inlet; the basin drains to its bed
+	await walk_to(Vector3(18, 0, -230.6), 20.0, 0.4)
+	await scrape(Vector3(18, 0.12, -234), "took blue from the terrace well")
+	await walk_to(w.pts["dam_stand"], 15.0, 0.3)
+	await lay(Vector3(40, 12, -228), "planted a blue wall in the inlet")
+	await ticks(900, func() -> bool: return Quest.is_step_done(&"river", &"dam"))
+	check(Quest.is_step_done(&"river", &"dam"), "the wall holds the water back; the basin drains")
+	await walk_to(Vector3(24, 0, -236), 10.0, 0.6)   # round the end of her own wall
+	await walk_to(Vector3(40, -3, -228), 15.0, 0.6)
+	await walk_to(w.pts["bed"], 15.0, 0.6)
+	await go(Vector3(76, 0, -228), func() -> bool: return _p().global_position.x > 71.0)
+	check(_p().global_position.y > -0.5, "up the ramp out of the drained basin")
+	# burn: red laid into the varnish burns through it
+	await walk_to(Vector3(72, 0, -238.6), 15.0, 0.4)
+	await scrape(w.pts["cinnabar"], "took red from the cinnabar")
+	await walk_to(w.pts["varnish_stand"], 15.0, 0.3)
+	await lay(Vector3(80, 1, -228), "laid red into the varnish")
+	await ticks(240)
+	check(Quest.is_step_done(&"river", &"burn"), "hot paint burned through the varnish")
+	# light: yellow makes the cave's underdrawing solid
+	await walk_to(Vector3(92.5, 0, -241.6), 20.0, 0.4)
+	await scrape(w.pts["cave_lamp"], "took yellow in the cave")
+	await walk_to(w.pts["cave_edge"], 15.0, 0.3)
+	await lay(Vector3(110, 1.62, -228), "laid light at the cave's edge")
+	check(w.canvas.get_stroke("cave_pencil").enabled, "the underdrawing holds in the light")
+	await go(Vector3(127, 0, -228), func() -> bool: return _p().global_position.x > 126.0)   # the pencil is 2 m wide: keep to it
+	check(Quest.is_done(&"river"), "river objective done by play")
+	# the outflow carries her to the Corrections
+	await walk_to(Vector3(132, 0, -234), 10.0, 0.5)
+	await go(Vector3(4, 0, -285), func() -> bool: return _p().global_position.z < -272.0, 4800)
+	check(_p().global_position.z < -272.0 and _p().global_position.y > -0.5, "rode the outflow down to the Corrections")
+
+
+func _corrections() -> void:
+	# scraping the hand reveals its earlier pose: a ramp to a ledge (Provenance: the ferrule)
+	await walk_to(w.pts["hand_stand"], 15.0, 0.4)
+	await scrape(Vector3(16, 3, -287), "scraped the half-finished hand")
+	check(w.canvas.get_stroke("figure_hand_early").enabled, "an earlier pose shows through")
+	await lay(Vector3(16, 0, -275), "set the umber down")
+	await walk_to(Vector3(12, 0, -288.2), 15.0, 0.4)
+	await go(Vector3(24, 3, -299), func() -> bool: return _p().global_position.y > 2.8)
+	await walk_to(Vector3(25.5, 3, -301), 10.0, 0.6)
+	await use(w.uses["ferrule"].get_parent())
+	await ticks(420, func() -> bool: return Quest.has_provenance(W, &"ferrule"))
+	check(Quest.has_provenance(W, &"ferrule"), "Provenance: the ferrule")
+	# violet: red into the fixed blue barrier, and it sinks
+	await walk_to(Vector3(18, 0, -308), 15.0, 0.6)
+	await walk_to(Vector3(10, 0, -319.6), 20.0, 0.4)
+	await scrape(w.pts["corr_red"], "took red in the Corrections")
+	await walk_to(w.pts["barrier_stand"], 15.0, 0.3)
+	await lay(Vector3(0, 1, -336), "laid red into the blue barrier")
+	await ticks(360)
+	check(w.canvas.get_stroke("barrier").position.y < -3.0, "violet: the barrier sank")
+	await walk_to(w.pts["rim"], 15.0, 0.5)
+
+
+func _arena(angle: float, r: float) -> Vector3:
+	return w.PENT_C + Vector3(sin(angle), 0, cos(angle)) * r
+
+
+func _pentimento() -> void:
+	var tries := 0
+	var t0 := Engine.get_physics_frames()
+	while w.pent < 3 and tries < 24 and _p():
+		tries += 1
+		var layer: int = w.pent
+		var target: Node3D = null
+		for sd: Node3D in w.seals[layer]:
+			if sd.enabled:
+				target = sd
+				break
+		if target == null:
+			await ticks(30)
+			continue
+		var k := int(String(target.sid).get_slice("_", 2))
+		var hid := "hill_%d" % k
+		var a := k * TAU / 6.0
+		if not surfing():
+			if tries > 1:
+				# round by the inner ring (under the raised ends), out along the sector, along the rim
+				await walk_to(_arena(a + 0.52, 8.0), 20.0, 1.0)
+				await walk_to(_arena(a + 0.52, 33.0), 20.0, 1.0)
+			await steer(_arena(a + 0.17, 33.4), 600, func() -> bool: return surfing() or (_p().global_position - _arena(a + 0.17, 33.4)).length() < 1.0)
+			await steer(_arena(a, 33.4), 600, func() -> bool: return surfing())
+		if not surfing(hid):
+			if surfing():
+				await tap(&"crouch")
+			await ticks(240, on_floor)
+			continue
+		await steer(w.PENT_C, 900, func() -> bool: return not surfing(hid) or w.surf.s > 14.5)
+		if surfing(hid):
+			await look_at(target.centre() + Vector3(0, 0.75, 0), 30)
+			await tap(&"secondary")
+			check(not target.enabled, "scraped a seal riding the buckling hill (layer %d)" % layer)
+			if surfing():
+				await tap(&"crouch")
+		await ticks(600, func() -> bool: return on_floor() and not w._respawning)
+	var mins := (Engine.get_physics_frames() - t0) / 120.0 / 60.0
+	check(w.pent == 3, "three layers removed: the first composition (%d tries, %.1f min)" % [tries, mins])
+	check(Quest.is_step_done(&"edge", &"pentimento"), "pentimento step done by play")
+	check(w.canvas.get_stroke("kinder_road").enabled, "a kinder road appears")
+
+
+func _green_and_horizon() -> void:
+	await walk_to(Vector3(6, 0, -352.5), 20.0, 0.5)
+	await go(Vector3(4, 1, -170), func() -> bool: return _p().global_position.z > -190.0, 4800)
+	check(_p().global_position.z > -190.0, "rode the kinder road back to the Old Tree")
+	check(w.canvas.get_stroke("old_tree").colour == "blue", "the Old Tree is blue again underneath")
+	await walk_to(Vector3(4, 0.5, -178.6), 15.0, 0.4)
+	await scrape(Vector3(4, 0.62, -181), "took yellow from the pear")
+	await walk_to(Vector3(8, 0.5, -171.2), 15.0, 0.3)
+	await lay(Vector3(12, 1.2, -171.2), "laid yellow across the blue trunk")
+	check(Quest.is_step_done(&"edge", &"green"), "the Old Tree grows green")
+	await walk_to(Vector3(11.1, 0.5, -171.2), 6.0, 0.5)
+	await steer(Vector3(16, 25, -171.2), 1800, func() -> bool: return _p().global_position.y > 23.5 and on_floor())
+	check(_p().global_position.y > 23.5, "climbed the green to the lookout (y=%.1f)" % _p().global_position.y)
+	await walk_to(Vector3(13, 24.4, -164.5), 10.0, 0.5)
+	await walk_to(Vector3(9.5, 24.4, -164.5), 10.0, 0.5)
+	await walk_to(Vector3(9.5, 24.4, -171.5), 10.0, 0.4)
+	await go(Vector3(-212, 22, -171.5), func() -> bool: return _p().global_position.x < -206.0, 4800)
+	check(Quest.is_done(&"edge"), "rode the horizon to the edge; edge objective done")
+
+
+func _edge_and_heist() -> void:
+	for q: Vector3 in w.pts["passage"]:
+		await walk_to(q, 15.0, 0.4)
+	await walk_to(w.pts["ledge"], 10.0, 0.5)
+	check(w.revealed, "through the passage: the museum wall, thirty storeys")
+	await walk_to(w.pts["fragment"] + Vector3(1.4, -0.8, 0), 10.0, 0.4)
+	await use(w.uses["fragment"].get_parent())
+	await ticks(600, func() -> bool: return w.heist and _p().input_enabled)
+	check(Quest.has_fragment(W) and w.heist, "lifted the first stroke; the long stroke home is wet")
+	var back: Array = w.pts["passage"].duplicate()
+	back.reverse()
+	for q: Vector3 in back:
+		await walk_to(q, 15.0, 0.4)
+	# the heist: board, take the red branch over its gap, jump the knot, home before it dries
+	await steer(Vector3(-205, 21, -166), 1200, func() -> bool: return surfing("heist_0"))
+	await steer(Vector3(-100, 12, -112), 2400, func() -> bool: return surfing("heist_red_2") or surfing("heist_final"))
+	check(w.heist_ridden.has("heist_red_1"), "took the red branch")
+	await steer(Vector3(-20, 3, -30), 2400, func() -> bool: return surfing("heist_final") and w.surf.s > 15.5)
+	await tap(&"jump")
+	check(w.surf.last_left != null and w.surf.last_left.sid == "heist_final", "jumped the varnish knot")
+	await steer(Vector3(0, 0, 10), 2400, func() -> bool: return Game.wing == null or Game.wing.wing_id != W or not w.heist)
+	await until(func() -> bool: return Game.wing != null and Game.wing.wing_id == Game.HUB_ID, 20.0, "home on the shore: finish() returns to the atrium")
+	check(Quest.has_fragment(W), "fragment recorded")
+	check(Save.data["provenances"].get(String(W), []).size() == 3, "all three provenances recorded")
+
+
+func _audit() -> void:
+	var labels := 0
+	var long := 0
+	for pl: Placard in w.find_children("*", "Placard", true, false):
+		if pl.acquisition.to_lower().begins_with("acq. no. 001"):
+			labels += 1
+			if pl.body.split(" ", false).size() > 40:
+				long += 1
+				print("  long placard: ", pl.title)
+	check(labels >= 12 and long == 0, "%d museum labels in the wing, none over 40 words" % labels)
+	check(w.get_node("ShotMarks").get_child_count() == 12 and get_tree().get_nodes_in_group(&"shot_marks").size() == 12, "12 shot marks")
+	check(w.provenances().size() == 3, "three provenances declared")
