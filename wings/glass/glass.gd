@@ -422,6 +422,7 @@ func _window(id: String, centre: Vector3, size: Vector2, facing: Vector3, tex: S
 	m.set_shader_parameter(&"edited", edited)
 	m.set_shader_parameter(&"dark", 0.0)
 	m.set_shader_parameter(&"crack", 0.0)
+	m.set_shader_parameter(&"energy", 2.6 if id == "east" else 3.4)  # the rest read richer than the sunlit east
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var sc := mi.scale
@@ -725,6 +726,12 @@ func _build_cloister() -> void:
 		for mi: Node in geo.get_children():
 			if mi is MeshInstance3D and (mi as MeshInstance3D).material_override == windows[id]:
 				mi.visible = false
+	# the nave's west front over the garth: three lancets, the Kingdom's founding in the middle, each
+	# throwing its colours onto the walk below. The first thing she sees is coloured light.
+	for k: int in 3:
+		var x := (k - 1) * 3.7
+		_lancet("west_%d" % k, Vector3(x, 15.5 + (1.2 if k == 1 else 0.0), -17.45), 2.8, Vector3(0, 0, 1),
+			["story_2", "win_history", "story_5"][k], 0.0, Vector3(x * 1.4, 0, 3.0), 6.0)
 	# the first dial sits in a notch at the gap's edge, its lens at walking height
 	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.07, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
 	pts["d1_use"] = Vector3(14.2, 0, 6.5)
@@ -1258,6 +1265,9 @@ func _build_east_and_heist() -> void:
 	var ek := _spot(Vector3(0, 22, -132), Vector3(0, 2.5, -98), Color.WHITE, 16.0, 26.0, 60.0)
 	ek.light_projector = load("res://wings/glass/textures/win_east.png")
 	ek.light_volumetric_fog_energy = 1.4
+	# the side lancets' blue spills back across the east wall round the great window
+	var wash := _spot(Vector3(0, 3, -100), Vector3(0, 14, -121.5), Color(0.3, 0.45, 1.0), 16.0, 50.0, 40.0)
+	wash.light_volumetric_fog_energy = 0.0
 	# the museum pedestal glazed into every scene, here for real, holding the fourth sun
 	_frag_spot = Node3D.new()
 	_frag_spot.position = Vector3(0, 6.3, -123.3)

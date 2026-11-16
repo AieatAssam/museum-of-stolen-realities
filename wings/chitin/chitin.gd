@@ -616,6 +616,7 @@ func _build_heist(area: Node3D) -> void:
 	_round(_ledge(geo, Vector3(109, -39, -28), Vector3(124, -38, -16), walk), 1.5)
 	_ledge(geo, Vector3(105, -4, -40), Vector3(130, -3, -30), walk)
 	_ledge(geo, Vector3(104, -4, -41), Vector3(131, 4, -40), _mat["wall"])
+	_ledge(geo, Vector3(104, -3, -31.6), Vector3(131, 0.2, -29.45), _mat["wall"])  # the parapet over the shaft (part_rim_north)
 	_lifts.append(_lift(area, [Vector3(100, -58, -22), Vector3(100, -20, -22), Vector3(89, -20, -22), Vector3(89, -24, -22)], 4.0))
 	_lifts.append(_lift(area, [Vector3(118, -27, -22), Vector3(118, 10, -22), Vector3(118, 10, -35), Vector3(118, 7.5, -35)], 4.0))
 	_cut_anchor = _anchor(area, Vector3(102, -25, -22), false)
@@ -682,7 +683,7 @@ func _build_marks() -> void:
 		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
 		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
 		["first_swing", Vector3(-4, 1.7, 5), Vector3(13, 4, -3)],
-		["heist_rim", Vector3(108, -1.3, -31), Vector3(121, 1.5, -40.5)],
+		["heist_rim", Vector3(108, -1.3, -32.2), Vector3(121, 1.5, -40.5)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
@@ -811,7 +812,8 @@ func _dress() -> void:
 	L.light(Vector3(30, 0, 0), warm, 1.5, 10.0)                  # the usher's door
 	L.light(Vector3(21, 1.5, 11), Color("7affd8"), 4.0, 12.0, 0.5)  # fungus glow over the harp line
 	L.light(Vector3(21.5, -0.4, 11.5), Color("ffb060"), 4.5, 12.0, 0.0)  # and warm comb light across it
-	L.light(Vector3(77, 2, -6), Color("ffd27a"), 1.6, 8.0)       # the perch
+	L.light(Vector3(75, 1.5, -5), Color("ffb04a"), 3.2, 10.0)     # the perch: the lost bell's ledge glows honey
+	L.light(Vector3(69, -0.5, -2.5), Color("ff9a3a"), 6.0, 8.0)    # and its comb face catches warm light from the approach
 	L.light(Vector3(100, -33.5, -20.5), Color("ff9a40"), 4.0, 11.0)  # honey seeping from the heist lift's comb
 	L.light(Vector3(122, -5, 0), warm, 2.0, 14.0)                # the balcony
 	L.light(Vector3(130, -20, 56), Color("ff7a2a"), 3.0, 16.0, 2.0)   # the foundry forge glow

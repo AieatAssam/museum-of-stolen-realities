@@ -6,7 +6,8 @@ bulging 1.5-2 m past the rim; six boughs fan up from one gnarled trunk that runs
 (z -31.45) and flares into five roots.
 lookout_scaffold: a painter's stretcher scaffold holding up a U-shaped lookout deck, built at Godot world
 coordinates (identity placement in Godot). Godot (x, y up, z) maps to Blender (x, -z, y).
-Headless bmesh, deterministic (seeded). One script, selected by args[0]: crown | lookout_scaffold.
+view_scaffold: the four-leg stretcher frame under the View deck, same Godot placement as lookout_scaffold.
+Headless bmesh, deterministic (seeded). One script, selected by args[0]: crown | lookout_scaffold | view_scaffold.
 Blender: +Z up, 1 unit = 1 m. Material names are the contract."""
 import math
 import os
@@ -211,6 +212,136 @@ def boughs_and_trunk(P):
         L.stroke(P, "p_bark", pts, widths, sides=6, thick=0.5, jit=0.02, jit_z=False)
 
 
+def walk_edge():
+    """Outline of the flat walk face at z 0: the rim loop pulled in to the top's flat ring (d -0.10), edge noise
+    included. Returns (outline as (x, y) tuples, rim points, rim outward normals)."""
+    pts, nrm, grow = gold_rim()
+    poly = [(p.x + n.x * (g - 0.10), p.y + n.y * (g - 0.10)) for p, n, g in zip(pts, nrm, grow)]
+    return poly, pts, nrm
+
+
+def sd(poly, x, y):
+    """Signed distance from (x, y) to the outline: positive inside, negative outside."""
+    best, inside, n = 1e9, False, len(poly)
+    for i in range(n):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        vx, vy = bx - ax, by - ay
+        t = max(0.0, min(1.0, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)))
+        best = min(best, math.hypot(ax + t * vx - x, ay + t * vy - y))
+        if (ay > y) != (by > y) and x < ax + (y - ay) * vx / vy:
+            inside = not inside
+    return best if inside else -best
+
+
+def _mark(P):
+    return {m: len(bm.verts) for m, bm in P.bms.items()}
+
+
+def _since(P, mark):
+    """Vertices created after mark (from _mark), across all materials."""
+    return [v for m, bm in P.bms.items() for v in list(bm.verts)[mark.get(m, 0):]]
+
+
+def impasto(P):
+    """Painterly relief on the golden walk face. Brush daubs stand at most 0.04 m above z 0, fallen leaves at most
+    0.045 m, and the rim clumps (up to 0.45 m) sit within 0.8 m of the outline. Asserts check these rules."""
+    rng = P.rng
+    poly, pts, nrm = walk_edge()
+
+    def flow(x, y):  # loose swirling field: brush directions follow a few curved lines
+        return 0.9 * math.sin(0.35 * x + 0.6) + 0.7 * math.cos(0.28 * y + 1.1) + 0.4 * math.sin(0.2 * (x + y))
+
+    def pick_tone():  # lighter and cooler than the gold so the strokes read against it; a few leaf/umber
+        r = rng.random()  # foliage over gold: 35% light leaf, 25% leaf, 15% blue, 15% cream, 10% umber
+        if r < 0.35:
+            return "p_leaf_light"
+        if r < 0.60:
+            return "p_leaf"
+        if r < 0.75:
+            return "p_blue"
+        if r < 0.90:
+            return "p_plaster"
+        return "p_bark"
+
+    # brush daubs: broad sweeping strokes, 1.0-3.0 m long, 0.3-0.8 m wide, 0.04 thick, centred 0.005-0.013 above z 0
+    # so the crown of each stroke stands ~0.025-0.038 proud of the gold; jit 0.005 keeps the top under 0.04
+    m = _mark(P)
+    shapes = []  # (cx, cy, cos a, sin a, L, W) for the coverage report
+    placed, tries = 0, 0
+    while placed < 480:
+        tries += 1
+        if tries > 40000:
+            raise SystemExit("crown: could not place brush daubs inside the outline")
+        cx, cy = rng.uniform(-6, 6), rng.uniform(-8, 8)
+        L, W = rng.uniform(1.0, 3.0), rng.uniform(0.3, 0.8)
+        a = flow(cx, cy) + rng.uniform(-0.15, 0.15)
+        ca, sa = math.cos(a), math.sin(a)
+        ring = [(cx + ca * (L / 2) * math.cos(t) - sa * (W / 2) * math.sin(t),
+                 cy + sa * (L / 2) * math.cos(t) + ca * (W / 2) * math.sin(t)) for t in [TAU * k / 8 for k in range(8)]]
+        if sd(poly, cx, cy) > 0.1 and all(sd(poly, x, y) > 0.1 for x, y in ring):
+            N.daub(P, pick_tone(), Vector((cx, cy, 0.005 + rng.uniform(0.0, 0.008))), Vector((ca, sa, 0.0)), Z,
+                   L, W, 0.04, detail=1, jit=0.005)
+            shapes.append((cx, cy, ca, sa, L, W))
+            placed += 1
+    daub_v = _since(P, m)
+
+    # fallen leaves: flat, 0.025 thick, 0.3-0.5 m long, centred z 0.02 so they sit on top of the brush daubs
+    m = _mark(P)
+    placed, tries = 0, 0
+    while placed < 35:
+        tries += 1
+        if tries > 20000:
+            raise SystemExit("crown: could not place fallen leaves inside the outline")
+        cx, cy = rng.uniform(-6, 6), rng.uniform(-8, 8)
+        if sd(poly, cx, cy) < 0.3:
+            continue
+        a = rng.uniform(0, TAU)
+        mat = "p_yellow" if rng.random() < 0.2 else ("p_leaf_light" if rng.random() < 0.5 else "p_leaf")
+        N.daub(P, mat, Vector((cx, cy, 0.02)), Vector((math.cos(a), math.sin(a), 0.0)), Z,
+               rng.uniform(0.3, 0.5), rng.uniform(0.16, 0.26), 0.025, detail=0, jit=0.005)
+        placed += 1
+    leaf_v = _since(P, m)
+
+    # rim clumps: 27 irregular spots, 0.3-0.4 m inside the outline, a few leaf daubs each (crown's leaf helper)
+    m = _mark(P)
+    n = len(pts)
+    for k in range(27):
+        i = int((k + rng.uniform(0.1, 0.9)) * n / 27) % n
+        ex, ey = poly[i]
+        inset = rng.uniform(0.3, 0.4)
+        cx, cy = ex - nrm[i].x * inset, ey - nrm[i].y * inset
+        for _ in range(rng.randint(3, 4)):
+            a = rng.uniform(0, TAU)
+            c = Vector((cx + rng.uniform(-0.05, 0.05), cy + rng.uniform(-0.05, 0.05), rng.uniform(0.0, 0.08)))
+            N.daub(P, canopy_mat(rng), c, Vector((math.cos(a), math.sin(a), 0.0)),
+                   Vector((rng.gauss(0, 0.3), rng.gauss(0, 0.3), 1.0)), rng.uniform(0.4, 0.5),
+                   rng.uniform(0.28, 0.32), 0.26, detail=1, jit=0.02)
+    clump_v = _since(P, m)
+
+    # checks: flat pieces stay low and inside the walk face; clumps stay under 0.45 and within 0.8 m of the rim
+    for v in daub_v:
+        if v.co.z > 0.04 or sd(poly, v.co.x, v.co.y) < -0.05:
+            raise SystemExit("crown: brush daub too proud or outside the walk face")
+    for v in leaf_v:
+        if v.co.z > 0.045 or sd(poly, v.co.x, v.co.y) < -0.05:  # raised from 0.03: leaves must clear the daubs
+            raise SystemExit("crown: fallen leaf too proud or outside the walk face")
+    for v in clump_v:
+        if v.co.z > 0.45:
+            raise SystemExit("crown: rim clump taller than 0.45 m")
+        if v.co.z > 0.04 and abs(sd(poly, v.co.x, v.co.y)) > 0.8:
+            raise SystemExit("crown: rim clump more than 0.8 m from the rim")
+    def covered(x, y):
+        return any(((x - cx) * ca + (y - cy) * sa) ** 2 / (L / 2) ** 2
+                   + (-(x - cx) * sa + (y - cy) * ca) ** 2 / (W / 2) ** 2 <= 1
+                   for cx, cy, ca, sa, L, W in shapes)
+
+    grid = [(-6 + 0.25 * i, -8 + 0.25 * j) for i in range(49) for j in range(65)]
+    grid = [p for p in grid if sd(poly, *p) > 0]
+    cover = sum(covered(*p) for p in grid) / len(grid)
+    print("IMPASTO brush=%d fallen=35 clumps=27 coverage=%.0f%% (checks passed)" % (len(shapes), 100 * cover))
+
+
 def crown(P):
     golden_top(P)
     leaf_ring(P)
@@ -218,6 +349,7 @@ def crown(P):
     skirt(P)
     interior_canopy(P)
     boughs_and_trunk(P)
+    impasto(P)  # last, so the random stream of the existing parts is unchanged
 
 
 # --- lookout scaffold (Godot world coordinates) -------------------------------------------------
@@ -306,11 +438,69 @@ def scaffold(P):
     assert_clear(P)
 
 
+# --- view scaffold (Godot world coordinates) ----------------------------------------------------
+
+VIEW_LEGS = [(-18.7, -305.4), (-18.7, -314.6), (-14.6, -305.4), (-14.6, -314.6)]  # west pair, then east pair
+VIEW_CENTRE = (-16.3, -310.0)
+VIEW_WALLS = [((-18.7, -305.4), (-14.6, -305.4)),  # north
+              ((-18.7, -314.6), (-14.6, -314.6)),  # south
+              ((-18.7, -305.4), (-18.7, -314.6))]  # west (east side open)
+VIEW_RAILS = [3.0, 5.2]
+VIEW_DECK_UNDER = 5.6  # underside of the View deck (box spans x -19..-13.2, z -315..-305)
+
+
+def view_scaffold(P):
+    """Stretcher-style legs holding up the View deck. Built in Godot coordinates (identity placement)."""
+    rng = P.rng
+    m0 = _mark(P)
+    for x, z in VIEW_LEGS:  # 0.28 m legs, slightly out of true, splayed dark feet on the ground
+        lean = (rng.uniform(-0.002, 0.002), rng.uniform(-0.002, 0.002))
+        gbox(P, "p_wood", x - 0.14, x + 0.14, 0.0, VIEW_DECK_UNDER, z - 0.14, z + 0.14, n=4, amp=0.012, lean=lean)
+        cx, cz = VIEW_CENTRE
+        m = math.hypot(x - cx, z - cz)
+        # feet splay away from the frame centre; the east pair splays in z only, so the east clearance
+        # rule (x > -14.35 stays free below y 4.5) holds
+        fx = x + (x - cx) / m * 0.12 if x < cx else x
+        fz = z + (z - cz) / m * 0.12
+        gbox(P, "p_wood_dark", fx - 0.22, fx + 0.22, 0.0, 0.16, fz - 0.22, fz + 0.22, n=1, amp=0.01)
+    legs_v = _since(P, m0)
+    for a, b in VIEW_WALLS:
+        along_x = a[1] == b[1]
+        for y0 in (VIEW_RAILS if along_x else VIEW_RAILS[-1:]):  # west face: top rail only
+            wall_rail(P, a, b, y0)
+        if along_x:  # X cross-braces fill the panel between the two rails
+            wall_brace(P, a, b, VIEW_RAILS[0], VIEW_RAILS[1])
+    for x, z in VIEW_LEGS:  # wedge keys where the rails meet the legs
+        for y0 in VIEW_RAILS:
+            gbox(P, "p_wood_dark", x - 0.22, x + 0.22, y0 - 0.04, y0 + 0.24, z - 0.22, z + 0.22, n=1, amp=0.006)
+    for z in (-305.4, -314.6):  # knee braces from the east legs up to the deck underside
+        bar(P, "p_wood_dark", g(-14.6, 4.6, z), g(-13.5, 5.55, z), 0.16, Vector((0, 1, 0)))
+    assert_view_clear(P, legs_v)
+
+
+def assert_view_clear(P, legs_v):
+    """Keep-clear rules: nothing but legs and feet below y 2.9; no triangle east of x -14.35 dips below y 4.5."""
+    legs = set(legs_v)
+    tris = 0
+    for bm in P.bms.values():
+        for v in bm.verts:
+            if v not in legs and v.co.z < 2.9:
+                raise SystemExit("view_scaffold: a member other than a leg or foot sits below y 2.9")
+        for f in bm.faces:
+            tris += len(f.verts) - 2
+            if min(v.co.x for v in f.verts) > -14.35 and min(v.co.z for v in f.verts) < 4.5:
+                raise SystemExit("view_scaffold: a member enters the east clearance below y 4.5")
+    if tris >= 4000:
+        raise SystemExit("view_scaffold: %d tris over the 4000 budget" % tris)
+    print("VIEW_SCAFFOLD tris=%d" % tris)
+
+
 # --- dispatch -----------------------------------------------------------------------------------
 
 MODELS = {
     "crown": ("crown", 901, crown),
     "lookout_scaffold": ("lookout_scaffold", 907, scaffold),
+    "view_scaffold": ("view_scaffold", 911, view_scaffold),
 }
 
 

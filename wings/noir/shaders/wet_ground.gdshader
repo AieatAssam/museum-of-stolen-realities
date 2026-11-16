@@ -41,8 +41,9 @@ void fragment() {
 	float d = length(f - (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.5);
 	ring = smoothstep(0.03, 0.0, abs(d - t * 0.35)) * (1.0 - t) * rain;
 	float wet = clamp(wetness + pud, 0.0, 1.0);
-	ALBEDO = alb * mix(1.0, 0.3, wet);
-	ROUGHNESS = mix(r, r * 0.2, wetness) * (1.0 - pud) + mix(0.02, 0.12, ring) * pud;
+	// standing water is a black mirror: its albedo all but goes, so the reflection carries the surface
+	ALBEDO = alb * mix(1.0, 0.3, wet) * (1.0 - 0.8 * pud);
+	ROUGHNESS = mix(r, r * 0.15, wetness) * (1.0 - pud) + mix(0.0, 0.1, ring) * pud;
 	SPECULAR = 0.5 + 0.5 * wet;
 	vec3 flat_n = vec3(0.5, 0.5, 1.0);
 	vec3 rn = vec3(0.5 + (f.x) * ring * 0.6, 0.5 + (f.y) * ring * 0.6, 1.0);
