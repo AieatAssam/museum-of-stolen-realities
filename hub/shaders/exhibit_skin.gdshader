@@ -3,14 +3,8 @@ render_mode blend_mix, depth_draw_opaque, cull_back, specular_schlick_ggx;
 // Exhibit 0's vessel: thick clear crystal. Each pixel of the shell refracts what lies behind it (the
 // opaque scene in the screen texture, depth-checked so nothing in front smears in), then marches the
 // hollow interior (an analytic sphere around `centre`, stopping at the world globe) and adds the
-// light that lives inside: a warm volumetric glow, plus one weather per returned fragment, each
-// gated by its own uniform (0 = absent, 1 = fully home):
-//   glass  slow shafts of coloured light, as through leaded panes
-//   clay   a thumb-warm boil, stepped at 12 frames a second
-//   noir   black-and-white rain, falling straight
-//   aria   standing waves: concentric shells that breathe in and out of phase
-//   chitin amber: honey light in hexagonal cells, slowly pulsing
-//   paint  swirling wet brush strokes in saturated colour
+// light that lives inside: a warm glow, plus one weather per returned fragment in its own sector,
+// each gated by its own uniform (0 = absent, 1 = fully home); see wing_light().
 // Etched filigree catches light; fresnel carries a warm reflection of the hall.
 #include "res://core/shaders/noise.gdshaderinc"
 
@@ -47,51 +41,63 @@ float v3(vec3 p) {
 }
 vec3 hue(float h) { return clamp(abs(fract(h + vec3(0.0, 2.0, 1.0) / 3.0) * 6.0 - 3.0) - 1.0, 0.0, 1.0); }
 
-// light emitted per metre at p (p relative to the centre, metres)
-vec3 weather(vec3 p, float t) {
+// One wing's weather at p, unweighted. Each has ONE hue and ONE motion so it reads at a glance:
+//   0 glass  prismatic shards: hard-edged facets flashing through the spectrum
+//   1 clay   terracotta, a slow thick churn stepped at 12 fps
+//   2 noir   silver rain on black, falling straight and fast
+//   3 aria   teal standing waves: shells breathing in place
+//   4 chitin amber hex cells pulsing like a hive
+//   5 paint  violet brush strokes combed round a swirl
+vec3 wing_light(int k, vec3 p, float t) {
 	float r = length(p);
-	// warm core glow, always present: the world inside is lit
-	vec3 c = vec3(1.0, 0.62, 0.3) * 0.22 * exp(-r * 1.1) * (0.8 + 0.4 * v3(p * 1.4 + t * 0.15));
-	if (w_glass > 0.001) {  // shafts slanting down from one side, each a pane colour
-		vec3 dir = normalize(vec3(0.45, -1.0, 0.2));
-		vec3 q = p - dir * dot(p, dir);
-		vec2 cell = floor(vec2(q.x + q.y * 0.3, q.z) * 2.2 + vec2(t * 0.05, 0.0));
-		float pane = h3(vec3(cell, 3.0));
-		vec2 f = fract(vec2(q.x + q.y * 0.3, q.z) * 2.2 + vec2(t * 0.05, 0.0));
-		float beam = step(0.62, pane) * smoothstep(0.5, 0.36, max(abs(f.x - 0.5), abs(f.y - 0.5)));
-		c += hue(pane * 3.7) * beam * 1.6 * w_glass;
-	}
-	if (w_clay > 0.001) {  // boiling plasticine light, stepped at 12 fps
-		float tq = floor(t * 12.0) / 12.0;
-		float b = v3(p * 1.6 + vec3(0.0, tq * 0.6, 0.0) + floor(t * 12.0) * 0.13);
-		c += mix(vec3(0.85, 0.42, 0.2), vec3(0.45, 0.62, 0.3), v3(p * 0.7)) * smoothstep(0.55, 0.75, b) * 0.9 * w_clay;
-	}
-	if (w_noir > 0.001) {  // straight rain, silver on black
+	if (k == 0) {
+		vec3 q = p * 2.6 + vec3(0.0, t * 0.08, 0.0);
+		float cell = h3(floor(q + floor(q.yzx * 0.5)));  // staggered facets, not a grid
+		vec3 f = abs(fract(q) - 0.5);
+		float edge = smoothstep(0.5, 0.38, max(f.x, max(f.y, f.z)));
+		float flash = pow(0.5 + 0.5 * sin(t * 1.6 + cell * 40.0), 6.0);
+		return hue(cell + t * 0.03) * step(0.45, cell) * edge * (0.35 + 1.4 * flash) * 1.3;
+	} else if (k == 1) {
+		float f = floor(t * 12.0);
+		float b = v3(p * 1.3 + vec3(0.0, f / 12.0 * 0.25, 0.0) + f * 0.011);
+		return vec3(1.0, 0.36, 0.16) * smoothstep(0.45, 0.7, b) * 1.1;
+	} else if (k == 2) {
 		vec2 col = floor(p.xz * 9.0);
 		float sp = 2.6 + 1.6 * h3(vec3(col, 1.0));
 		float y = fract(p.y * 0.8 + t * sp * 0.4 + h3(vec3(col, 2.0)));
 		vec2 fx = fract(p.xz * 9.0) - 0.5;
-		float streak = smoothstep(0.08, 0.0, length(fx)) * smoothstep(0.0, 0.05, y) * smoothstep(0.35, 0.05, y);
-		c += vec3(0.85, 0.88, 0.92) * streak * 2.2 * step(0.55, h3(vec3(col, 4.0))) * w_noir;
-	}
-	if (w_aria > 0.001) {  // standing waves: shells breathing in place
-		float s = sin(r * 9.0) * sin(t * 1.3 + p.y * 0.8);
-		c += vec3(0.25, 0.75, 0.8) * pow(abs(s), 8.0) * 0.9 * w_aria;
-	}
-	if (w_chitin > 0.001) {  // amber in hex cells, pulsing like a hive
-		vec2 h = vec2(p.x + p.z * 0.5, p.z * 0.866) * 3.0;
+		float streak = smoothstep(0.1, 0.0, length(fx)) * smoothstep(0.0, 0.05, y) * smoothstep(0.35, 0.05, y);
+		return vec3(0.82, 0.86, 0.92) * streak * 2.4 * step(0.72, h3(vec3(col, 4.0)));  // sparse: lines on black, not haze
+	} else if (k == 3) {
+		float s = sin(r * 9.0) * sin(t * 1.3);
+		return vec3(0.12, 0.78, 0.74) * pow(abs(s), 6.0) * 1.3;
+	} else if (k == 4) {
+		vec2 h = vec2(p.x + p.y * 0.5, p.y * 0.866) * 3.2;
 		vec2 hf = fract(h) - 0.5;
 		float cell = h3(vec3(floor(h), 7.0));
-		float wall = smoothstep(0.42, 0.5, max(abs(hf.x), abs(hf.y)));
+		float wall = smoothstep(0.38, 0.48, max(abs(hf.x), abs(hf.y)));
 		float pulse = 0.5 + 0.5 * sin(t * 0.9 + cell * 6.28);
-		c += vec3(1.0, 0.58, 0.12) * (0.25 + 0.55 * pulse * step(0.5, cell) + wall * 0.4) * 0.5 * smoothstep(1.0, -0.6, p.y) * w_chitin;
+		return vec3(1.0, 0.7, 0.12) * (0.15 + 0.85 * pulse * step(0.4, cell) * (1.0 - wall) + wall * 0.5) * 0.8;
 	}
-	if (w_paint > 0.001) {  // swirled strokes: noise combed along a slow vortex
-		float a = atan(p.z, p.x) + t * 0.12 + r * 0.9;
-		vec3 q = vec3(cos(a) * r, p.y * 1.5, sin(a) * r);
-		float stroke = v3(vec3(a * 3.0, p.y * 6.0, r * 2.0));
-		float band = smoothstep(0.62, 0.72, stroke) * smoothstep(0.95, 0.75, stroke);
-		c += hue(fract(v3(q * 0.8) * 2.0 + 0.1)) * band * 1.4 * w_paint;
+	float a = atan(p.z, p.x) + t * 0.12 + r * 1.4;
+	float stroke = v3(vec3(a * 2.5, p.y * 7.0, r * 2.0));
+	float band = smoothstep(0.55, 0.68, stroke) * smoothstep(0.95, 0.78, stroke);
+	return vec3(0.4, 0.1, 1.0) * band * (0.7 + 0.6 * v3(vec3(a * 24.0, p.y * 3.0, 1.0))) * 1.4;  // bristle streaks
+}
+
+// light emitted per metre at p (p relative to the centre, metres). The interior is cut into six
+// 60-degree sectors, one per wing in WING_ORDER, turning slowly so each faces the entrance in turn;
+// a sector is dark-warm until its fragment comes home. One weather per sample keeps the march cheap.
+vec3 weather(vec3 p, float t) {
+	float r = length(p);
+	vec3 c = vec3(1.0, 0.62, 0.3) * 0.12 * exp(-r * 1.1);  // warm core, always present
+	float s = (atan(p.x, p.z) + t * 0.05) / (TAU / 6.0);
+	float fs = fract(s);
+	int k = int(mod(floor(s), 6.0));
+	float w[6] = float[6](w_glass, w_clay, w_noir, w_aria, w_chitin, w_paint);
+	float wk = w[k] * smoothstep(0.0, 0.08, fs) * smoothstep(1.0, 0.92, fs);  // dark seams between sectors
+	if (wk > 0.001) {
+		c += wing_light(k, p, t) * wk;
 	}
 	return c;
 }
@@ -101,7 +107,7 @@ void fragment() {
 	float f = pow(1.0 - ndv, 4.0);
 	vec3 d = normalize(opos);
 	float fil = n_fbm(d.xy * 7.0 + d.z * 3.0);
-	float line = smoothstep(0.02, 0.0, abs(fract(fil * 6.0) - 0.5) - 0.46);
+	float line = smoothstep(0.44, 0.48, abs(fract(fil * 6.0) - 0.5));  // thin etched veins, clear glass between
 
 	// refraction: bend the screen lookup by the view-space normal; keep only what lies behind us
 	vec2 off = NORMAL.xy * refraction * (1.0 - f);
@@ -132,10 +138,12 @@ void fragment() {
 		float dt = tf / float(N);
 		float j = h3(vec3(FRAGCOORD.xy, TIME)) * dt;  // dither the steps; TAA/grain hide the noise
 		for (int i = 0; i < N; i++) {
-			inner += weather(ro + rd * (j + dt * float(i)), TIME) * dt;
+			float x = j + dt * float(i);
+			// absorb with depth: a pixel shows the sector it enters, not the average of all six (white)
+			inner += weather(ro + rd * x, TIME) * dt * 1.8 * exp(-x * 1.1);
 		}
 		// soft shoulder: six weathers together stay readable as weather, not a white bulb
-		inner = inner * volume * 0.55 / (1.0 + dot(inner, vec3(0.3, 0.5, 0.2)) * 1.2);
+		inner = inner * volume * 0.6 / (1.0 + dot(inner, vec3(0.3, 0.5, 0.2)) * 1.4);
 	}
 
 	vec3 hall = tint.rgb * (0.35 + 0.65 * smoothstep(-0.2, 0.8, reflect(-VIEW, NORMAL).y));
@@ -143,6 +151,7 @@ void fragment() {
 	METALLIC = 0.0;
 	ROUGHNESS = mix(0.02, 0.25, line);
 	SPECULAR = 0.7;
-	EMISSION = (behind * vec3(0.97, 0.95, 0.9) * (1.0 - f * 0.6) + inner * glow + hall * f * 0.25 + tint.rgb * line * 0.18 * glow);
+	// the glass dims what lies behind it (smoked crystal) so the weathers inside carry the colour
+	EMISSION = (behind * vec3(0.3, 0.29, 0.28) * (1.0 - f * 0.6) + inner * glow * 0.8 + hall * f * 0.2 + tint.rgb * line * 0.12 * glow);
 	ALPHA = 1.0;
 }
