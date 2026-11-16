@@ -260,7 +260,7 @@ func verb_prompt() -> Dictionary:
 func base_height(x: float, z: float) -> float:
 	var h := 0.10 * sin(x * 0.13) * cos(z * 0.11)
 	h += _plateau(x, z, KNOLL.x, KNOLL.z, 5.0, 3.0, 1.2, 0.6)
-	h += _plateau(x, z, TABLE.x, TABLE.z, 6.0, 5.0, TABLE_TOP, 0.5)
+	h += _plateau(x, z, TABLE.x, TABLE.z, 6.0, 5.0, TABLE_TOP, 0.5, false)
 	h += _hump(x, z, MOUND.x, MOUND.z, 2.6, 1.6)
 	h += _hump(x, z, HILL.x, HILL.z, 8.0, 3.2)
 	h += _hump(x, z, DIG_CENTRE.x, DIG_CENTRE.z, DIG_R, -0.9)
@@ -271,8 +271,16 @@ func base_height(x: float, z: float) -> float:
 	return h
 
 
-func _plateau(x: float, z: float, cx: float, cz: float, hx: float, hz: float, height: float, soft: float) -> float:
-	var d := maxf(absf(x - cx) - hx, absf(z - cz) - hz)
+## A flat-topped block of clay: a rounded rectangle (corner radius 1.2 m, edges thumbed +-0.12 m out of
+## true) so it reads as pressed by hand, not cut with a ruler. The sides stay as steep as before.
+## (`hand` false: the plain square-cornered block, for the workbench under its model)
+func _plateau(x: float, z: float, cx: float, cz: float, hx: float, hz: float, height: float, soft: float, hand := true) -> float:
+	if not hand:
+		return height * (1.0 - smoothstep(0.0, soft, maxf(absf(x - cx) - hx, absf(z - cz) - hz)))
+	var r := minf(1.2, minf(hx, hz))
+	var q := Vector2(absf(x - cx) - hx + r, absf(z - cz) - hz + r)
+	var d := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0) - r
+	d += 0.12 * sin(atan2(z - cz, x - cx) * 5.0 + cx) * smoothstep(-1.0, 0.0, d)
 	return height * (1.0 - smoothstep(0.0, soft, d))
 
 
