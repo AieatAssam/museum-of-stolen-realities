@@ -171,6 +171,17 @@ func swing_chain(anchors: Array, fwd: Vector3, land_y: float, what: String) -> b
 # --- sections ------------------------------------------------------------------------------
 
 func _gate() -> void:
+	# the arrival's safe demo: from the walkway the low hook is in the crosshair, the HUD names the
+	# verb, and its swing lands back on the walkway (never in the gap)
+	await walk_to(Vector3(-18, 0, 0), 20.0, 0.4)
+	var demo := _hook(Vector3(-9, 4.6, 0))  # chitin.gd DEMO_HOOK
+	await aim(demo.global_position)
+	await frames(2)
+	var vp: Dictionary = w.verb_prompt()
+	check(silk.get("target") == demo and vp.get("action") == &"primary" and String(vp.get("text", "")) != "", "demo hook targeted with a verb prompt (%s)" % vp)
+	await swing_chain([demo], Vector3.RIGHT, -0.3, "demo swing")
+	var at := Game.player.global_position
+	check(at.x < -0.5 and at.y > -0.3, "demo swing lands on the walkway (%s)" % at)
 	await walk_to(Vector3(-1.2, 0, 0), 20.0, 0.4)
 	await swing_chain([_hook(Vector3(6, 10, 0))], Vector3.RIGHT, -3.0, "first swing")
 	check(Quest.is_step_done(&"gate", &"swing"), "gate step done")

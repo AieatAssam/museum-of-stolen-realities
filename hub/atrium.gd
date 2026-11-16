@@ -93,7 +93,7 @@ func _ready() -> void:
 	_build_alcove()
 	_build_thief()
 	_build_docents()
-	_build_bench(Vector3(0, 0, 11.5))
+	_build_bench(Vector3(-3.6, 0, 10.5))  # beside the entrance axis: the first walk to the sphere is clear
 	_build_atmosphere()
 	_build_placards()
 	_build_shot_marks()
@@ -388,7 +388,7 @@ func _build_frames() -> void:
 		root.name = "Frame_" + String(id)
 		root.transform = _bay_xform(FRAME_BAYS[i], APOTHEM - 0.46)
 		add_child(root)
-		_model("frame", Transform3D.IDENTITY, root)
+		_round_frame_posts(_model("frame", Transform3D.IDENTITY, root))
 		var portal := MeshInstance3D.new()
 		var qm := QuadMesh.new()
 		qm.size = Vector2(4.6, 7.2)
@@ -437,9 +437,31 @@ func _build_frames() -> void:
 			cooldown[0] = Time.get_ticks_msec() + 5000.0
 			Game.enter_wing(id))
 		var plq := Placard.new()
-		plq.position = Vector3(4.6, 1.55, 1.42)
+		plq.position = Vector3(4.5, 1.55, 1.42)
+		plq.size = Vector2(1.2, 0.83)  # readable from a couple of metres; E opens the reader
 		root.add_child(plq)
 		_frames[id] = {"node": root, "portal": pm, "light": spill, "spill_col": spill.light_color, "trigger": trig, "placard": plq, "info": winfo}
+
+
+## The frame's square post colliders snag a player coming in at an angle and leave a pocket by the
+## hall column. Each post becomes a round inner edge (the opening stays 4.6 m) and a box out to the
+## column, so a glancing approach slides into the opening.
+func _round_frame_posts(fm: Node3D) -> void:
+	for n: String in ["post_l", "post_r"]:
+		var body := fm.find_child(n, true, false) as StaticBody3D
+		var s := -1.0 if n == "post_l" else 1.0
+		var cs := body.get_child(0) as CollisionShape3D
+		var cyl := CylinderShape3D.new()
+		cyl.radius = 0.7
+		cyl.height = 8.2
+		cs.shape = cyl
+		cs.position = Vector3(s * 3.0, 3.6, 0.0)
+		var fill := CollisionShape3D.new()
+		var bx := BoxShape3D.new()
+		bx.size = Vector3(2.0, 8.2, 1.3)
+		fill.shape = bx
+		fill.position = Vector3(s * 4.0, 3.6, 0.05)
+		body.add_child(fill)
 
 
 func _build_door() -> void:
@@ -687,9 +709,9 @@ func _build_thief() -> void:
 ## here from the start; another arrives with each fragment (max 5).
 func _build_docents() -> void:
 	var spots: Array[Transform3D] = [
-		_bay_xform(9, 16.0),
+		_bay_xform(9, 16.0).translated_local(Vector3(3.2, 0, 0)),  # off the chitin frame's axis
 		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 1.9), _bay_xform(THIEF_BAY, 11.0).origin + Vector3(-2.5, 0, 1.0)),
-		_bay_xform(7, 15.5),
+		_bay_xform(7, 15.5).translated_local(Vector3(-3.2, 0, 0)),  # off the aria frame's axis
 		Transform3D(Basis(Vector3.UP, deg_to_rad(60) + PI * 0.1), _bay_xform(THIEF_BAY, 12.0).origin + Vector3(3.0, 0, -3.2)),
 		_bay_xform(10, 13.0),
 	]
@@ -935,6 +957,7 @@ func _build_placards() -> void:
 	var entrance := Placard.new()
 	entrance.transform = _bay_xform(0, APOTHEM - 0.05)
 	entrance.position.y = 1.6
+	entrance.size = Vector2(1.2, 0.83)
 	add_child(entrance)
 	_plaques["entrance"] = entrance
 	var dais := Placard.new()

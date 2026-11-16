@@ -123,6 +123,13 @@ func load_state(_state: Dictionary) -> void:
 
 # --- helpers ---------------------------------------------------------------------------
 
+## The HUD's verb prompt (MovementMode.prompt format). Defaults to the active movement mode's;
+## override for a verb that lives in the wing itself.
+func verb_prompt() -> Dictionary:
+	var p := Game.player
+	return p.mode.prompt() if p and p.mode else {}
+
+
 func info() -> WingInfo:
 	return Game.registry.get_info(wing_id)
 

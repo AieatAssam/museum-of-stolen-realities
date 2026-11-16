@@ -375,6 +375,18 @@ func _build_course() -> void:
 # =============================================================================================
 # Verbs, weather, falls
 
+## Surfing needs no button (step onto a wet stroke); the knife does: lay a load, or scrape what she
+## looks at (the surf mode's own prompt, if any, otherwise).
+func verb_prompt() -> Dictionary:
+	if canvas.has_knife and Game.player.camera:
+		if not canvas.load.is_empty():
+			return {"action": &"primary", "text": "lay the stroke"}
+		var st: Node3D = canvas.call("aimed_stroke", Game.player.camera)
+		if st and not String(st.get("kind")) in ["fixed", "pencil", "trunk"]:
+			return {"action": &"secondary", "text": "scrape it onto the knife"}
+	return super()
+
+
 func _on_scrape() -> void:
 	var r: String = canvas.scrape(Game.player.camera)
 	if r in ["ok", "well", "seal"]:

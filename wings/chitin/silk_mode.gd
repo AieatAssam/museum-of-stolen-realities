@@ -154,6 +154,14 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 	return super.on_verb(verb, pressed)
 
 
+func prompt() -> Dictionary:
+	if state == ROPE:
+		return {"action": &"primary", "text": "let go"}
+	if target:
+		return {"action": &"primary", "text": "spin a line"}
+	return {}
+
+
 func bob_scale() -> float:
 	return 1.0 if state == GROUND else 0.0
 
