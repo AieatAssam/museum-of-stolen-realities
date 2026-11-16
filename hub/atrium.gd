@@ -72,8 +72,8 @@ var _t: float = 0.0
 func objectives() -> Array[Dictionary]:
 	var steps: Array = []
 	for id in WING_ORDER:
-		var info := Game.registry.get_info(id)
-		steps.append({"id": String(id), "title": "%s. %s" % [info.numeral, info.title]})
+		var winfo := Game.registry.get_info(id)
+		steps.append({"id": String(id), "title": "%s. %s" % [winfo.numeral, winfo.title]})
 	return [{"id": "exhibit0", "title": "Recover the six fragments of Exhibit 0", "steps": steps,
 		"hint": "Walk into a frame."}]
 
@@ -383,7 +383,7 @@ func _build_dais_and_sphere() -> void:
 func _build_frames() -> void:
 	for i in WING_ORDER.size():
 		var id := WING_ORDER[i]
-		var info := Game.registry.get_info(id)
+		var winfo := Game.registry.get_info(id)
 		var root := Node3D.new()
 		root.name = "Frame_" + String(id)
 		root.transform = _bay_xform(FRAME_BAYS[i], APOTHEM - 0.46)
@@ -396,18 +396,18 @@ func _build_frames() -> void:
 		portal.position = Vector3(0, 3.6, -0.45)
 		var pm := ShaderMaterial.new()
 		pm.shader = load("res://hub/shaders/frame_portal.gdshader")
-		pm.set_shader_parameter("medium", info.portal_medium)
+		pm.set_shader_parameter("medium", winfo.portal_medium)
 		pm.set_shader_parameter("art", load("res://hub/textures/portal_%s.png" % id))
-		pm.set_shader_parameter("c0", info.palette[0])
-		pm.set_shader_parameter("c1", info.palette[1])
-		pm.set_shader_parameter("c2", info.palette[2])
-		pm.set_shader_parameter("restoration", 0.0 if info.scene_exists() else 1.0)
+		pm.set_shader_parameter("c0", winfo.palette[0])
+		pm.set_shader_parameter("c1", winfo.palette[1])
+		pm.set_shader_parameter("c2", winfo.palette[2])
+		pm.set_shader_parameter("restoration", 0.0 if winfo.scene_exists() else 1.0)
 		portal.material_override = pm
 		root.add_child(portal)
 		# colour spilling out of the frame onto the marble
 		var spill := SpotLight3D.new()
-		spill.light_color = info.palette[0].lerp(Color.WHITE, 0.35)
-		spill.light_energy = 7.0 if info.scene_exists() else 3.5
+		spill.light_color = winfo.palette[0].lerp(Color.WHITE, 0.35)
+		spill.light_energy = 7.0 if winfo.scene_exists() else 3.5
 		spill.spot_range = 22.0
 		spill.spot_angle = 48.0
 		spill.spot_attenuation = 0.9
@@ -439,7 +439,7 @@ func _build_frames() -> void:
 		var plq := Placard.new()
 		plq.position = Vector3(4.6, 1.55, 1.42)
 		root.add_child(plq)
-		_frames[id] = {"node": root, "portal": pm, "light": spill, "spill_col": spill.light_color, "trigger": trig, "placard": plq, "info": info}
+		_frames[id] = {"node": root, "portal": pm, "light": spill, "spill_col": spill.light_color, "trigger": trig, "placard": plq, "info": winfo}
 
 
 func _build_door() -> void:
@@ -557,29 +557,29 @@ func _build_alcove() -> void:
 ## (hub/models/provenance_relics.glb, `relic_<wing>_<id>`; the generic relics for unknown ids) with a
 ## tombstone on the plinth front. Empty vitrines carry a dim "awaiting" label.
 func _build_vitrine(root: Node3D, wid: StringName, row: int, p: Vector3) -> void:
-	var info := Game.registry.get_info(wid)
+	var winfo := Game.registry.get_info(wid)
 	var list: Array = (Save.data["provenances"] as Dictionary).get(String(wid), [])
 	var plq := Placard.new()
 	plq.size = Vector2(0.46, 0.32)
 	plq.position = p + Vector3(0, 0.66, 0.3)  # clear of the plinth cornice
 	plq.rotation.x = deg_to_rad(-12)
-	var acq := "Acq. no. %s.%d" % [info.acquisition_no, row + 1]
+	var acq := "Acq. no. %s.%d" % [winfo.acquisition_no, row + 1]
 	if row >= list.size():
 		plq.readable = false
-		plq.set_label(Placard.fields("Awaiting acquisition", "", info.title, acq, ""), false)
+		plq.set_label(Placard.fields("Awaiting acquisition", "", winfo.title, acq, ""), false)
 		root.add_child(plq)
 		return
 	var pid := String(list[row])
 	var meta: Dictionary = ((Save.data.get("provenance_info", {}) as Dictionary).get(String(wid), {}) as Dictionary).get(pid, {})
-	var title := String(meta.get("name", "Provenance, %s" % info.title))
-	plq.set_label(Placard.fields(title, DATE[wid], "From %s" % info.title, acq, String(meta.get("line", ""))), false)
+	var title := String(meta.get("name", "Provenance, %s" % winfo.title))
+	plq.set_label(Placard.fields(title, DATE[wid], "From %s" % winfo.title, acq, String(meta.get("line", ""))), false)
 	root.add_child(plq)
 	var tint := StandardMaterial3D.new()
-	tint.albedo_color = info.palette[row % 3]
+	tint.albedo_color = winfo.palette[row % 3]
 	tint.metallic = 0.3
 	tint.roughness = 0.2
 	tint.emission_enabled = true
-	tint.emission = info.palette[row % 3]
+	tint.emission = winfo.palette[row % 3]
 	tint.emission_energy_multiplier = 0.6
 	var xf := Transform3D(Basis(Vector3.UP, 0.3 - 0.3 * row), p + Vector3(0, 1.05, 0))
 	var want := "relic_%s_%s" % [wid, pid]
@@ -956,15 +956,15 @@ func _refresh_placards(animate: bool) -> void:
 	flags["placard_stage"] = n
 	for id: StringName in _frames:
 		var f: Dictionary = _frames[id]
-		var info: WingInfo = f["info"]
+		var winfo: WingInfo = f["info"]
 		var medium: String = MEDIUM[id]
 		var body: String = BODY[id]
 		if Quest.has_fragment(id):
 			body = "You went in and came back with a piece of yourself. This label has been amended in your hand. The Curator has not yet noticed the handwriting."
-		elif not info.scene_exists():
+		elif not winfo.scene_exists():
 			medium = "Gallery closed for restoration"
 		# tombstone order: title / date / medium / acquisition no. / one short paragraph
-		(f["placard"] as Placard).set_label(Placard.fields(info.title, DATE[id], medium, "Acq. no. %s" % info.acquisition_no, body), anim)
+		(f["placard"] as Placard).set_label(Placard.fields(winfo.title, DATE[id], medium, "Acq. no. %s" % winfo.acquisition_no, body), anim)
 	var e: String = ["Closed for the duration of your stay.",
 		"Closed for the duration of your stay. Your stay has been extended.",
 		"Closed for the duration of your stay. You have stopped trying it. Thank you.",

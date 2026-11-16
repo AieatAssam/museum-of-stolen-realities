@@ -157,7 +157,7 @@ func _ready() -> void:
 	optics = GlassOptics.new()
 	optics.name = "Optics"
 	add_child(optics)
-	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister", "glazed_tower", "glazed_ruby"]:
+	for n: String in ["glass_wall", "glass_floor", "glass_quarry", "glass_crypt", "glass_gold", "glass_red", "lead", "silver", "brass", "museum_white", "ember", "glazed_nave", "glazed_cloister", "glazed_tower", "glazed_ruby", "crypt_floor"]:
 		M[n] = load(MATS + n + ".tres")
 	_build_environment()
 	_build_shot_marks()
@@ -850,10 +850,16 @@ func _build_choir() -> void:
 
 func _build_crypt() -> void:
 	# floor (with the channel pit x 5..11, z -84..-104 — Saint Azure lies across it)
-	_block(Vector3(-15, -9, -122), Vector3(5, -8, -82), "glass_crypt")
-	_block(Vector3(5, -9, -122), Vector3(15, -8, -104), "glass_crypt")
-	_block(Vector3(5, -9, -84), Vector3(15, -8, -82), "glass_crypt")
-	_block(Vector3(11, -9, -104), Vector3(15, -8, -84), "glass_crypt")
+	_block(Vector3(-15, -9, -122), Vector3(5, -8, -82), "crypt_floor")
+	_block(Vector3(5, -9, -122), Vector3(15, -8, -104), "crypt_floor")
+	_block(Vector3(5, -9, -84), Vector3(15, -8, -82), "crypt_floor")
+	_block(Vector3(11, -9, -104), Vector3(15, -8, -84), "crypt_floor")
+	# the crypt's dead: ledger stones let into the floor, brass effigies, heads to the east
+	var ledgers: Array = []
+	for at: Vector2 in [Vector2(-7.5, -88.5), Vector2(-5.0, -88.5), Vector2(-2.5, -88.5), Vector2(-7.5, -116.5), Vector2(-4.5, -116.5),
+			Vector2(-1.5, -116.5), Vector2(1.5, -116.5), Vector2(4.5, -116.5), Vector2(-6.5, -106.0), Vector2(13.0, -108.0)]:
+		ledgers.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(at.x, -8.0, at.y)))
+	_mm("ledger", ledgers, {"glass_red_m": "ledger_red"})
 	_catch(Vector3(5, -12, -104), Vector3(11, -11, -84))
 	# walls; west wall has the white gate (z -86..-83.6) to the passage
 	_block(Vector3(15, -8, -122), Vector3(15.5, 2.1, -80.4), "glass_crypt")
@@ -881,7 +887,7 @@ func _build_crypt() -> void:
 	_block(Vector3(-15, -8, -106), Vector3(-10, -3, -105.7), "glazed_ruby")
 	_gates["gold"] = _block(Vector3(-10.2, -8, -101.3), Vector3(-10.0, -3, -98.9), "glass_gold")
 	_light(Vector3(-12.5, -5, -98), Color("b22242"), 0.8, 6.0)
-	_light(Vector3(0, -2, -100), Color("8a3fd1"), 0.5, 16.0)
+	_light(Vector3(0, -2, -100), Color("8a3fd1"), 0.9, 16.0)
 	_light(Vector3(12, -5, -94), Color("2b54c9"), 0.8, 7.0)
 	_light(Vector3(0, -5, -118), Color("1a7a5e"), 0.8, 8.0)
 	# White light falls through the choir grate onto the prism.
@@ -1015,13 +1021,20 @@ func _build_passage_and_tower() -> void:
 		var lane_z := -25.8 if west else -20.6
 		var xa := -18.5 if west else -25.5
 		var xb := -25.5 if west else -18.5
-		_ramp(Vector3(xa, y, lane_z), Vector3(xb, y + 2.4, lane_z), 2.6, "glass_gold" if west else "glass_red")
+		# colliders stay the code ramp and slab; the modelled flight and landing are what you see
+		_ramp(Vector3(xa, y, lane_z), Vector3(xb, y + 2.4, lane_z), 2.6, "glass_gold" if west else "glass_red").visible = false
+		var fl := _model("tower_flight_gold" if west else "tower_flight_red")
+		fl.transform = Transform3D(Basis(Vector3.UP, PI if west else 0.0), Vector3(xa, y, lane_z))
+		geo.add_child(fl)
 		y += 2.4
 		var lx := Vector2(-28, -25.5) if west else Vector2(-18.5, -16)
 		var lz := Vector2(-27.3, -19.1) if leg < 9 else Vector2(-30, -19.1)
-		_block(Vector3(lx.x, y - 0.4, lz.x), Vector3(lx.y, y, lz.y), "glass_floor")
+		_block(Vector3(lx.x, y - 0.4, lz.x), Vector3(lx.y, y, lz.y), "glass_floor").visible = false
+		var ld := _model("tower_landing")
+		ld.transform = Transform3D(Basis.from_scale(Vector3(1, 1, (lz.y - lz.x) / 8.2)), Vector3((lx.x + lx.y) * 0.5, y, (lz.x + lz.y) * 0.5))
+		geo.add_child(ld)
 		if leg % 3 == 1:
-			_light(Vector3((lx.x + lx.y) * 0.5, y + 1.6, -23), Color("e8b54a"), 1.0, 7.0)
+			_light(Vector3((lx.x + lx.y) * 0.5, y + 1.6, -23), Color("e8b54a"), 2.2, 8.0)
 	_block(Vector3(-21.5, 15.6, -30.5), Vector3(-16, 16, -27.3), "glass_floor")
 	pts["tower_in"] = Vector3(-17.5, -8, -28.5)
 	pts["tower_top"] = Vector3(-17.5, 16, -26)
@@ -1050,8 +1063,14 @@ func _build_roof() -> void:
 	# a glass icon on the walk, looking up: the human scale beside the thing in the sky
 	_icons([Transform3D(Basis(Vector3.UP, -2.3) * Basis(Vector3.RIGHT, -0.25), Vector3(-20.6, 16.0, -45.0))], Color("8a3fd1"))
 	# the hidden one: a fallen buttress you can climb, to a pinnacle niche (Provenance C)
-	_ramp(Vector3(-20.5, 16, -60), Vector3(-23.6, 18.3, -60), 1.6, "glass_red")
-	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.6, 18.3, -58.8), "glass_floor")
+	_ramp(Vector3(-20.5, 16, -60), Vector3(-23.6, 18.3, -60), 1.6, "glass_red").visible = false
+	_block(Vector3(-25.2, 17.9, -61.2), Vector3(-23.6, 18.3, -58.8), "glass_floor").visible = false
+	var ff := _model("fallen_flyer")  # modelled +X: turn it to climb toward -X
+	ff.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(-20.5, 16, -60))
+	geo.add_child(ff)
+	var niche := _model("pinnacle_niche")
+	niche.position = Vector3(-24.4, 18.3, -60)
+	geo.add_child(niche)
 	_prov_spots["iron"] = Vector3(-24.3, 18.8, -60)
 	pts["iron"] = Vector3(-22.5, 17.4, -60)
 	# THE REVEAL: crest the stair and the sky is one window, and something leans in to look.

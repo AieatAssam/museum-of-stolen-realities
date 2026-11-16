@@ -1,6 +1,7 @@
 # Credits: The Long Shadow (noir)
 
-No third-party files are used. Everything in this wing was made for this project.
+Models, textures, the score stems and the city ambience were made for this project. Three third-party
+recordings are used (rain, the radio's jazz, wet footsteps); they are listed under Third-party audio.
 
 ## Audio (synthesized, original)
 
@@ -9,7 +10,8 @@ No third-party files are used. Everything in this wing was made for this project
 | `audio/noir_bed.ogg` | `audio_src/gen_audio.py` (pads and drone) | Project original |
 | `audio/noir_pulse.ogg` | `audio_src/gen_audio.py` (heartbeat, thumps, brushed hats) | Project original |
 | `audio/noir_strings.ogg` | `audio_src/gen_audio.py` (harmonic pads and melody) | Project original |
-| `audio/noir_rain.ogg` | `audio_src/gen_audio.py` (filtered noise and droplets) | Project original |
+| `audio/noir_rain.ogg` | `audio_src/gen_audio.py` (filtered noise and droplets; not played: `rain_loop.ogg` is the ambience) | Project original |
+| `audio/city_night.ogg` | Synthesized night city (traffic hum, car passes, far horns, siren, train; 73 s loop) | Project original |
 
 Generator: `audio_src/gen_audio.py` (numpy synthesis, encoded to Ogg Vorbis with `oggenc -q 4`).
 
@@ -32,7 +34,6 @@ Built with the project kit at `tools/blender_build.sh`. Project original, no thi
 | Path | Title | Author | Source | Licence |
 |---|---|---|---|---|
 | wings/noir/audio/rain_loop.ogg | Rain (loopable) | Ylmir | https://opengameart.org/content/rain-loopable | CC0-1.0 |
-| wings/noir/audio/city_night.ogg | Night city ambience (synthesized: distant traffic hum, car passes, far horns, distant siren and train; no samples, 73 s loop) | Project original (numpy synthesis) | Synthesized for this project; no third-party recording used | Project original |
 | wings/noir/audio/jazz_bed.ogg | Bird in Hand (Night), 98 s seam-fixed loop cut from the original 120 s track | Fupi | https://opengameart.org/node/114599 | CC0-1.0 |
 | wings/noir/audio/step_wet_1.ogg | Footstep on water 1 (from Water Footsteps by EminYILDIRIM, Freesound 608663) | congusbongus (OpenGameArt pack) | https://opengameart.org/content/footsteps-on-different-surfaces | CC-BY-3.0 |
 | wings/noir/audio/step_wet_2.ogg | Footstep on water 2 (from Water Footsteps by EminYILDIRIM, Freesound 608663) | congusbongus (OpenGameArt pack) | https://opengameart.org/content/footsteps-on-different-surfaces | CC-BY-3.0 |

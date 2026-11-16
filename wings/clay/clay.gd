@@ -552,7 +552,8 @@ func _build_shot_marks() -> void:
 			["08_village", Vector3(-3.0, 1.9, -16.5), Vector3(-9.0, 1.0, -25.0)],
 			["09_fence", Vector3(8.5, 1.7, -21.0), Vector3(-2.0, 1.2, -29.0)],
 			["10_workbench", Vector3(5.5, 3.4, -31.0), Vector3(-0.6, 2.8, -41.0)],
-			["11_bench_top", Vector3(2.5, 1.7, -37.0), Vector3(-0.6, 0.8, -41.5)]]:
+			["11_bench_top", Vector3(2.5, 1.7, -37.0), Vector3(-0.6, 0.8, -41.5)],
+			["12_yard", Vector3(-25.0, 1.6, -17.0), Vector3(-28.5, 0.9, -22.0)]]:
 		var eye: Vector3 = m[1]
 		var at: Vector3 = m[2]
 		var mk := Marker3D.new()

@@ -277,7 +277,10 @@ func open_menu(kind: StringName) -> void:
 	if state != State.PLAYING or Cinematics.playing or Placards.is_reading():
 		return
 	_close_menu()
-	_menu = (preload("res://ui/pause_menu.gd").new() if kind == &"pause" else preload("res://ui/journal.gd").new())
+	if kind == &"pause":
+		_menu = preload("res://ui/pause_menu.gd").new()
+	else:
+		_menu = preload("res://ui/journal.gd").new()
 	add_child(_menu)
 	get_tree().paused = true
 	set_state(State.PAUSED)

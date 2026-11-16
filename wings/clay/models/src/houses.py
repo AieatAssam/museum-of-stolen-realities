@@ -277,15 +277,108 @@ def B_barrel():
 
 
 def B_washline():
+    from mathutils import Matrix, Vector
+    L, sag, zend = 1.447, 0.25, 1.5  # line ends at the leaning posts; sag below the ends
+    lo, hi = 0.5, 60.0  # catenary parameter k: k*(cosh(L/k)-1) = sag
+    for _ in range(60):
+        kc = (lo + hi) / 2
+        if kc * (math.cosh(L / kc) - 1) - sag > 0:
+            lo = kc
+        else:
+            hi = kc
+    kc = (lo + hi) / 2
+    zmid = zend - sag
+
+    def zl(x):
+        return zmid + kc * (math.cosh(x / kc) - 1)
+
+    def W(x0, beta, dx, dy, dz):
+        """A point on an item hung at x0: offset (dx, dy, dz) turned by the breeze angle beta about the line."""
+        return Vector((x0, 0, zl(x0))) + Matrix.Rotation(beta, 3, "X") @ Vector((dx, dy, dz))
+
     parts = []
     for s in (-1, 1):
-        parts.append(S.snake("wl_post%d" % s, [(s * 1.4, 0, 0.0), (s * 1.4, 0, 0.8), (s * 1.4, 0, 1.6)], 0.05, "wood", 410 + s,
+        px = s * (1.4 + 0.05)  # posts lean out a touch
+        parts.append(S.snake("wl_post%d" % s, [(s * 1.4, 0, 0.04), (s * 1.42, 0, 0.8), (px, 0, 1.6)], 0.045, "wood", 410 + s,
                              sides=6, wobble=0.03, steps=2))
-    parts.append(S.snake("wl_line", [(-1.4, 0, 1.5), (0, 0, 1.25), (1.4, 0, 1.5)], 0.012, "wire", 415, sides=6, wobble=0.0, steps=3))
-    cloth = [("pink", -0.95, 0.42), ("blue", -0.35, 0.36), ("cloud", 0.3, 0.46), ("yellow", 0.95, 0.38)]
-    for k, (mat, x, wdt) in enumerate(cloth):
-        zline = 1.25 + 0.25 * (x / 1.4) ** 2
-        parts.append(S.slab("wl_cloth%d" % k, (wdt, 0.04, 0.5), (x, 0, zline - 0.3), mat, 420 + k, lump=0.02, bevel=0.02, cuts=4, dents=1))
+        parts.append(S.snake("wl_bar%d" % s, [(px - 0.24, 0, 1.62), (px, 0, 1.63), (px + 0.24, 0, 1.62)], 0.03, "wood", 412 + s,
+                             sides=6, wobble=0.0, steps=1))
+        parts.append(S.blob("wl_foot%d" % s, (0.34, 0.3, 0.12), (s * 1.4, 0, 0.06), "ground", 414 + s, lump=0.03, subdiv=2, dents=1,
+                            dent_r=0.1, dent_d=0.02))
+    line = [(x, 0, zl(x)) for x in [-L + 2 * L * i / 12 for i in range(13)]]
+    parts.append(S.snake("wl_line", line, 0.012, "wire", 415, sides=6, wobble=0.0, steps=3))
+
+    def peg(x0, beta, dx):
+        parts.append(S.blob("wl_peg%d" % len(parts), (0.026, 0.034, 0.1), W(x0, beta, dx, 0, 0), "wood", 440 + len(parts), lump=0.005,
+                            subdiv=2, rot=(beta, 0, 0)))
+
+    def cloth(name, x0, beta, w_top, w_bot, h, amp, folds, mat, seed, hem):
+        """A hung sheet: pleated by a sine across its width, a little thick, with a hem snake along the bottom."""
+        def yfun(u, v):
+            return amp * math.sin(math.pi * folds * (u + 1) / 2) * (1 - 0.25 * v)
+
+        bm = bmesh.new()
+        nx, nz = 10, 8
+        us = [-1 + 2 * i / nx for i in range(nx + 1)]
+        grid = []
+        for j in range(nz + 1):
+            v = j / nz
+            hw = (w_top + (w_bot - w_top) * v) / 2
+            grid.append([bm.verts.new((u * hw, yfun(u, v), -0.01 - h * v)) for u in us])
+        for j in range(nz):
+            for i in range(nx):
+                bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+        bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=0.012)
+        M = Matrix.Translation(Vector((x0, 0, zl(x0)))) @ Matrix.Rotation(beta, 4, "X")
+        bmesh.ops.transform(bm, matrix=M, verts=bm.verts)
+        S.deform(bm, seed, 0.01, 2.5, 2, 0.1, 0.012)
+        parts.append(S.to_obj(name, bm, mat))
+        parts.append(S.snake(name + "_hem", [W(x0, beta, u * w_bot / 2, yfun(u, 1), -0.01 - h) for u in us], 0.012, hem, seed + 1,
+                             sides=6, wobble=0.0, steps=2))
+
+    # shirt: body, two sleeves splayed down, collar, three buttons, pegs at the shoulders
+    b, x0 = 0.10, -0.85
+    parts.append(S.slab("wl_shirt", (0.36, 0.03, 0.46), W(x0, b, 0, 0, -0.25), "blue", 450, lump=0.012, bevel=0.01, cuts=4, dents=1,
+                        rot=(b, 0, 0)))
+    for s in (-1, 1):
+        parts.append(S.slab("wl_sleeve%d" % s, (0.09, 0.03, 0.36), W(x0, b, s * 0.22, 0, -0.22), "blue", 452 + s, lump=0.012, bevel=0.01,
+                            cuts=4, rot=(b, -s * 0.25, 0)))
+    parts.append(S.snake("wl_collar", [W(x0, b, -0.1, 0.02, -0.03), W(x0, b, 0, 0.035, -0.05), W(x0, b, 0.1, 0.02, -0.03)], 0.014,
+                         "ivory", 455, sides=6, wobble=0.0, steps=2))
+    for k in range(3):
+        parts.append(S.blob("wl_btn%d" % k, (0.022, 0.02, 0.022), W(x0, b, 0, 0.02, -0.12 - 0.09 * k), "ivory", 456 + k, lump=0.0, subdiv=2))
+    peg(x0, b, -0.09)
+    peg(x0, b, 0.09)
+
+    # a pair of long socks, folded over the line
+    b, x0 = -0.06, -0.35
+    for s in (-1, 1):
+        dx = s * 0.07
+        pts = [W(x0, b, dx, 0.0, -0.01), W(x0, b, dx, 0.0, -0.12), W(x0, b, dx, 0.0, -0.3), W(x0, b, dx, 0.03, -0.36),
+               W(x0, b, dx, 0.1, -0.38)]
+        parts.append(S.snake("wl_sock%d" % s, pts, 0.03, "orange", 460 + s, sides=8, wobble=0.0, steps=2))
+        peg(x0, b, dx)
+
+    # sheet with soft pleats and a pink hem; small red dress with a yellow belt
+    cloth("wl_sheet", 0.2, 0.04, 0.7, 0.66, 0.8, 0.025, 3, "cloud", 470, "pink")
+    peg(0.2, 0.04, -0.2)
+    peg(0.2, 0.04, 0.2)
+    cloth("wl_dress", 0.92, -0.09, 0.26, 0.46, 0.5, 0.03, 2, "red", 480, "yellow")
+    parts.append(S.snake("wl_belt", [W(0.92, -0.09, dx, 0.03, -0.2) for dx in (-0.13, 0.0, 0.13)], 0.014, "yellow", 485, sides=6,
+                         wobble=0.0, steps=2))
+    peg(0.92, -0.09, -0.08)
+    peg(0.92, -0.09, 0.08)
+
+    # wicker basket on the ground under the left end, with a folded cloth in it
+    bx, by = -1.12, 0.3
+    basket = S.lathe("wl_basket", [(0.14, 0.0), (0.17, 0.04), (0.2, 0.12), (0.22, 0.2), (0.24, 0.27), (0.25, 0.3), (0.235, 0.31),
+                                   (0.215, 0.29), (0.195, 0.2), (0.17, 0.1), (0.12, 0.03)], "wood", 490, segments=24, lump=0.012,
+                     scale=1.5, cap=True)
+    basket.location = (bx, by, 0)
+    parts.append(basket)
+    for z, r in ((0.1, 0.185), (0.18, 0.215), (0.26, 0.245)):
+        parts.append(kit.torus("wl_band%d" % int(z * 100), r, 0.014, seg=24, rseg=6, mat="bark", loc=(bx, by, z)))
+    parts.append(S.slab("wl_bcloth", (0.28, 0.2, 0.06), (bx, by, 0.24), "pink", 495, lump=0.01, bevel=0.02, cuts=4, rot=(0, 0, 0.2)))
     kit.join("washline", parts).name = "washline"
 
 
@@ -302,16 +395,107 @@ def B_lantern():
 
 
 def B_hen():
-    parts = [S.blob("hen_body", (0.5, 0.38, 0.42), (0, 0, 0.42), "cloud", 500, lump=0.03, subdiv=3, dents=2)]
-    parts.append(S.blob("hen_tail", (0.3, 0.22, 0.4), (0, -0.28, 0.52), "cloud", 501, lump=0.03, subdiv=2, rot=(0.5, 0, 0)))
-    parts.append(S.blob("hen_head", (0.22, 0.22, 0.22), (0, 0.22, 0.74), "cloud", 502, lump=0.02, subdiv=3))
-    parts.append(S.blob("hen_comb", (0.08, 0.14, 0.08), (0, 0.22, 0.92), "red", 503, lump=0.0, subdiv=2))
-    parts.append(S.blob("hen_wattle", (0.05, 0.05, 0.09), (0, 0.32, 0.62), "red", 504, lump=0.0, subdiv=2))
-    parts.append(S.blob("hen_beak", (0.07, 0.12, 0.06), (0, 0.36, 0.72), "orange", 505, lump=0.0, subdiv=2))
+    from mathutils import Matrix, Vector
+    tilt, sx = -0.35, 0.8  # body axis tipped so the back (-Y) rides up into the tail
+    M = Matrix.Translation(Vector((0, 0, 0.44))) @ Matrix.Rotation(tilt, 4, "X")
+    R3 = Matrix.Rotation(tilt, 3, "X")
+    prof = [(-0.36, 0.10), (-0.31, 0.17), (-0.22, 0.215), (-0.10, 0.24), (0.02, 0.245), (0.13, 0.225), (0.22, 0.18), (0.28, 0.12),
+            (0.32, 0.06)]  # (position along Y, radius): plump low breast at +Y, narrowing to the tail at -Y
+
+    def r_at(t):
+        for (t0, r0), (t1, r1) in zip(prof, prof[1:]):
+            if t0 <= t <= t1:
+                return r0 + (r1 - r0) * (t - t0) / (t1 - t0)
+        return prof[-1][1]
+
+    def body_pt(t, a, lift=0.0):
+        """World point on the body at axis position t, angle a (pi/2 = top), pushed out along the normal by lift."""
+        n = R3 @ Vector((math.cos(a), 0, math.sin(a)))
+        r = r_at(t)
+        p = M @ Vector((sx * r * math.cos(a), t, r * math.sin(a), 1.0))
+        return Vector((p.x, p.y, p.z)) + n * lift, n
+
+    # body: a revolved egg, squeezed a little across, then hand-lumped and thumb-dented
+    bm = bmesh.new()
+    N = 36
+    rings = []
+    for t, r in prof:
+        rings.append([bm.verts.new((sx * r * math.cos(2 * math.pi * i / N), t, r * math.sin(2 * math.pi * i / N))) for i in range(N)])
+    for j in range(len(prof) - 1):
+        for i in range(N):
+            bm.faces.new((rings[j][i], rings[j + 1][i], rings[j + 1][(i + 1) % N], rings[j][(i + 1) % N]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.transform(bm, matrix=M, verts=bm.verts)
+    S.deform(bm, 500, 0.03, 1.8, 2, 0.16, 0.03)
+    body = S.to_obj("hen_body", bm, "cloud")
+    S.scatter_dents(body, 501, 5, r=0.12, d=0.02)
+    parts = [body]
+
+    # clay thumb-pressed darker spots on the back
+    for t, a in ((-0.26, 1.2), (-0.26, 1.95), (-0.14, 1.55), (-0.02, 1.0), (-0.02, 2.1), (0.08, 1.5)):
+        p, _ = body_pt(t, a, 0.012)
+        parts.append(S.blob("hen_spot%d" % len(parts), (0.04, 0.09, 0.07), p, "clay", 540 + len(parts), lump=0.01, subdiv=2, rot=(0, -a, 0)))
+
+    # folded wings: three overlapping rows of scalloped feathers per side, top tips crossing over the back
     for s in (-1, 1):
-        parts.append(S.blob("hen_eye%d" % s, (0.035, 0.035, 0.035), (s * 0.1, 0.32, 0.77), "ink", 510 + s, lump=0.0, subdiv=1))
-        parts.append(S.blob("hen_wing%d" % s, (0.06, 0.3, 0.26), (s * 0.25, 0.0, 0.46), "cloud", 520 + s, lump=0.02, subdiv=2, rot=(0, 0, s * 0.15)))
-        parts.append(S.snake("hen_leg%d" % s, [(s * 0.1, 0.0, 0.22), (s * 0.1, 0.02, 0.1), (s * 0.12, 0.04, 0.0)], 0.02, "orange", 530 + s,
+        for row, a0 in enumerate((0.3, 0.75, 1.2)):
+            for i in range(5):
+                a = a0
+                if row == 2 and i >= 3:
+                    a = 1.5 if i == 3 else 1.8
+                if s < 0:
+                    a = math.pi - a
+                t = 0.12 - 0.11 * i
+                p, _ = body_pt(t, a, 0.02)
+                mat = "clay" if (row, i) in ((1, 1), (1, 3), (2, 2)) else "cloud"
+                parts.append(S.blob("hen_wing%d" % len(parts), (0.035, 0.13, 0.12), p, mat, 600 + len(parts), lump=0.02, subdiv=2,
+                                    rot=(0, -a, 0)))
+
+    # tail: seven curved feathers fanning up and back, two darker
+    for k in range(7):
+        x = -0.18 + 0.06 * k
+        tz = 0.9 - 0.5 * abs(x)
+        pts = [(x * 0.5, -0.27, 0.55), (x, -0.5, 0.55 + (tz - 0.55) * 0.6), (x * 1.6, -0.68, tz)]
+        parts.append(S.snake("hen_tail%d" % k, pts, 0.035, "clay" if k in (1, 5) else "cloud", 620 + k, sides=8, wobble=0.05,
+                             taper=(1.0, 0.3), steps=3))
+
+    # neck ruff: eight hackle feathers around the neck, falling onto the shoulders
+    for k in range(8):
+        th = -1.15 + 2.3 * k / 7
+        pts = [(0.09 * math.sin(th), 0.17 + 0.09 * math.cos(th), 0.7), (0.14 * math.sin(th), 0.2 + 0.11 * math.cos(th), 0.55),
+               (0.2 * math.sin(th), 0.24 + 0.12 * math.cos(th), 0.4)]
+        parts.append(S.snake("hen_hackle%d" % k, pts, 0.035, "cloud", 650 + k, sides=6, wobble=0.05, taper=(1.0, 0.25), steps=2))
+    parts.append(S.snake("hen_neck", [(0, 0.08, 0.5), (0, 0.18, 0.66), (0, 0.26, 0.8)], 0.085, "cloud", 660, sides=10, wobble=0.04,
+                         taper=(1.0, 0.85), steps=3))
+
+    # head, serrated comb, hanging wattles, hooked beak, eyes with a glint
+    parts.append(S.blob("hen_head", (0.16, 0.2, 0.17), (0, 0.27, 0.84), "cloud", 661, lump=0.015, subdiv=3))
+    parts.append(S.snake("hen_comb_strip", [(0, 0.19, 0.915), (0, 0.33, 0.915)], 0.018, "red", 662, sides=6, wobble=0.0, steps=2))
+    for k, y in enumerate((0.19, 0.225, 0.26, 0.295, 0.33)):
+        parts.append(S.blob("hen_comb%d" % k, (0.03, 0.04, 0.045), (0, y, 0.915 + 0.008 * (2 - abs(k - 2))), "red", 663 + k, lump=0.0,
+                            subdiv=2))
+    for s in (-1, 1):
+        parts.append(S.blob("hen_wattle%d" % s, (0.03, 0.035, 0.1), (s * 0.03, 0.33, 0.73), "red", 670 + s, lump=0.0, subdiv=2))
+        parts.append(S.blob("hen_eye%d" % s, (0.034, 0.03, 0.034), (s * 0.075, 0.3, 0.87), "ink", 673 + (s > 0), lump=0.0, subdiv=2))
+        parts.append(S.blob("hen_glint%d" % s, (0.016, 0.016, 0.016), (s * 0.085, 0.315, 0.885), "ivory", 675 + (s > 0), lump=0.0,
+                            subdiv=2))
+    parts.append(S.snake("hen_beak", [(0, 0.34, 0.86), (0, 0.42, 0.85), (0, 0.46, 0.83), (0, 0.44, 0.8)], 0.032, "orange", 677,
+                         sides=6, wobble=0.0, taper=(1.0, 0.45), steps=2))
+
+    # scaled legs: thin rings, three forward toes and a back toe each, spread on the ground
+    for s in (-1, 1):
+        x = s * 0.1
+        parts.append(S.snake("hen_leg%d" % s, [(x, 0.0, 0.26), (x, 0.0, 0.14), (x, 0.0, 0.05)], 0.02, "orange", 680 + (s > 0), sides=8,
+                             wobble=0.0, steps=2))
+        for z in (0.19, 0.14, 0.09):
+            parts.append(kit.torus("hen_ring%d_%d" % (s, int(z * 100)), 0.028, 0.008, seg=12, rseg=4, mat="orange", loc=(x, 0.0, z)))
+        for j, (a, ln) in enumerate(((-0.45, 0.11), (0.0, 0.12), (0.45, 0.11))):
+            parts.append(S.snake("hen_toe%d_%d" % (s, j), [(x, 0.0, 0.035), (x + math.sin(a) * ln * 0.5, math.cos(a) * ln * 0.5, 0.016),
+                                                          (x + math.sin(a) * ln, math.cos(a) * ln, 0.012)], 0.012, "orange", 690 + 3 * s + j,
+                                 sides=6, wobble=0.0, taper=(1.0, 0.7), steps=2))
+        parts.append(S.snake("hen_back%d" % s, [(x, 0.0, 0.035), (x, -0.04, 0.016), (x, -0.08, 0.012)], 0.011, "orange", 700 + (s > 0),
                              sides=6, wobble=0.0, steps=2))
     kit.join("hen", parts).name = "hen"
 

@@ -19,7 +19,7 @@ extends Node3D
 const MODELS := "res://wings/noir/models/"
 const MATS := "res://wings/noir/materials/"
 ## Tonemap exposure per area, set from the current camera (tuned against shot_check.py).
-const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 3.2, "cinema": 3.4, "booth": 4.6}
+const EXPOSURE := {"alley": 3.8, "street": 2.6, "roofs": 3.4, "plaza": 3.7, "precinct": 3.7, "cinema": 3.4, "booth": 4.6}
 ## Volumetric fog density per area: thick outdoors for the cones, thinner in rooms so they keep contrast.
 ## depth fog per area: indoors it is cut so the blacks stay black
 const DEPTH_FOG := {"alley": 0.016, "street": 0.016, "roofs": 0.005, "plaza": 0.016, "precinct": 0.0, "cinema": 0.012, "booth": 0.006}
@@ -356,7 +356,7 @@ func _environment() -> void:
 	add_child(layer)
 	# rain around the camera, outdoors only (see _process)
 	_rain = GPUParticles3D.new()
-	_rain.amount = 2400
+	_rain.amount = 1800
 	_rain.lifetime = 1.0
 	_rain.preprocess = 1.0
 	_rain.local_coords = false
@@ -371,13 +371,27 @@ func _environment() -> void:
 	rp.gravity = Vector3.ZERO
 	_rain.process_material = rp
 	var q := QuadMesh.new()
-	q.size = Vector2(0.008, 0.4)
+	q.size = Vector2(0.006, 0.3)
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	m.billboard_keep_scale = true
-	m.albedo_color = Color(0.7, 0.72, 0.76, 0.07)
+	# a streak, not a bar: alpha tapers to both ends, and drops near the lens (exposure runs 2.6-3.8 outside)
+	m.albedo_color = Color(0.32, 0.33, 0.36, 0.1)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, 0), Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	gt.width = 4
+	gt.height = 64
+	m.albedo_texture = gt
+	m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	m.distance_fade_min_distance = 0.6
+	m.distance_fade_max_distance = 3.0
 	q.material = m
 	_rain.draw_pass_1 = q
 	_rain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -728,6 +742,17 @@ func _precinct() -> void:
 	sign.outline_size = 0
 	sign.position = Vector3(10.3, 1.7, -53.08)
 	add_child(sign)
+	# the west wall from inside: plaster over the bar's shopfront backs, wainscot, a lintel over the doorway
+	mass(Vector3(5.97, 0.0, -55.0), Vector3(6.02, 3.6, -52.5), "plaster")
+	mass(Vector3(5.97, 0.0, -66.0), Vector3(6.02, 3.6, -59.0), "plaster")
+	mass(Vector3(5.97, 2.6, -59.0), Vector3(6.02, 3.6, -55.0), "plaster")
+	mm("wainscot", [xf(Vector3(6.02, 0, -54.0), 90.0), xf(Vector3(6.02, 0, -60.0), 90.0), xf(Vector3(6.02, 0, -62.0), 90.0), xf(Vector3(6.02, 0, -64.0), 90.0)])
+	# the interview: a hard chair in the lamp's circle, facing the desk; the squad room's clutter
+	model(self, "chair", Vector3(9.5, 0, -56.8), -10.0)
+	mm("file_cabinet", [xf(Vector3(7.6, 0, -53.4), 0.0), xf(Vector3(8.1, 0, -53.4), 0.0)])
+	model(self, "crate_stack", Vector3(7.6, 0, -65.3), 8.0, Vector3(0.6, 0.6, 0.6))
+	model(self, "trash_can", Vector3(8.5, 0, -53.6), 0.0, Vector3(0.7, 0.7, 0.7))
+	model(self, "bench", Vector3(11.6, 0, -60.9), -90.0)
 	model(self, "ceiling_fan", Vector3(9.0, 3.6, -59.5))
 	_fan = model(self, "ceiling_fan_blades", Vector3(9.0, 3.08, -59.5))
 	# a ceiling light above the blades: the fan's shadow turns slowly over the floor
