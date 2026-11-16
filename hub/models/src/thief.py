@@ -6,6 +6,12 @@ the chest. A long coat open from the belt down (trousers show), lapels and brass
 a hem higher at the front, a symmetric rolled collar with a drape down the back, tall boots on flat soles,
 domino mask over a sculpted face, hair with a bun.
 
+Built in the live Blender session through Blender MCP (tools/blender/live.py runs this file and exports).
+The clothed body is ONE skin-modifier graph (pelvis, spine, neck, shoulders, left arm, hips, legs) under
+subdivision, so shoulders flow into the arms and the trousers run unbroken from hip to boot; the reaching
+right arm is a second skin graph that shares the shoulder ball. Lapels, buttons and strap are projected
+onto that surface. The coat skirt is a draped, solidified sheet from the belt to the hem.
+
 Materials (names are the contract): thief_cloth (coat, trousers, collar, lapels), thief_leather (belt,
 pouch, strap, boots, soles, heels, gloves, cuffs), brass (buckle, clasp, buttons, mask rivets), thief_skin (face,
 neck, ears, nose, lips), thief_mask (domino mask), thief_hair (hair shell, strands, wisps, bun).
@@ -35,13 +41,9 @@ L_SHOULDER = Vector((0.19, 0.0, 1.36))
 COAT = [(0.50, 0.215, 0.16), (0.62, 0.20, 0.15), (0.80, 0.195, 0.14), (0.92, 0.19, 0.13),
         (1.04, 0.14, 0.095), (1.14, 0.162, 0.115), (1.22, 0.182, 0.13), (1.30, 0.19, 0.115),
         (1.36, 0.18, 0.10), (1.41, 0.12, 0.078), (1.44, 0.07, 0.06)]
-HEAD_PROF = [(0.0, -0.03), (0.036, -0.03), (0.05, -0.005), (0.066, 0.03), (0.077, 0.07), (0.082, 0.11),
-             (0.083, 0.14), (0.078, 0.175), (0.066, 0.21), (0.045, 0.235), (0.0, 0.245)]
-# head half-sizes at the eye line after the head bake (x 0.92, y 1.08)
-EYE_RX, EYE_RY, EYE_Z = 0.0754, 0.0886, 0.12
+EYE_Z = 0.12  # eye line in head space
 MAT_CLOTH, MAT_LEATHER, MAT_SKIN, MAT_MASK = "thief_cloth", "thief_leather", "thief_skin", "thief_mask"
 MAT_HAIR = "thief_hair"
-HEAD_SCALE = (0.92, 1.08, 1.0, 1.0)
 
 
 def V(*a):
@@ -104,16 +106,6 @@ def solidify(ob, thickness):
     bpy.ops.object.modifier_apply(modifier=m.name)
     ob.select_set(False)
     return ob
-
-
-def densify(prof, k=2):
-    out = []
-    for (r0, z0), (r1, z1) in zip(prof, prof[1:]):
-        for i in range(k):
-            t = i / k
-            out.append((r0 + (r1 - r0) * t, z0 + (z1 - z0) * t))
-    out.append(prof[-1])
-    return out
 
 
 def sculpt(ob, fn):
@@ -204,12 +196,78 @@ def loop_tube(name, pts, rad, mat, sides=10):
     return subsurf(kit._obj(name, bm, mat, 70.0), 1)
 
 
+# ---------------------------------------------------------------- skinned body
+
+def skin_graph(name, nodes, edges, mat, root=0, levels=2, flatten=None):
+    """Skin-modifier body: nodes [(pos, radius)] joined by edges, hulled by the skin modifier and subdivided,
+    so branches (shoulders, hips) blend instead of butting. flatten(co) -> y scale (torso depth)."""
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(p) for p, _ in nodes], edges, [])
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    sk = ob.modifiers.new("skin", "SKIN")
+    sk.use_smooth_shade = True
+    sk.branch_smoothing = 1.0
+    for i, (_, r) in enumerate(nodes):
+        sv = me.skin_vertices[0].data[i]
+        sv.radius = (r, r) if not isinstance(r, tuple) else r
+        sv.use_root = i == root
+    ss = ob.modifiers.new("subsurf", "SUBSURF")
+    ss.levels = ss.render_levels = levels
+    _select_only(ob)
+    bpy.ops.object.modifier_apply(modifier=sk.name)
+    bpy.ops.object.modifier_apply(modifier=ss.name)
+    ob.select_set(False)
+    if flatten:
+        for v in me.vertices:
+            v.co.y *= flatten(v.co)
+    ob.data.materials.append(kit.material(mat))
+    for f in me.polygons:
+        f.use_smooth = True
+    return ob
+
+
+def torso_depth(co):
+    """Chest and hips are deeper than wide only a little: flatten the trunk front-to-back, not the limbs."""
+    trunk = gauss(co.x, 0.0, 0.16) * smooth((co.z - 0.80) / 0.12) * smooth((1.40 - co.z) / 0.06)
+    return 1.0 - 0.27 * trunk
+
+
+def body():
+    """Trunk, neck, shoulders, left arm (sleeve to the wrist), hips and trousered legs in one graph."""
+    N = [  # 0 pelvis
+        (V(0, 0.0, 0.97), (0.17, 0.17)), (V(0, 0.0, 1.06), (0.152, 0.152)), (V(0, -0.005, 1.20), (0.172, 0.172)),
+        (V(0, 0.0, 1.31), (0.16, 0.16)), (V(0, 0.0, 1.40), (0.062, 0.062)), (V(0, 0.005, 1.49), (0.054, 0.054)),
+        # 6,7 shoulder balls (right one is shared with the separate right arm)
+        (V(0.175, 0.0, 1.355), (0.064, 0.064)), (V(-0.175, 0.0, 1.355), (0.064, 0.064)),
+        # 8-11 left arm: upper arm, elbow, forearm, wrist (bent up to the fist at the chest)
+        (V(0.20, -0.05, 1.25), (0.056, 0.056)), (V(0.20, -0.10, 1.11), (0.044, 0.044)),
+        (V(0.155, -0.14, 1.165), (0.041, 0.041)), (V(0.12, -0.16, 1.215), (0.032, 0.032)),
+        # 12-15 left leg (straight, weight-bearing): hip, thigh, knee, into the boot
+        (V(0.095, 0.0, 0.88), (0.105, 0.105)), (V(0.10, 0.0, 0.72), (0.082, 0.082)),
+        (V(0.10, 0.0, 0.52), (0.060, 0.060)), (V(0.10, 0.0, 0.40), (0.055, 0.055)),
+        # 16-19 right leg (knee bent forward)
+        (V(-0.095, -0.01, 0.88), (0.105, 0.105)), (V(-0.10, -0.03, 0.72), (0.082, 0.082)),
+        (V(-0.10, -0.05, 0.50), (0.060, 0.060)), (V(-0.10, -0.03, 0.40), (0.055, 0.055)),
+    ]
+    E = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (3, 6), (3, 7), (6, 8), (8, 9), (9, 10), (10, 11),
+         (0, 12), (12, 13), (13, 14), (14, 15), (0, 16), (16, 17), (17, 18), (18, 19)]
+    ob = skin_graph("body", N, E, MAT_CLOTH, flatten=torso_depth)
+    # the neck reads as skin: faces above the collar line and inside the neck radius
+    ob.data.materials.append(kit.material(MAT_SKIN))
+    for f in ob.data.polygons:
+        c = f.center
+        if c.z > 1.385 and abs(c.x) < 0.075:
+            f.material_index = 1
+    return ob
+
+
 # ---------------------------------------------------------------- coat
 
 NS = 96  # coat sides: 14 drape folds => ~7 samples per fold
 FOLDS = 14
 # coat rows as fixed heights; below the belt (h < 1.0) the hem is raised at the front and dropped at the back
-HS = [0.42, 0.50, 0.58, 0.66, 0.74, 0.82, 0.90, 0.96, 1.00, 1.04, 1.10, 1.18, 1.26, 1.33, 1.38, 1.44]
+HS = [0.42, 0.50, 0.58, 0.66, 0.74, 0.82, 0.90, 0.96, 1.00, 1.04, 1.08]  # skirt: hem to just over the belt
 OPEN_COLS, OPEN_ROWS = set(range(67, 78)), 8   # front opening, belt (h 1.0) down to the hem
 VENT_COLS, VENT_ROWS = set(range(22, 26)), 5   # back vent, hem up to h 0.82
 
@@ -249,8 +307,15 @@ def zmap(h, a):
     return zb + (h - 0.42) * (1.0 - zb) / 0.58
 
 
+BODY_BVH = None  # set once the skinned body exists: front_pt() then projects onto it
+
+
 def front_pt(z, x, out=0.012):
     """A point on the coat front at height z and x offset, pushed out by `out`."""
+    if BODY_BVH is not None and z >= 1.04:
+        hit, nrm, _, _ = BODY_BVH.ray_cast(Vector((x, -1.0, z)), Vector((0, 1, 0)))
+        if hit is not None:
+            return hit + nrm * out
     rx, _ = coat_rxry(z)
     c = max(-0.999, min(0.999, x / rx))
     a = -math.acos(c)
@@ -271,7 +336,6 @@ def coat():
             if (i in OPEN_COLS and j < OPEN_ROWS) or (i in VENT_COLS and j < VENT_ROWS):
                 continue
             bm.faces.new((rows[j][i], rows[j][(i + 1) % NS], rows[j + 1][(i + 1) % NS], rows[j + 1][i]))
-    bm.faces.new(rows[-1])  # closed under the collar; open at the hem and the front edges (solidify gives them thickness)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     ob = kit._obj("coat", bm, MAT_CLOTH, 60.0)
     solidify(ob, 0.012)
@@ -279,19 +343,38 @@ def coat():
 
 
 def hood():
-    """Symmetric rolled collar wrapping behind the neck, plus a drape hanging down the upper back."""
-    collar_keys = [(V(-0.17, -0.04, 1.36), 0.028, 0.028), (V(-0.14, 0.05, 1.42), 0.032, 0.032),
-                   (V(0.0, 0.10, 1.44), 0.036, 0.036), (V(0.14, 0.05, 1.42), 0.032, 0.032),
-                   (V(0.17, -0.04, 1.36), 0.028, 0.028)]
-    drape_keys = [(V(0.0, 0.105, 1.42), 0.034, 0.034), (V(0.0, 0.14, 1.30), 0.03, 0.03),
-                  (V(0.0, 0.135, 1.16), 0.028, 0.028), (V(0.0, 0.12, 1.06), 0.024, 0.024)]
-    return [limb("collar", collar_keys, MAT_CLOTH, per=3, sides=14, sup=2.2),
-            limb("hood_drape", drape_keys, MAT_CLOTH, per=3, sides=12, sup=2.2)]
+    """Stand-up collar."""
+    # a stand-up collar: a flared band round the neck, open at the throat, thickened and softened
+    prof = [(0.066, 1.37), (0.068, 1.39), (0.072, 1.41), (0.078, 1.425)]
+    ob = kit.lathe("collar", prof, 40, mat=MAT_CLOTH, smooth_angle=80.0, cap=False)
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.y < -0.035 and abs(v.co.x) < 0.035], context="VERTS")
+    bm.to_mesh(ob.data)
+    bm.free()
+    bake(ob, Matrix.Diagonal((1.0, 0.92, 1.0, 1.0)))
+    solidify(ob, 0.008)
+    return [subsurf(ob, 1)]
 
 
 def lapel(sign):
-    pts = [front_pt(z, sign * x, 0.016) for z, x in ((1.36, 0.035), (1.24, 0.07), (1.12, 0.085), (1.04, 0.09))]
-    return subsurf(loft("lapel", pts, [0.016] * 4, [0.009] * 4, MAT_CLOTH, sides=8, sup=2.2, hint=(0, -1, 0)), 1)
+    """A lapel as a real panel: inner edge down the coat opening, outer edge out to a notch under the collar,
+    projected onto the chest, thickened and rounded."""
+    rows = [(1.05, 0.012, 0.030), (1.12, 0.012, 0.055), (1.20, 0.014, 0.080), (1.27, 0.020, 0.100),
+            (1.31, 0.030, 0.108), (1.325, 0.050, 0.090), (1.345, 0.052, 0.112), (1.37, 0.060, 0.098)]
+    bm = bmesh.new()
+    cols = 4
+    grid = []
+    for z, xi, xo in rows:
+        grid.append([bm.verts.new(front_pt(z, sign * (xi + (xo - xi) * c / (cols - 1)), 0.010 + 0.004 * c / (cols - 1)))
+                     for c in range(cols)])
+    for j in range(len(rows) - 1):
+        for c in range(cols - 1):
+            bm.faces.new((grid[j][c], grid[j][c + 1], grid[j + 1][c + 1], grid[j + 1][c]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    ob = kit._obj("lapel", bm, MAT_CLOTH, 70.0)
+    solidify(ob, 0.007)
+    return subsurf(ob, 1)
 
 
 def buttons():
@@ -334,39 +417,6 @@ def head_sculpt(x, y, z):
     return dx, dy, dz
 
 
-def _mask_surface(x, z):
-    """Front surface of the head under the mask, offset outward by 12 mm."""
-    y = -EYE_RY * math.sqrt(max(0.0, 1 - (x / EYE_RX) ** 2)) - 0.012
-    return Vector((x, y, z))
-
-
-def domino_mask():
-    """Domino mask: a superellipse plate laid over the eyes, fitted to the face and thickened."""
-    A, B, R, S = 0.068, 0.022, 5, 24
-    bm = bmesh.new()
-    centre = bm.verts.new(_mask_surface(0.0, EYE_Z))
-    rings = []
-    for i in range(1, R + 1):
-        r = i / R
-        ring = []
-        for k in range(S):
-            t = 2 * math.pi * k / S
-            x = A * r * sp(math.cos(t), 0.5)
-            z = EYE_Z + B * r * sp(math.sin(t), 0.5)
-            ring.append(bm.verts.new(_mask_surface(x, z)))
-        rings.append(ring)
-    for k in range(S):
-        bm.faces.new((centre, rings[0][(k + 1) % S], rings[0][k]))
-    for i in range(R - 1):
-        for k in range(S):
-            bm.faces.new((rings[i][k], rings[i][(k + 1) % S], rings[i + 1][(k + 1) % S], rings[i + 1][k]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    ob = kit._obj("mask", bm, MAT_MASK, 60.0)
-    orn.face_toward(ob, (0, -1, 0))
-    solidify(ob, 0.006)
-    return subsurf(ob, 1)
-
-
 PART_X = -0.035  # side parting, on the figure's right
 
 
@@ -377,82 +427,96 @@ def hairline(x, y):
     return 0.12
 
 
-def head_r(z):
-    """Head profile radius at height z (linear between HEAD_PROF points)."""
-    for (r0, z0), (r1, z1) in zip(HEAD_PROF, HEAD_PROF[1:]):
-        if z0 <= z <= z1:
-            return r0 + (r1 - r0) * (z - z0) / (z1 - z0)
-    return 0.0
+SKULL_C = V(0, 0.008, 0.115)
+SKULL_R = (0.077, 0.096, 0.122)
 
 
-def hair_pt(a, z, off=0.024):
-    """Point just off the head surface. a = -pi/2 is the front (-Y), a = pi/2 the back (+Y)."""
-    r = head_r(z) + off
-    return V(r * math.cos(a) * HEAD_SCALE[0], r * math.sin(a) * HEAD_SCALE[1], z)
+def skull_pt(u, v, off=0.0):
+    """Point on the (unsculpted) skull ellipsoid at longitude u (-pi/2 = front, -Y) and latitude v, pushed out."""
+    rx, ry, rz = SKULL_R
+    d = Vector((math.cos(v) * math.cos(u) * rx, math.cos(v) * math.sin(u) * ry, math.sin(v) * rz))
+    n = Vector((d.x / rx ** 2, d.y / ry ** 2, d.z / rz ** 2)).normalized()
+    return SKULL_C + d + n * off
 
 
-def swept_strands():
-    """Six hair strands from the parting, swept back over the ear to the nape, in a loose wave."""
-    base = [(-2.05, 0.205), (-2.45, 0.225), (-2.85, 0.205), (-3.14, 0.165), (-3.5, 0.125),
-            (-3.9, 0.095), (-4.3, 0.085)]
-    out = []
-    for k in range(6):
-        keys = [(hair_pt(a - 0.03 * k, z - 0.004 * k + 0.003 * math.sin(0.9 * i + k), 0.021), 0.0036, 0.0036)
-                for i, (a, z) in enumerate(base)]
-        pts, rx, ry = spline(keys, 2)  # no subsurf pass: strands are thin and numerous, budget matters
-        out.append(loft("strand%d" % k, pts, rx, ry, MAT_HAIR, sides=6, sup=2.0))
-    return out
+def ellipsoid_mesh(name, centre, radii, mat, u=32, v=16):
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=1.0)
+    bmesh.ops.scale(bm, vec=Vector(radii), verts=bm.verts)
+    bmesh.ops.translate(bm, vec=Vector(centre), verts=bm.verts)
+    return kit._obj(name, bm, mat, 80.0)
 
 
-def wisps():
-    """Loose wisps breaking the hairline: three at each temple, two at the nape. (angle, drift direction)."""
-    out = []
-    for i, (a, d) in enumerate([(-2.17, -1), (-0.97, 1), (-2.40, -1), (-0.75, 1), (2.02, 1), (1.12, -1)]):
-        p = hair_pt(a, 0.2)
-        z0 = hairline(p.x, p.y) - 0.004  # start on the hairline
-        pts = [hair_pt(a, z0, 0.022), hair_pt(a + 0.07 * d, z0 - 0.02, 0.03), hair_pt(a + 0.14 * d, z0 - 0.05, 0.038)]
-        out.append(orn.taper("wisp%d" % i, pts, [0.0028, 0.0019, 0.0007], 4, MAT_HAIR, flat=1.0))
-    return out
+def visor():
+    """A wraparound visor: a curved band over the eyes from temple to temple, its lower edge dipping at the
+    nose bridge, thickened and rounded, with brass rivets at the temples."""
+    cols, rows = 28, 4
+    bm = bmesh.new()
+    grid = []
+    for j in range(rows):
+        t = j / (rows - 1)
+        row = []
+        for i in range(cols):
+            u = math.radians(-170 + 160 * i / (cols - 1))  # temple to temple round the front
+            front = max(0.0, -math.sin(u))
+            lo = EYE_Z - 0.024 - 0.006 * front  # deeper at the front, a shallow dip over the nose
+            hi = EYE_Z + 0.022
+            z = lo + (hi - lo) * t
+            v = math.asin(max(-1.0, min(1.0, (z - SKULL_C.z) / SKULL_R[2])))
+            row.append(bm.verts.new(skull_pt(u, v, 0.010 + 0.004 * front)))
+        grid.append(row)
+    for j in range(rows - 1):
+        for i in range(cols - 1):
+            bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    ob = kit._obj("visor", bm, MAT_MASK, 80.0)
+    solidify(ob, 0.007)
+    parts = [subsurf(ob, 1)]
+    for side in (-1, 1):
+        u = math.radians(-170 if side < 0 else -10)
+        parts.append(orn.ellipsoid("rivet", skull_pt(u, math.asin((EYE_Z - SKULL_C.z) / SKULL_R[2]), 0.018),
+                                   (0.008, 0.008, 0.008), "brass", 10, 5))
+    return parts
+
+
+def hair_shell():
+    """Hair with volume as one sculpted shell: fuller over the crown, swept back from a side parting in
+    shallow ridges (strands carved into the surface), cut at the hairline; plus a bun that sits into it."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=24, radius=1.0)
+    rx, ry, rz = SKULL_R
+    for vt in bm.verts:
+        n = vt.co.copy()
+        u = math.atan2(n.y, n.x)
+        lat = math.asin(max(-1.0, min(1.0, n.z)))
+        p = skull_pt(u, lat, 0.0)
+        crown = 0.010 + 0.010 * smooth((lat - 0.2) / 0.9)  # thicker over the crown
+        ridge = 0.0025 * math.sin(26 * (u + 0.35 * lat))  # strands swept back and round
+        nn = Vector((p.x - SKULL_C.x, p.y - SKULL_C.y, p.z - SKULL_C.z)).normalized()
+        vt.co = p + nn * (crown + ridge)
+    kill = [vt for vt in bm.verts if vt.co.z < hairline(vt.co.x, vt.co.y) + (0.0 if vt.co.y < 0 else -0.01)]
+    bmesh.ops.delete(bm, geom=kill, context="VERTS")
+    ob = kit._obj("hair", bm, MAT_HAIR, 80.0)
+    solidify(ob, 0.006)
+    return [subsurf(ob, 1), ellipsoid_mesh("bun", (0, 0.112, 0.135), (0.042, 0.036, 0.040), MAT_HAIR, 20, 10)]
 
 
 def thief_head():
-    prof = densify(HEAD_PROF, 2)
-    ob = kit.lathe("thief_head", prof, 36, mat=MAT_SKIN, smooth_angle=80.0)
-    bake(ob, Matrix.Diagonal(HEAD_SCALE))
+    ob = ellipsoid_mesh("thief_head", SKULL_C, SKULL_R, MAT_SKIN, 40, 20)
     sculpt(ob, head_sculpt)
     subsurf(ob, 1)
     parts = [ob]
     # nose: a tapered ridge from brow to a rounded tip, about 2 cm proud of the face
-    parts.append(orn.taper("nose", [V(0, -0.078, 0.125), V(0, -0.095, 0.095), V(0, -0.108, 0.065),
-                                    V(0, -0.09, 0.05)], [0.009, 0.008, 0.011, 0.007], 8, MAT_SKIN))
-    # lips: an upper and a lower sweep
-    parts.append(orn.taper("lip_u", [V(-0.022, -0.075, 0.04), V(0, -0.082, 0.042), V(0.022, -0.075, 0.04)],
-                           [0.005, 0.007, 0.005], 8, MAT_SKIN, flat=0.5, up=(0, 0, 1)))
-    parts.append(orn.taper("lip_l", [V(-0.02, -0.074, 0.024), V(0, -0.08, 0.022), V(0.02, -0.074, 0.024)],
-                           [0.006, 0.007, 0.006], 8, MAT_SKIN, flat=0.5, up=(0, 0, 1)))
-    # ears
-    for side in (-1, 1):
-        parts.append(orn.ellipsoid("ear", (side * 0.077, 0.0, 0.105), (0.013, 0.02, 0.03), MAT_SKIN, 10, 5))
-    # hair: a shell over the crown with real volume, hairline cut by hairline()
-    hair_prof = [(r + 0.018, z) for r, z in prof if z >= 0.06]
-    hair = kit.lathe("hair", hair_prof, 36, mat=MAT_HAIR, smooth_angle=80.0, cap=False)
-    bake(hair, Matrix.Diagonal(HEAD_SCALE))
-    bm = bmesh.new()
-    bm.from_mesh(hair.data)
-    kill = [v for v in bm.verts if v.co.z < hairline(v.co.x, v.co.y)]
-    bmesh.ops.delete(bm, geom=kill, context="VERTS")
-    bm.to_mesh(hair.data)
-    bm.free()
-    parts.append(subsurf(hair, 1))
-    # a larger bun at the back of the head, with a rope of hair wound twice round it
-    bun_c = V(0, 0.115, 0.10)
-    parts.append(orn.ellipsoid("bun", bun_c, (0.06, 0.06, 0.056), MAT_HAIR, 14, 7))
-    parts.extend(swept_strands())
-    parts.extend(wisps())
-    parts.append(domino_mask())
-    for side in (-1, 1):  # brass rivets at the ends of the mask
-        p = _mask_surface(side * 0.064, EYE_Z)
-        parts.append(orn.ellipsoid("rivet", p, (0.009, 0.009, 0.009), "brass", 8, 4))
+    parts.append(orn.taper("nose", [V(0, -0.084, 0.115), V(0, -0.097, 0.088), V(0, -0.106, 0.062),
+                                    V(0, -0.092, 0.05)], [0.008, 0.009, 0.011, 0.007], 10, MAT_SKIN))
+    parts.append(orn.taper("lip_u", [V(-0.021, -0.081, 0.04), V(0, -0.088, 0.042), V(0.021, -0.081, 0.04)],
+                           [0.005, 0.007, 0.005], 10, MAT_SKIN, flat=0.5, up=(0, 0, 1)))
+    parts.append(orn.taper("lip_l", [V(-0.019, -0.080, 0.025), V(0, -0.086, 0.023), V(0.019, -0.080, 0.025)],
+                           [0.006, 0.007, 0.006], 10, MAT_SKIN, flat=0.5, up=(0, 0, 1)))
+    for side in (-1, 1):  # ears: flat shells set against the side of the skull
+        parts.append(ellipsoid_mesh("ear", (side * 0.074, 0.012, 0.105), (0.009, 0.017, 0.028), MAT_SKIN, 14, 8))
+    parts.extend(hair_shell())
+    parts.extend(visor())
     head = kit.join("thief_head", parts)
     bm = bmesh.new()  # triangulate n-gon caps so Godot gets tangents for the skin normal map
     bm.from_mesh(head.data)
@@ -478,14 +542,13 @@ def leg(s):
             (V(x, 0.5 * k, 0.36), 0.064, 0.064), (V(x, 0.2 * k, 0.22), 0.05, 0.05),
             (V(x, 0.0, 0.075), 0.042, 0.045), (V(x, -0.06, 0.06), 0.042, 0.04),
             (V(x, -0.12, 0.04), 0.042, 0.038), (V(x, -0.18, 0.04), 0.036, 0.036)]
-    tro = limb("trouser_" + side, trousers, MAT_CLOTH, per=3, sides=14, sup=2.4)
     bt = limb("boot_" + side, boot, MAT_LEATHER, per=2, sides=12, sup=2.8)
     zmin = min(v.co.z for v in bt.data.vertices)
     bake(bt, Matrix.Translation((0, 0, -zmin)))  # sole exactly on z=0
     # one continuous sole from toe to heel, with a 3.5 cm heel block under the counter; both overlap the boot
     sole = kit.box("sole_" + side, (0.08, 0.24, 0.012), (x, -0.08, 0.006), mat=MAT_LEATHER, bevel=0.004)
     heel = kit.box("heel_" + side, (0.06, 0.07, 0.035), (x, 0.0, 0.0175), mat=MAT_LEATHER, bevel=0.006)
-    return [tro, kit.join("boot_" + side, [bt, sole, heel])]
+    return [kit.join("boot_" + side, [bt, sole, heel])]
 
 
 # ---------------------------------------------------------------- arms
@@ -521,7 +584,7 @@ def left_arm():
     keys = [(L_SHOULDER, 0.06, 0.062), (V(0.2, -0.05, 1.27), 0.056, 0.058),
             (V(0.2, -0.10, 1.10), 0.037, 0.04), (V(0.15, -0.14, 1.17), 0.04, 0.042),
             (V(0.12, -0.16, 1.22), 0.03, 0.028)]
-    parts = [limb("arm_L_sleeve", keys, MAT_CLOTH, per=3, sides=14, sup=2.5, warp=elbow_warp)]
+    parts = []  # the sleeve is part of body()
     Wr = V(0.12, -0.16, 1.22)
     d = (Wr - V(0.15, -0.14, 1.17)).normalized()
     parts.append(subsurf(loft("cuff_L", [Wr - d * 0.03, Wr - d * 0.01, Wr + d * 0.005], [0.036, 0.042, 0.036],
@@ -541,7 +604,9 @@ def arm_r():
     sh = R_SHOULDER
     keys = [(sh, 0.066, 0.07), (V(-0.2, -0.05, 1.27), 0.058, 0.06), (V(-0.215, -0.13, 1.13), 0.037, 0.04),
             (V(-0.21, -0.25, 1.08), 0.042, 0.044), (V(-0.2, -0.36, 1.04), 0.033, 0.03)]
-    parts = [limb("thief_arm_sleeve", keys, MAT_CLOTH, per=3, sides=14, sup=2.5, warp=elbow_warp)]
+    parts = [skin_graph("thief_arm_sleeve", [(V(-0.175, 0.0, 1.355), 0.064), (keys[1][0], 0.057),
+                                             (keys[2][0], 0.043), (keys[3][0], 0.042), (keys[4][0], 0.033)],
+                        [(0, 1), (1, 2), (2, 3), (3, 4)], MAT_CLOTH)]
     W = V(-0.2, -0.36, 1.04)
     d_arm = (W - V(-0.21, -0.25, 1.08)).normalized()
     # cuff flares open over the end of the sleeve
@@ -578,9 +643,11 @@ def arm_r():
 # ---------------------------------------------------------------- body
 
 def build(args):
-    parts = [coat()]
-    parts.append(limb("neck", [(V(0, 0, 1.30), 0.062, 0.058), (V(0, 0, 1.38), 0.052, 0.05),
-                               (NECK + V(0, 0, 0.0), 0.046, 0.045)], MAT_SKIN, per=2, sides=12))
+    global BODY_BVH
+    from mathutils.bvhtree import BVHTree
+    b = body()
+    BODY_BVH = BVHTree.FromObject(b, bpy.context.evaluated_depsgraph_get())
+    parts = [b, coat()]
     parts.extend(hood())
     parts.append(lapel(1))
     parts.append(lapel(-1))
