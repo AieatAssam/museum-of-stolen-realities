@@ -2,14 +2,17 @@ class_name ClayTerrain
 extends Node3D
 ## Deformable clay ground: an 80 m square heightfield on 1 m cells, centred on the wing origin.
 ## Edits are queued while the player holds a verb and applied on the next world beat, so the
-## ground only changes on twos. Collision (HeightMapShape3D) and the visible mesh rebuild together
-## in flush(), and only when something changed.
+## ground only changes on twos. Collision (HeightMapShape3D) and the visible ground update together
+## in flush(), and only when something changed. The visible ground is a static grid RES times finer
+## that the terrain shader lifts from a height texture with a Catmull-Rom patch: pulled clay gets
+## rounded shoulders and eases into the moss instead of showing 1 m facets and a crease at its foot.
 
 const N := 81
 const HALF := 40.0
 const MIN_H := -2.4
 const MAX_H := 4.2
 const MATERIAL := preload("res://wings/clay/materials/ground.tres")
+const RES := 3  # render vertices per 1 m cell
 
 var h := PackedFloat32Array()     # index = iz * N + ix, world x = ix - HALF, z = iz - HALF
 var mark := PackedFloat32Array()  # 0..1: shaped by the player (raw clay, fingerprints show)
@@ -17,6 +20,7 @@ var dirty: bool = false
 var _mesh_inst: MeshInstance3D
 var _body: StaticBody3D
 var _shape: HeightMapShape3D
+var _tex: ImageTexture
 
 
 func setup(base_fn: Callable) -> void:
@@ -27,7 +31,10 @@ func setup(base_fn: Callable) -> void:
 			h[iz * N + ix] = float(base_fn.call(ix - HALF, iz - HALF))
 	mark.fill(0.0)
 	_mesh_inst = MeshInstance3D.new()
-	_mesh_inst.material_override = MATERIAL
+	var mat := MATERIAL.duplicate() as ShaderMaterial
+	mat.set_shader_parameter(&"half_size", HALF)
+	_mesh_inst.material_override = mat
+	_mesh_inst.mesh = _grid_mesh()
 	add_child(_mesh_inst)
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1
@@ -71,7 +78,8 @@ func weight_sum(centre: Vector3, radius: float, keep_out: Vector3) -> float:
 
 
 ## Raise (dh > 0) or lower (dh < 0) the ground under a point. Returns the volume moved (m^3, signed).
-func brush(centre: Vector3, radius: float, dh: float, keep_out: Vector3, floor_h: float = MIN_H) -> float:
+## `ceiling` (optional, Callable(x, z) -> float) caps how high a pull may raise each cell.
+func brush(centre: Vector3, radius: float, dh: float, keep_out: Vector3, floor_h: float = MIN_H, ceiling: Callable = Callable()) -> float:
 	var moved := 0.0
 	for iz in _range_z(centre, radius):
 		for ix in _range_x(centre, radius):
@@ -82,6 +90,8 @@ func brush(centre: Vector3, radius: float, dh: float, keep_out: Vector3, floor_h
 			var wgt := 0.5 + 0.5 * cos(PI * d / radius)
 			var before := h[i]
 			var after := clampf(before + dh * wgt, minf(floor_h, before), MAX_H)
+			if ceiling.is_valid():
+				after = minf(after, maxf(before, float(ceiling.call(ix - HALF, iz - HALF))))
 			if dh > 0.0 and after <= before:
 				continue
 			h[i] = after
@@ -92,6 +102,15 @@ func brush(centre: Vector3, radius: float, dh: float, keep_out: Vector3, floor_h
 				mark[i] = maxf(mark[i], wgt * 0.6)
 	if absf(moved) > 0.0:
 		dirty = true
+	if moved > 0.0:
+		# the raw clay frays out into the moss round a pulled column's foot, not a cut line at its base
+		var outer := radius * 1.8
+		for iz in _range_z(centre, outer):
+			for ix in _range_x(centre, outer):
+				var d := Vector2(ix - HALF, iz - HALF).distance_to(Vector2(centre.x, centre.z))
+				if d < outer:
+					var i: int = iz * N + ix
+					mark[i] = maxf(mark[i], 0.45 * (0.5 + 0.5 * cos(PI * d / outer)))
 	return moved
 
 
@@ -105,55 +124,51 @@ func max_in(x0: float, x1: float, z0: float, z1: float) -> float:
 	return best
 
 
-## Apply queued changes: rebuild the mesh and the collision map. Called on the world beat.
+## Apply queued changes: upload the heights and marks for the shader and rebuild the collision
+## map. Called on the world beat.
 func flush() -> void:
 	if not dirty:
 		return
 	dirty = false
+	var hm := PackedFloat32Array()
+	hm.resize(N * N * 2)
+	for i in N * N:
+		hm[i * 2] = h[i]
+		hm[i * 2 + 1] = mark[i]
+	var img := Image.create_from_data(N, N, false, Image.FORMAT_RGF, hm.to_byte_array())
+	if _tex == null:
+		_tex = ImageTexture.create_from_image(img)
+		(_mesh_inst.material_override as ShaderMaterial).set_shader_parameter(&"heightmap", _tex)
+	else:
+		_tex.update(img)
+	_shape.map_data = h
+
+
+## The flat render grid (the shader lifts it), built once.
+func _grid_mesh() -> ArrayMesh:
+	var m := (N - 1) * RES + 1
 	var verts := PackedVector3Array()
-	var norms := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var cols := PackedColorArray()
-	verts.resize(N * N)
-	norms.resize(N * N)
-	uvs.resize(N * N)
-	cols.resize(N * N)
-	for iz in N:
-		for ix in N:
-			var i: int = iz * N + ix
-			var hl := h[iz * N + maxi(ix - 1, 0)]
-			var hr := h[iz * N + mini(ix + 1, N - 1)]
-			var hd := h[maxi(iz - 1, 0) * N + ix]
-			var hu := h[mini(iz + 1, N - 1) * N + ix]
-			var wx := ix - HALF
-			var wz := iz - HALF
-			verts[i] = Vector3(wx, h[i], wz)
-			norms[i] = Vector3(hl - hr, 2.0, hd - hu).normalized()
-			uvs[i] = Vector2(wx, wz)
-			cols[i] = Color(mark[i], 0.0, 0.0, 1.0)
+	verts.resize(m * m)
+	for iz in m:
+		for ix in m:
+			verts[iz * m + ix] = Vector3(float(ix) / RES - HALF, 0.0, float(iz) / RES - HALF)
 	var idx := PackedInt32Array()
-	idx.resize((N - 1) * (N - 1) * 6)
+	idx.resize((m - 1) * (m - 1) * 6)
 	var k := 0
-	for iz in N - 1:
-		for ix in N - 1:
-			var a := iz * N + ix
-			var b := a + 1
-			var c := a + N
-			var d := c + 1
-			idx[k] = a; idx[k + 1] = b; idx[k + 2] = c
-			idx[k + 3] = b; idx[k + 4] = d; idx[k + 5] = c
+	for iz in m - 1:
+		for ix in m - 1:
+			var a := iz * m + ix
+			idx[k] = a; idx[k + 1] = a + 1; idx[k + 2] = a + m
+			idx[k + 3] = a + 1; idx[k + 4] = a + m + 1; idx[k + 5] = a + m
 			k += 6
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = norms
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	_mesh_inst.mesh = mesh
-	_shape.map_data = h
+	mesh.custom_aabb = AABB(Vector3(-HALF, MIN_H - 1.0, -HALF), Vector3(HALF * 2.0, MAX_H - MIN_H + 2.0, HALF * 2.0))
+	return mesh
 
 
 func _near(ix: int, iz: int, p: Vector3) -> bool:
