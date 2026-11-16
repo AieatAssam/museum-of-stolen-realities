@@ -294,8 +294,8 @@ def B_hand():
 
     # brush: 7 m handle, brass ferrule, red bristle tip (brush axis at y=0, z=zb)
     P.lathe("p_wood_dark", [(0.002, 0.0), (0.26, 0.0), (0.3, 0.5), (0.31, 3.4), (0.28, 6.5), (0.3, 7.0), (0.002, 7.0)],
-            segs=14, M=_ax_x(-5.5, zb), post=lambda bm: S.deform(bm, 3, 0.012, 1.2))
-    P.lathe("p_brass", [(0.33, 0.0), (0.36, 0.06), (0.36, 0.54), (0.33, 0.6)], segs=14, M=_ax_x(1.5, zb))
+            segs=24, M=_ax_x(-5.5, zb), post=lambda bm: S.deform(bm, 3, 0.012, 1.2))
+    P.lathe("p_brass", [(0.33, 0.0), (0.36, 0.06), (0.36, 0.54), (0.33, 0.6)], segs=24, M=_ax_x(1.5, zb))
     for k in range(7):
         a = 2 * PI * k / 7 + 0.3
         pts = [(2.05 + 1.35 * t, (0.3 * (1 - t) ** 0.7 + 0.02) * math.cos(a),

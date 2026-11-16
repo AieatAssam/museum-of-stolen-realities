@@ -120,7 +120,7 @@ def _roof(name, mat, seed):
 
 def _waterwheel(out):
     cx, cy, cz = 4.8, 0.0, 2.3
-    rim = kit.torus("wheel_rim", 2.2, 0.075, seg=40, rseg=6, mat="p_wood", loc=(cx, cy, cz), rot=(0, math.pi / 2, 0))
+    rim = kit.torus("wheel_rim", 2.2, 0.075, seg=64, rseg=10, mat="p_wood", loc=(cx, cy, cz), rot=(0, math.pi / 2, 0))
     out.append(_jit(rim, 501, 0.01))
     for i in range(12):
         a = i * TAU / 12
