@@ -53,9 +53,11 @@ def _blob(rng, R):
     return lambda th: R * (1.0 + a1 * math.sin(k * th + p1) + a2 * math.sin((k + 1) * th + p2))
 
 
-def _plan(bvh, rng, loc, N, R, dn, wt, bulge):
+def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False):
     """Plan one patch centred on loc (Blender) with inward normal N. Returns (verts, faces, cells, tris),
-    or None if the patch cannot be made to pass the wall check. faces: (index tuple, material, smooth)."""
+    or None if the patch cannot be made to pass the wall check. faces: (index tuple, material, smooth).
+    cheap: low-poly cells (16 tris dome/open, 12 broken): one wall band, then a flat cap (dome), a sunken
+    flat floor (open, funnel from the surface), or nothing (broken). Same outlines, lattice and cell mix."""
     ref = Vector((0.0, 0.0, 1.0)) if abs(N.z) < 0.9 else Vector((1.0, 0.0, 0.0))
     t1 = N.cross(ref).normalized()
     t2 = N.cross(t1)
@@ -119,6 +121,23 @@ def _plan(bvh, rng, loc, N, R, dn, wt, bulge):
             h = min(h, lim)
         cn = sum((n for _, n in bi), Vector()).normalized()
         ob = [add(b) for b, _ in bo]
+        if cheap:
+            tops = [b + n * h for b, n in bo]
+            ctr = sum((b for b, _ in bo), Vector()) / 6.0
+            cen = sum((b + n * h for b, n in bi), Vector()) / 6.0
+            if kind == "open":
+                top = [add(p.lerp(cen, 0.35) - cn * FLOOR_DEPTH) for p in tops]
+            else:
+                top = [add(p) for p in tops]
+            for k in range(6):
+                k1 = (k + 1) % 6
+                q = (ob[k], ob[k1], top[k1], top[k])
+                face(q, sum((verts[i] for i in q), Vector()) / 4.0 - ctr, 0, False)
+            if kind == "dome":
+                face(tuple(top), cn, 1, True)
+            elif kind == "open":
+                face(tuple(top), cn, 2, False)
+            return True
         ot = [add(b + n * h) for b, n in bo]
         it = [add(b + n * h) for b, n in bi]
         ctr = sum((b for b, _ in bo), Vector()) / 6.0
@@ -207,7 +226,7 @@ def _plan(bvh, rng, loc, N, R, dn, wt, bulge):
     return verts, faces, cells, tris
 
 
-def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budget):
+def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budget, cheap=False):
     """Place comb patches on the finished shell bmesh (Blender coords; normals face into the room).
 
     Hooks (Godot coordinates unless noted):
@@ -215,6 +234,7 @@ def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budg
       accept(g, meta) -> probability of keeping a hit (clusters on ribs and the crown, few near floors).
       radius(g, meta) -> largest blob radius allowed at hit g (ends, top, floor).
       dn(g) -> signed inward distance to the collision faces (positive into the room).
+    cheap: low-poly hex cells (see _plan); default False keeps the detailed cells.
     Returns (bmesh of all patches, stats). Patches stop once the triangle budget is spent."""
     bvh = BVHTree.FromBMesh(shell)
     area = sum(f.calc_area() for f in shell.faces)
@@ -248,7 +268,7 @@ def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budg
         if any((loc - c).length < R + rc + 0.3 for c, rc in placed):
             fails["space"] += 1
             continue
-        plan = _plan(bvh, rng, loc, n, R, dn, wall_top, bulge)
+        plan = _plan(bvh, rng, loc, n, R, dn, wall_top, bulge, cheap)
         if plan is None:
             fails["plan"] += 1
             continue

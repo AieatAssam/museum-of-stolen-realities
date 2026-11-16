@@ -38,6 +38,7 @@ VAULT_NOISE = 0.6   # vault irregularity above wall_top
 LIP_SIDES = 6
 SHELL_CAP = 58500   # shell alone (its own model) is coarsened above this (MOSR_MAX_TRIS is 60000)
 TOTAL_CAP = 58500   # comb model alone (its own model) stops placing patches at this
+CHEAP_COMB_ROOMS = ("shell_arena", "shell_foundry")  # low-poly comb cells (comb_patch cheap=True)
 MAT_NAMES = ["carapace", "carapace_dull"]
 SEED_V = Vector((7.3, 1.1, 3.7))
 
@@ -510,7 +511,8 @@ def build(args):
     if comb_only:
         sample, accept, radius, dn = _patch_hooks(room, _ribs(room))
         pbm, pst = comb_patch.build_patches(bm, base + "_comb", sample, radius, accept, dn,
-                                            room["wall_top"], room["bulge"], TOTAL_CAP)
+                                            room["wall_top"], room["bulge"], TOTAL_CAP,
+                                            cheap=base in CHEAP_COMB_ROOMS)
         bm.free()
         print("TRIS %s comb %d (cap 60000, budget %d)" % (base + "_comb", pst["tris"], TOTAL_CAP))
         assert pst["tris"] <= 60000, pst["tris"]

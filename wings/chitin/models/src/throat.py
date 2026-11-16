@@ -380,13 +380,13 @@ class _Throat:
                 return 0.0  # keep patches off the stair arch
             if y > TOP_MIN - 4.0:
                 return 0.9
-            return 0.2 if y < FLOOR + 3.0 else 0.45
+            return 0.5 if y < FLOOR + 3.0 else 0.6  # spread down the full height, lower walls included
 
         def radius(g, meta):
             return min(comb_patch.MAX_R, TOP_MIN - 0.4 - g[1], g[1] - FLOOR - 1.0)
 
         pbm, pst = comb_patch.build_patches(bm, "shell_shaft_comb", sample, radius, accept, _dn,
-                                            TOP_MIN, BULGE, TOTAL_CAP)
+                                            TOP_MIN, BULGE, TOTAL_CAP, cheap=True)
         bm.free()
         print("TRIS shell_shaft_comb %d (cap 60000, budget %d)" % (pst["tris"], TOTAL_CAP))
         assert pst["tris"] <= 60000, pst["tris"]
