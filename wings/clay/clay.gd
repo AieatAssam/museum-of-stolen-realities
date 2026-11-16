@@ -301,7 +301,8 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	var pl := Placard.new()
 	pl.name = node_name
 	add_child(pl)
-	pl.position = _ground_at(at) + Vector3(0, 1.1, 0)
+	var k := pl.size.x / 0.9  # the sign was modelled for a 0.9 m label; it grows with the house plate
+	pl.position = _ground_at(at) + Vector3(0, 1.1 * k, 0)
 	pl.rotation.y = yaw
 	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)
 	for m: Node in pl.get_children():
@@ -310,6 +311,7 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	var sign := _model("sign.glb")
 	sign.position = _ground_at(at)
 	sign.rotation.y = yaw
+	sign.scale = Vector3.ONE * k
 	add_child(sign)
 
 

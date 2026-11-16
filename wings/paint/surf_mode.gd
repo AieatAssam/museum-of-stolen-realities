@@ -174,5 +174,15 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 	return false
 
 
+## While she learns the ride: how to leave it with a jump.
+func prompt() -> Dictionary:
+	return {"action": &"jump", "text": "leap off the stroke"} if metres < 60.0 else {}
+
+
 func bob_scale() -> float:
 	return 0.0
+
+
+## Riding stands taller than walking, so the stroke underfoot sits low in the view, not across it.
+func eye_height() -> float:
+	return 2.0

@@ -18,7 +18,8 @@ extends Node3D
 @export var medium: String = ""
 @export var acquisition: String = ""
 @export_multiline var body: String = ""
-@export var size: Vector2 = Vector2(0.9, 0.62)
+## Plate size, metres. The default reads from a couple of metres; [interact] opens the reader.
+@export var size: Vector2 = Vector2(1.2, 0.83)
 @export var readable: bool = true
 ## Legacy fields (see the header). Setting them re-derives date/medium/acquisition.
 @export var heading: String = ""
@@ -75,6 +76,15 @@ static func meta_lines(f: Dictionary) -> PackedStringArray:
 	return out
 
 
+## True when the text (as Label3D lays it out) sits inside the plate. Tests call this.
+func text_fits() -> bool:
+	var bottom := _l_body.position.y + _l_body.get_aabb().position.y if body != "" else _l_meta.position.y + _l_meta.get_aabb().position.y
+	var right := 0.0
+	for l: Label3D in [_l_title, _l_meta, _l_body]:
+		right = maxf(right, l.position.x + l.get_aabb().end.x)
+	return bottom >= -size.y * 0.5 and right <= size.x * 0.5
+
+
 func get_label() -> Dictionary:
 	return fields(title, date, medium, acquisition, body)
 
@@ -114,14 +124,14 @@ func _refresh() -> void:
 	_l_title.text = title
 	_l_meta.text = "\n".join(meta_lines(get_label()))
 	_l_body.text = body
-	# fit: the largest text size (up to 2x the old fixed size) at which the three blocks fill the
-	# plate's height, re-wrapping to the plate width at each size
+	# fit: the largest text size (up to 2x the old fixed size) at which the three blocks, wrapped to
+	# the plate width at that size, fit the plate's height; measured at the final wrap, so it never spills
 	var cap := 0.0011 * size.x / 0.9
 	var ps := cap
-	for i in 4:
-		var h := _stack_px(int(size.x * 0.86 / ps)) + 0.034 / ps
-		ps = minf(cap, (size.y - 0.1) / h)
 	var w := int(size.x * 0.86 / ps)
+	while ps > cap * 0.2 and _stack_px(w) * ps + 0.034 > size.y - 0.1:
+		ps *= 0.95
+		w = int(size.x * 0.86 / ps)
 	for l: Label3D in [_l_title, _l_meta, _l_body]:
 		l.pixel_size = ps
 		l.width = w
