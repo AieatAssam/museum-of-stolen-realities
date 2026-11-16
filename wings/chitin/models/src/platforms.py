@@ -493,25 +493,29 @@ def kind_stump(P, parts, fr):
             cx, cz = P.cx + dx, P.cz + dz
             top_y = P.top - slab_d + 0.1       # cell tops sit just inside the slab
             if dist == 0.0:
-                yb = P.top - slab_d - crnd.uniform(0.35, 1.0) * (P.H - slab_d)
-                yb = max(yb, P.base + 0.3)
-                jit = [crnd.uniform(-0.15, 0.15) for _ in range(6)]
+                # the comb hangs as one swelling mass: deepest at the middle, shallow at the rim, so the
+                # cells read as a drooping dome of wax, not a staircase of prisms; each cell ends in a drip
+                rn = min(1.0, math.hypot(dx / max(P.hx, 0.5), dz / max(P.hz, 0.5)))
+                f = 0.4 + 0.6 * (1.0 - smooth01(rn)) + crnd.uniform(-0.12, 0.12)
+                yb = max(P.top - slab_d - f * (P.H - slab_d), P.base + 0.45)
+                jit = [crnd.uniform(-0.05, 0.05) for _ in range(6)]
                 rings_c = [hexring(cx, cz, 0.96 * R, top_y),
-                           hexring(cx, cz, 0.9 * R, [yb + x for x in jit])]
+                           hexring(cx, cz, 0.92 * R, [yb + x for x in jit])]
                 if crnd.random() < 0.12:
                     cen = (cx, yb + 0.03, cz)
                     amb = amber.ring(hexring(cx, cz, 0.7 * R, yb + 0.03))
                     amber.fan(amb, cen)
                     chain(cells, rings_c[:1] + [hexring(cx, cz, 0.9 * R, yb + 0.25)])
                     continue
-                vl_c = chain(cells, rings_c)
-                cells.fan(vl_c[-1], (cx, yb, cz))
+                tip = yb - 0.2 - 0.2 * crnd.random()
+                vl_c = chain(cells, rings_c + [hexring(cx, cz, 0.6 * R, yb - 0.12), hexring(cx, cz, 0.22 * R, tip + 0.06)])
+                cells.fan(vl_c[-1], (cx, tip, cz))
             else:
                 e_a = cluster_reach(math.atan2(dz, dx))
                 if dist > min(1.0, 1.6 * e_a) or crnd.random() > 0.6:
                     continue                                # only under a cluster, within reach
                 L = min(3.5, 1.0 + 2.5 * crnd.random() ** 1.5)     # drips skew short
-                yb = max(P.top - slab_d - L, P.base + 0.3)
+                yb = max(P.top - slab_d - L, P.base + 0.5)
                 jit = [crnd.uniform(-0.15, 0.15) for _ in range(6)]
                 rings_c = [hexring(cx, cz, 0.96 * R, top_y),
                            hexring(cx, cz, 1.0 * R, [yb + 0.6 + 0.4 * x for x in jit]),
@@ -519,8 +523,8 @@ def kind_stump(P, parts, fr):
                 for q in range(6):
                     P.note(min(range(P.M), key=lambda k: abs(P.px[k] - rings_c[2][q][0]) + abs(P.pz[k] - rings_c[2][q][2])),
                            rings_c[2][q], outline=False)
-                vl_c = chain(cells, rings_c)
-                cells.fan(vl_c[-1], (cx, yb, cz))
+                vl_c = chain(cells, rings_c + [hexring(cx, cz, 0.3 * R, yb - 0.25)])
+                cells.fan(vl_c[-1], (cx, yb - 0.45, cz))
 
 
 def kind_cocoon(P, parts, fr):
