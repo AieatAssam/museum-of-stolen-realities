@@ -165,6 +165,39 @@ func _mk_label(font: Font, px: int, color: Color, width_px: int) -> Label3D:
 	return l
 
 
+## A brass moulding round the plate: a stepped, bevelled profile swept round the rectangle with
+## mitred corners, plus a back. Profile = (outward offset from the plate edge, height off the wall).
+const BEZEL_PROFILE: Array[Vector2] = [Vector2(-0.002, 0.0095), Vector2(0.004, 0.013), Vector2(0.008, 0.016),
+	Vector2(0.014, 0.017), Vector2(0.019, 0.014), Vector2(0.023, 0.009), Vector2(0.026, 0.004), Vector2(0.026, 0.0)]
+static var _bezels: Dictionary = {}
+
+
+static func _bezel_mesh(plate: Vector2) -> ArrayMesh:
+	if _bezels.has(plate):
+		return _bezels[plate]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var h := plate * 0.5
+	var corners: Array[Vector2] = [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	for c in 4:
+		var s0 := corners[c]
+		var s1 := corners[(c + 1) % 4]
+		for j in BEZEL_PROFILE.size() - 1:
+			var a := BEZEL_PROFILE[j]
+			var b := BEZEL_PROFILE[j + 1]
+			var p := [Vector3(s0.x * (h.x + a.x), s0.y * (h.y + a.x), a.y), Vector3(s1.x * (h.x + a.x), s1.y * (h.y + a.x), a.y),
+				Vector3(s1.x * (h.x + b.x), s1.y * (h.y + b.x), b.y), Vector3(s0.x * (h.x + b.x), s0.y * (h.y + b.x), b.y)]
+			for i: int in [0, 2, 1, 0, 3, 2]:
+				st.add_vertex(p[i])
+	var o := h + Vector2.ONE * BEZEL_PROFILE[-1].x
+	for v: Vector3 in [Vector3(-o.x, -o.y, 0), Vector3(o.x, o.y, 0), Vector3(o.x, -o.y, 0), Vector3(-o.x, -o.y, 0), Vector3(-o.x, o.y, 0), Vector3(o.x, o.y, 0)]:
+		st.add_vertex(v)  # back: closes the moulding against the wall
+	st.generate_normals()
+	var m := st.commit()
+	_bezels[plate] = m
+	return m
+
+
 func _build() -> void:
 	_built = true
 	if _plate_mat == null:
@@ -177,12 +210,11 @@ func _build() -> void:
 		_bezel_mat.roughness_texture = preload("res://assets/textures/brass/brass_roughness.png")
 		_bezel_mat.metallic = 1.0
 		_bezel_mat.albedo_color = Color(1.0, 0.86, 0.6)
+		_bezel_mat.uv1_triplanar = true  # the swept moulding has no UVs
+		_bezel_mat.uv1_scale = Vector3(6, 6, 6)
 	var bezel := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(size.x + 0.05, size.y + 0.05, 0.02)
-	bezel.mesh = bm
+	bezel.mesh = _bezel_mesh(size)
 	bezel.material_override = _bezel_mat
-	bezel.position.z = -0.002
 	add_child(bezel)
 	var plate := MeshInstance3D.new()
 	var pm := QuadMesh.new()
