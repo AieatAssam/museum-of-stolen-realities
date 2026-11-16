@@ -72,11 +72,11 @@ def rotunda_bay():
     R = 27.5
     p = [_curved_slab("wall", R, 28.5, -half, half, -11.0, 23.0, "glass_wall_uv")]
     # engaged shaft at the bay's edge, ringed with brass
-    sh = kit.lathe("shaft", [(0.32, -11.0), (0.32, 23.0)], 12, mat="glass_red_m", cap=False)
+    sh = kit.lathe("shaft", [(0.32, -11.0), (0.32, 23.0)], 32, mat="glass_red_m", cap=False)
     sh.location = (R * math.cos(half), R * math.sin(half), 0)
     p.append(sh)
     for z in (0.0, 10.0, 17.5):
-        t = kit.torus("ring", 0.36, 0.05, 20, 8, mat="brass", loc=(R * math.cos(half), R * math.sin(half), z))
+        t = kit.torus("ring", 0.36, 0.05, 32, 8, mat="brass", loc=(R * math.cos(half), R * math.sin(half), z))
         p.append(t)
     # string courses and cornice
     course = [(0.0, -0.18), (0.22, -0.12), (0.3, 0.0), (0.22, 0.1), (0.0, 0.16)]
@@ -109,7 +109,7 @@ def triforium():
     span = 11.0 / 4
     for k in range(5):
         x = -5.5 + k * span
-        col = kit.lathe("col", [(0.0, 0.3), (0.16, 0.3), (0.16, 0.42), (0.1, 0.5), (0.1, 2.0), (0.14, 2.08), (0.2, 2.22), (0.2, 2.3), (0.0, 2.3)], 12, mat="glass_gold_m")
+        col = kit.lathe("col", [(0.0, 0.3), (0.16, 0.3), (0.16, 0.42), (0.1, 0.5), (0.1, 2.0), (0.14, 2.08), (0.2, 2.22), (0.2, 2.3), (0.0, 2.3)], 24, mat="glass_gold_m")
         col.location = (x, 0.15, 0)
         p.append(col)
         p.append(kit.torus("astragal", 0.11, 0.025, 16, 6, mat="brass", loc=(x, 0.15, 2.02)))
