@@ -24,7 +24,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Vector, noise
+from mathutils import Matrix, Vector, noise
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -473,6 +473,401 @@ def _build_rim_model():
     return [membrane, patches]
 
 
+# --- part_rim_north --------------------------------------------------------------------------------
+
+RN_X = (104.0, 131.0)      # plan x extent of the parapet
+RN_BALC = -31.5            # balcony-side face (toward -z): bulges at most to z -31.6
+RN_SHAFT = -29.9           # shaft-side face (toward +z), over the shell lip at z ~ -30.5
+RN_R = 0.5                 # round end radius (half the wall depth)
+RN_BOT = -3.2              # 0.2 m into the balcony floor
+RN_FLOOR = -3.0            # balcony floor top: the fillet foot
+RN_TOP = 0.2               # wall top between the tines
+RN_TINES = ((107.0, 1.8, 0.6), (115.0, 2.0, 1.0), (123.0, 2.0, 0.9), (129.0, 1.5, 0.6))  # (x, half width, height)
+RN_RIBS = (107.0, 115.0, 123.0)   # carapace_dull ribs, each climbs into a tine
+RN_CURL = 0.6              # tine tips curl this far toward +z, over the shaft
+RN_BALC_CAP = 0.095        # bulge toward the balcony (keeps z >= -31.6)
+RN_SHAFT_CAP = 0.35
+RN_STEP = 0.3              # plan spacing along the faces (m)
+RN_NY = 36                 # rows per column, floor to crest
+RN_COMB_BUDGET = 4000
+TOL_RN = 0.005
+
+
+def _rn_tine(x):
+    """Crest height above RN_TOP (>= 0): pointed tines, valleys flush with the wall top."""
+    t = 0.0
+    for cx, hw, h in RN_TINES:
+        u = abs(x - cx) / hw
+        if u < 1.0:
+            t = max(t, h * (1.0 - u) ** 1.5)
+    return t
+
+
+def _rn_fade(x):
+    """Fades bulges to zero at the wall ends."""
+    return _smooth01(min(x - RN_X[0], RN_X[1] - x) / 0.8)
+
+
+def _rn_front(x, y):
+    """Bulge (m, >= 0) of the balcony face at (x, y): shingles, ribs, and a fillet into the floor."""
+    h = y - RN_FLOOR
+    plate = rooms._plate(x - RN_X[0], h, 1.2, 0.8, 0.12)
+    rib = 0.0
+    for xr in RN_RIBS:
+        rib = max(rib, 0.05 * math.exp(-((x - xr) / 0.25) ** 2))
+    rib *= _smooth01((h - 0.4) / 0.8)
+    fil = 0.095 * math.sqrt(max(0.0, 1.0 - (h / 0.6) ** 2))
+    return min(RN_BALC_CAP, (plate + rib + fil) * _rn_fade(x))
+
+
+def _rn_shaft(x, y):
+    """Bulge (m, >= 0) of the shaft-side face at (x, y): shingle plates and rib bumps."""
+    h = y - RN_FLOOR
+    plate = rooms._plate(x - RN_X[0] + 0.6, h, 1.1, 0.75, 0.5)
+    rib = 0.0
+    for xr in RN_RIBS:
+        rib = max(rib, 0.18 * math.exp(-((x - xr) / 0.3) ** 2))
+    rib *= _smooth01((h - 0.4) / 0.8)
+    return min(RN_SHAFT_CAP, (plate + rib) * _rn_fade(x))
+
+
+def _rn_plan():
+    """Closed plan loop (x, z, nx, nz): balcony face z=RN_BALC, shaft face z=RN_SHAFT, round ends."""
+    cl, cr = RN_X[0] + RN_R, RN_X[1] - RN_R
+    zc = (RN_BALC + RN_SHAFT) / 2.0
+    nf = int(math.ceil((cr - cl) / RN_STEP))
+    K = 8
+    P = [(cl + (cr - cl) * i / nf, RN_BALC, 0.0, -1.0) for i in range(nf + 1)]
+    for k in range(1, K):                                                  # right return, balcony to shaft
+        th = -math.pi / 2 + math.pi * k / K
+        P.append((cr + RN_R * math.cos(th), zc + RN_R * math.sin(th), math.cos(th), math.sin(th)))
+    P += [(cr - (cr - cl) * i / nf, RN_SHAFT, 0.0, 1.0) for i in range(nf + 1)]   # shaft face, right to left
+    for k in range(1, K):                                                  # left return, shaft to balcony
+        th = math.pi / 2 + math.pi * k / K
+        P.append((cl + RN_R * math.cos(th), zc + RN_R * math.sin(th), math.cos(th), math.sin(th)))
+    return P
+
+
+def _rn_vertex(p, y):
+    """Plan point p at height y -> Godot (x, y, z): face bulges along the normal, tine tips curl toward +z."""
+    x, z, nx, nz = p
+    if nz < 0.0:
+        d = _rn_front(x, y) * (-nz)
+    else:
+        d = _rn_shaft(x, y) * nz
+    T = _rn_tine(x)
+    curl = 0.0
+    if y > RN_TOP and T > 1e-6:
+        curl = RN_CURL * min(1.0, T) * ((y - RN_TOP) / T) ** 2
+    return (x + nx * d, y, z + nz * d + curl)
+
+
+def _build_rim_north_model():
+    P = _rn_plan()
+    K = len(P)
+    bm = bmesh.new()
+    V = []
+    tops, allg = [], []
+    for p in P:
+        top = RN_TOP + _rn_tine(p[0])
+        col = []
+        for j in range(RN_NY):
+            y = RN_BOT + (top - RN_BOT) * j / (RN_NY - 1)
+            g = _rn_vertex(p, y)
+            col.append(bm.verts.new(rooms._blender(g)))
+            allg.append(g)
+            if j == RN_NY - 1:
+                tops.append(g)
+        V.append(col)
+    for k in range(K):
+        k2 = (k + 1) % K
+        for j in range(RN_NY - 1):
+            try:
+                bm.faces.new((V[k][j], V[k2][j], V[k2][j + 1], V[k][j + 1]))
+            except ValueError:
+                pass
+    for ring in ([V[k][0] for k in range(K)], [V[k][-1] for k in range(K)]):   # floor and crest caps
+        bmesh.ops.triangulate(bm, faces=[bm.faces.new(ring)])
+    bm.normal_update()
+    cen = rooms._blender((117.5, 0.5, -30.4))                                  # inside the wall
+    score = sum(f.normal.dot(f.calc_center_median() - cen) for f in bm.faces)
+    if score < 0.0:
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    for f in bm.faces:
+        g = comb_patch.to_g(f.calc_center_median())
+        rib = (f.normal.z < 0.5 and g[1] < RN_TOP and any(abs(g[0] - xr) < 0.3 for xr in RN_RIBS))
+        f.material_index = 1 if rib else 0
+        f.smooth = True
+    print("MEMBRANE part_rim_north tris %d (%d plan points, %d rows)" % (_tris(bm), K, RN_NY))
+
+    # self-check on final positions (Godot coordinates)
+    xs = [g[0] for g in allg]
+    zs = [g[2] for g in allg]
+    ys = [g[1] for g in allg]
+    assert min(zs) >= -31.6 - TOL_RN, "part_rim_north: balcony face beyond z -31.6 (%.3f)" % min(zs)
+    assert min(xs) >= RN_X[0] - TOL_RN and max(xs) <= RN_X[1] + TOL_RN, "part_rim_north: x out of 104..131"
+    assert min(ys) >= RN_BOT - TOL_RN and max(ys) <= RN_TOP + RN_CURL * 0 + 1.0 + TOL_RN, "part_rim_north: crest height"
+    crest = [g[1] for g in tops]
+    assert max(crest) >= RN_TOP + 0.5, "part_rim_north: no tine reaches 0.5 m above y=%.1f" % RN_TOP
+    print("SELFCHECK part_rim_north: balcony face min z %.3f (limit -31.00), shaft face max z %.3f, "
+          "x %.2f..%.2f, y %.2f..%.2f" % (min(zs), max(zs), min(xs), max(xs), min(ys), max(ys)))
+
+    # comb patches on the shaft face (never on the balcony face)
+    def radius(g):
+        return max(0.0, min(comb_patch.MAX_R, g[1] + 2.2, RN_TOP + 1.0 - g[1],
+                            g[0] - (RN_X[0] + 0.9), (RN_X[1] - 0.9) - g[0]))
+
+    def dn(g):
+        return g[2] - (RN_SHAFT + _rn_shaft(g[0], g[1]))
+
+    flows = []
+    for y, x0, x1, n in ((-0.7, 107.0, 127.0, 8),):
+        flow = []
+        for i in range(n + 1):
+            x = x0 + (x1 - x0) * i / n
+            origin = rooms._blender((x, y, RN_SHAFT + 2.0))
+            direction = rooms._blender((0.0, 0.0, -1.0))
+            flow.append((origin, direction, math.sin(math.pi * i / n)))
+        flows.append(flow)
+    bm.normal_update()
+    pbm, pst = comb_patch.build_flows(bm, "part_rim_north_comb", flows, radius, dn,
+                                      RN_TOP + 1.5, 0.5, RN_COMB_BUDGET)
+    for v in pbm.verts:
+        g = comb_patch.to_g(v.co)
+        assert RN_X[0] < g[0] < RN_X[1] and -1.5 <= g[1] <= RN_TOP + 1.5, "part_rim_north: comb at %s" % (g,)
+        assert g[2] >= RN_SHAFT - 0.06, "part_rim_north: comb on the balcony side at %s" % (g,)
+    print("TRIS part_rim_north membrane %d, comb %d" % (_tris(bm), pst["tris"]))
+    membrane = _finish("part_rim_north", bm, ["carapace", "carapace_dull"])
+    if not pbm.faces:
+        return [membrane]
+    patches = comb_patch.make_object("part_rim_north_comb", pbm)
+    return [membrane, patches]
+
+
+# --- rim_backdrop ----------------------------------------------------------------------------------
+
+BD_BASE = -12.0            # cliff foot (hidden below the balcony floor)
+BD_TOP = (16.0, 28.0)      # crest height range (irregular)
+BD_T = 4.5                 # wall thickness, front face to back face
+BD_STEP = 0.4              # sampling along the cliff (m)
+BD_NY = 44                 # rows per cross-section, base to crest
+BD_RIB = 6.0               # buttress rib spacing along the cliff (m)
+BD_CELLS = ((10.0, 6.0, 1.6), (18.0, 11.0, 2.2), (26.0, 4.0, 1.4), (34.0, 9.0, 2.5),
+            (42.0, 14.0, 1.8), (49.0, 6.0, 2.0), (56.0, 11.0, 1.5), (58.0, 3.5, 1.2))  # hex wax cups: (s, y, radius)
+BD_DRIPS = ((8.0, 2.4), (16.0, 3.2), (24.0, 2.0), (36.0, 3.6), (42.0, 2.6), (60.0, 3.0))  # (arc s, length)
+
+
+def _bd_polyline():
+    """Front face of the cliff in plan (x, z): main arc z = -47 - 5 sin, a quarter-round corner, then north."""
+    P = []
+    for i in range(451):
+        x = 96.0 + 45.0 * i / 450.0
+        P.append((x, -47.0 - 5.0 * math.sin(math.pi * (x - 96.0) / 45.0)))
+    for i in range(1, 31):
+        a = -math.pi / 2 + (math.pi / 2) * i / 30.0
+        P.append((141.0 + 4.0 * math.cos(a), -43.0 + 4.0 * math.sin(a)))
+    for i in range(1, 31):
+        P.append((145.0, -43.0 + 13.0 * i / 30.0))
+    return P
+
+
+def _bd_path():
+    """Resampled front path: list of (arc s, x, z, nx, nz), normal toward the room (left of travel)."""
+    poly = _bd_polyline()
+    cum = [0.0]
+    for (x0, z0), (x1, z1) in zip(poly, poly[1:]):
+        cum.append(cum[-1] + math.hypot(x1 - x0, z1 - z0))
+    L = cum[-1]
+    N = int(round(L / BD_STEP))
+    raw = []
+    j = 0
+    for i in range(N + 1):
+        s = L * i / N
+        while j < len(cum) - 2 and cum[j + 1] < s:
+            j += 1
+        seg = cum[j + 1] - cum[j]
+        t = (s - cum[j]) / seg if seg > 1e-12 else 0.0
+        raw.append((s, poly[j][0] + (poly[j + 1][0] - poly[j][0]) * t,
+                    poly[j][1] + (poly[j + 1][1] - poly[j][1]) * t))
+    P = []
+    for i in range(N + 1):
+        a = raw[max(i - 1, 0)]
+        b = raw[min(i + 1, N)]
+        tx, tz = b[1] - a[1], b[2] - a[2]
+        m = math.hypot(tx, tz)
+        tx, tz = tx / m, tz / m
+        P.append((raw[i][0], raw[i][1], raw[i][2], -tz, tx))
+    return P, L
+
+
+def _bd_top(s):
+    n = noise.noise(Vector((s * 0.09, 1.3, 5.0)))
+    m = noise.noise(Vector((s * 0.35, 4.1, 9.0)))
+    return min(BD_TOP[1], max(BD_TOP[0], 23.0 + 5.0 * n + 1.5 * m))
+
+
+def _bd_fade(s, L):
+    return _smooth01(min(s, L - s) / 3.0)
+
+
+def _bd_front(s, y, L):
+    """Bulge (m, >= 0) of the front face: shingle plates, buttress ribs and a slow swell."""
+    plate = rooms._plate(s, y - BD_BASE, 2.0, 1.6, 0.7)
+    kk = max(0, round((s - 3.0) / BD_RIB))
+    rib = 0.9 * math.exp(-((s - (3.0 + BD_RIB * kk)) / 0.45) ** 2)
+    swell = 0.5 * max(0.0, noise.noise(Vector((s * 0.06, y * 0.05, 2.2))))
+    d = (0.2 + swell + 0.9 * plate + rib) * _bd_fade(s, L)
+    return min(1.6, max(0.0, d))
+
+
+def _bd_back(s, y, L):
+    """Small bumps on the back face (its x limit is 149.8 on the east run)."""
+    d = 0.4 * max(0.0, noise.noise(Vector((s * 0.1, y * 0.1, 7.7))))
+    return min(0.2, d) * _bd_fade(s, L)
+
+
+def _bd_point(P, s):
+    """(x, z, nx, nz) of the front path at arc s, by the nearest sample and the tangent."""
+    ds = P[1][0] - P[0][0]
+    i = min(len(P) - 1, max(0, int(round(s / ds))))
+    s0, x, z, nx, nz = P[i]
+    d = s - s0
+    return x + nz * d, z - nx * d, nx, nz
+
+
+def _bd_thick(s, L):
+    """Front-to-back thickness at arc s: the ends round off into a nose instead of a flat cut face."""
+    e = min(s, L - s, 4.0)
+    return BD_T * max(0.05 / BD_T, math.sqrt(max(0.0, 1.0 - ((4.0 - e) / 4.0) ** 2)))
+
+
+def _bd_cells(P, L):
+    """Hex wax cups on the front face: rim proud of the wall, inner ring sunk, amber centre."""
+    cb = bmesh.new()
+    pts = []
+
+    def at(s_c, y_c, du, dy, pull):
+        s_v, y_v = s_c + du, y_c + dy
+        x, z, nx, nz = _bd_point(P, s_v)
+        f = _bd_front(s_v, y_v, L) + pull
+        return (x + nx * f, y_v, z + nz * f), (nx, nz)
+
+    for s_c, y_c, r in BD_CELLS:
+        outer, inner = [], []
+        for k in range(6):
+            ca, sa = math.cos(math.pi * k / 3.0), math.sin(math.pi * k / 3.0)
+            g, _ = at(s_c, y_c, r * ca, r * sa, 0.03)
+            outer.append(cb.verts.new(rooms._blender(g)))
+            pts.append(g)
+            g, _ = at(s_c, y_c, 0.6 * r * ca, 0.6 * r * sa, -0.25)
+            inner.append(cb.verts.new(rooms._blender(g)))
+            pts.append(g)
+        g0, (nx, nz) = at(s_c, y_c, 0.0, 0.0, -0.4)
+        centre = cb.verts.new(rooms._blender(g0))
+        pts.append(g0)
+        room = rooms._blender((g0[0] + nx * 0.5, g0[1], g0[2] + nz * 0.5)) - rooms._blender(g0)
+        faces = []
+        for k in range(6):
+            k1 = (k + 1) % 6
+            q = cb.faces.new((outer[k], outer[k1], inner[k1], inner[k]))
+            q.material_index = 0
+            t = cb.faces.new((inner[k], inner[k1], centre))
+            t.material_index = 1
+            faces += [q, t]
+        cb.normal_update()
+        for f in faces:
+            if f.normal.dot(room) < 0.0:
+                bmesh.ops.reverse_faces(cb, faces=[f])
+        cb.normal_update()
+    return cb, pts
+
+
+def _build_backdrop():
+    P, L = _bd_path()
+    N = len(P) - 1
+    NR = 2 * BD_NY
+    bm = bmesh.new()
+    V = []
+    shell_g = []
+    ref = desire = None
+    for i, (s, x, z, nx, nz) in enumerate(P):
+        top = _bd_top(s)
+        front, back = [], []
+        t = _bd_thick(s, L)
+        for j in range(BD_NY):
+            y = BD_BASE + (top - BD_BASE) * j / (BD_NY - 1)
+            df = _bd_front(s, y, L)
+            db = _bd_back(s, y, L)
+            front.append((x + nx * df, y, z + nz * df))
+            back.append((x - nx * (t + db), y, z - nz * (t + db)))
+        if i == N // 2:
+            desire = rooms._blender(front[BD_NY // 2]) - rooms._blender(back[BD_NY // 2])
+        ring = front + back[::-1]                                  # r < NY: front column, r >= NY: back column
+        shell_g.extend(ring)
+        V.append([bm.verts.new(rooms._blender(g)) for g in ring])
+    for i in range(N):
+        s_mid = 0.5 * (P[i][0] + P[i + 1][0])
+        kk = max(0, round((s_mid - 3.0) / BD_RIB))
+        rib = abs(s_mid - (3.0 + BD_RIB * kk)) < 0.5
+        for r in range(NR):
+            r2 = (r + 1) % NR
+            try:
+                f = bm.faces.new((V[i][r], V[i][r2], V[i + 1][r2], V[i + 1][r]))
+            except ValueError:
+                continue
+            f.smooth = True
+            f.material_index = 1 if (rib and r < BD_NY - 1) else 0
+            if i == N // 2 and r == BD_NY // 2:
+                ref = f
+    cap0 = bm.faces.new(V[0])
+    capN = bm.faces.new(V[N])
+    bm.normal_update()
+    if ref.normal.dot(desire) < 0.0:                               # outward normals
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+        bm.normal_update()
+    t0 = rooms._blender((P[0][4], 0.0, -P[0][3]))
+    tN = rooms._blender((P[N][4], 0.0, -P[N][3]))
+    for cap, want in ((cap0, -t0), (capN, tN)):
+        if cap.normal.dot(want) < 0.0:
+            bmesh.ops.reverse_faces(bm, faces=[cap])
+    bmesh.ops.triangulate(bm, faces=[cap0, capN])
+    bm.normal_update()
+    print("MEMBRANE rim_backdrop shell tris %d (%d path rows, %d rows per section)" % (_tris(bm), N + 1, BD_NY))
+
+    # hex wax cups on the front face (own geometry; the comb_patch flows produced no cells)
+    cb, cell_g = _bd_cells(P, L)
+
+    # honey drips hanging from the crest
+    bd = bmesh.new()
+    for s, dl in BD_DRIPS:
+        x, z, nx, nz = _bd_point(P, s)
+        y_top = _bd_top(s) - 0.6
+        off = _bd_front(s, y_top, L) + 0.05
+        centre = (x + nx * off, y_top - dl / 2.0, z + nz * off)
+        bmesh.ops.create_cone(bd, cap_ends=True, cap_tris=False, segments=6, radius1=0.08, radius2=0.22,
+                              depth=dl, matrix=Matrix.Translation(rooms._blender(centre)))
+
+    # self-check on final positions (Godot coordinates)
+    allg = shell_g + cell_g
+    for g in allg:
+        assert 96.0 - BD_T - TOL_RN <= g[0] <= 149.8, "rim_backdrop: x %.3f outside 91.5..149.8 at %s" % (g[0], g)
+        assert BD_BASE - TOL_RN <= g[1] <= BD_TOP[1] + TOL_RN, "rim_backdrop: y %.3f out of range" % g[1]
+        if 104.0 <= g[0] <= 131.0:
+            assert g[2] <= -42.5 + TOL_RN, "rim_backdrop: %s is closer than z -42.5 behind the rim" % (g,)
+    print("SELFCHECK rim_backdrop: %d shell verts, %d cell verts, nothing closer than z -42.5 behind the rim"
+          % (len(shell_g), len(cell_g)))
+    for name, pts in (("rim_backdrop", shell_g), ("rim_backdrop_cells", cell_g)):
+        print("EXTENTS %s x %.2f..%.2f  y %.2f..%.2f  z %.2f..%.2f" % (
+            name, min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts),
+            max(p[1] for p in pts), min(p[2] for p in pts), max(p[2] for p in pts)))
+    print("TRIS rim_backdrop shell %d, cells %d (%d cups), drips %d"
+          % (_tris(bm), _tris(cb), len(BD_CELLS), _tris(bd)))
+
+    return [_finish("rim_backdrop", bm, ["carapace", "carapace_dull"]),
+            _finish("rim_backdrop_cells", cb, ["wax", "amber"]),
+            _finish("rim_backdrop_drips", bd, ["amber"])]
+
+
 def build(args):
     name = args[0] if args else "part_guild"
     if name == "part_guild":
@@ -481,4 +876,9 @@ def build(args):
         return _build_vault()
     if name == "part_rim":
         return _build_rim_model()
-    raise SystemExit("partitions.py: unknown part %r (part_guild, part_vault or part_rim)" % name)
+    if name == "part_rim_north":
+        return _build_rim_north_model()
+    if name == "rim_backdrop":
+        return _build_backdrop()
+    raise SystemExit("partitions.py: unknown part %r (part_guild, part_vault, part_rim, part_rim_north or "
+                     "rim_backdrop)" % name)
