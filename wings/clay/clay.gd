@@ -51,6 +51,7 @@ var _tick: int = 0
 var _saved: Dictionary = {}
 var _aim_kind: StringName = &""
 var _aim: Vector3 = Vector3.INF
+var _taught := false  # the ground's prompt shows until the first pull, press or scoop
 var _scooped: bool = false
 var _pulled: bool = false
 var _tool: bool = false
@@ -227,6 +228,17 @@ func _physics_process(_delta: float) -> void:
 		_aim_kind = &"boulder"
 	elif col is StaticBody3D and col.has_meta("clay_press"):
 		_aim_kind = StringName(col.get_meta("clay_press"))
+
+
+## The rule's prompt: the soft ground until she has reshaped it once; things to press, always.
+func verb_prompt() -> Dictionary:
+	match _aim_kind:
+		&"terrain":
+			if not _taught:
+				return {"action": &"primary", "text": "scoop the clay out" if _in_pit(_aim) else "pull the clay up", "hold": true}
+		&"boulder", &"gate", &"plug":
+			return {"action": &"secondary", "text": "press it down", "hold": true}
+	return super()
 
 
 # --- the ground as a function of place (the undeformed clay) ---------------------------------
@@ -685,6 +697,7 @@ func _on_beat(_dt: float) -> void:
 	if _aim_kind != &"plug":
 		_plug_press = maxf(0.0, _plug_press - STEP * 0.5)
 	_crumbs.emitting = working and _aim_kind == &"terrain"
+	_taught = _taught or _crumbs.emitting
 	if _crumbs.emitting:
 		_crumbs.global_position = _aim
 	var reshaped := terrain.dirty

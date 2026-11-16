@@ -23,6 +23,9 @@ func run() -> void:
 	print("  intro ran %.1fs" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	check(Save.data["hub"]["seen_intro"] == true, "intro recorded")
 	await until(func() -> bool: return not Transitions.busy and Game.player.input_enabled, 10.0, "control handed to the player")
+	# a fresh player's first walk: straight down the entrance axis to the sphere's dais, nothing in the way
+	var from := Game.player.global_position
+	check(await walk_to(Vector3(0, 0, 8.0), 8.0, 0.5), "a straight walk from the hub spawn (%s) reaches the sphere dais" % from)
 
 	for i in ORDER.size():
 		var id := ORDER[i]
@@ -87,7 +90,6 @@ func _ending(choice: StringName) -> void:
 	if not check(hub.call("finale_available"), "%s: finale available with six fragments" % choice):
 		return
 	await walk_to(Vector3(0, 0, RING), 20.0, 0.8)
-	await walk_to(Vector3(2.6, 0, 14.0), 20.0, 0.5)  # round the bench at z=11.5
 	await walk_to(Vector3(1.6, 0, 5.0), 20.0, 0.5)
 	await look_at(Vector3(0, 6.2, 0))
 	await frames(4)

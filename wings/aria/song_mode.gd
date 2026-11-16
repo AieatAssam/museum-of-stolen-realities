@@ -98,6 +98,10 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 			return false
 
 
+func prompt() -> Dictionary:
+	return {"action": &"primary", "text": "strike it"} if _aimed() else {}
+
+
 func _aimed() -> Node3D:
 	var cam := player.camera
 	var fwd := -cam.global_basis.z

@@ -3,6 +3,14 @@ extends CanvasLayer
 ## and the Curator's latest placards. Everything the one-line HUD leaves out lives here.
 ## Built by Game.open_menu(&"journal").
 
+var _scroll: ScrollContainer
+
+
+func _input(e: InputEvent) -> void:
+	for a: StringName in [&"ui_down", &"ui_up", &"move_back", &"move_forward"]:
+		if e.is_action_pressed(a, true):
+			_scroll.scroll_vertical += 90 if a in [&"ui_down", &"move_back"] else -90
+
 
 func _ready() -> void:
 	layer = 85
@@ -41,8 +49,12 @@ func _ready() -> void:
 		row.add_child(Style.label(meta, Style.TEXT, Style.SIZE_META, Style.IVORY_DIM))
 		left.add_child(row)
 
-	# right: the present gallery
-	var right := _col(cols)
+	# right: the present gallery (scrolls when a wing's objectives and placards outgrow the page)
+	_scroll = ScrollContainer.new()
+	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cols.add_child(_scroll)
+	var right := _col(_scroll)
 	var info := Game.registry.get_info(Quest.wing_id)
 	right.add_child(Style.label(info.title if info else "The Atrium", Style.DISPLAY, Style.SIZE_HEADING, Style.IVORY))
 	if Quest.objectives.is_empty():

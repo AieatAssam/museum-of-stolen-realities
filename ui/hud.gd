@@ -3,6 +3,9 @@ extends CanvasLayer
 ## rest lives in the journal), the crosshair dot with its hold ring, and the interaction prompt
 ## below the centre of the view. Created by Game; never instanced by wings.
 
+## In the 1920x1080 canvas (stretch mode canvas_items scales it: 35 px at 1440p, 52 px at 2160p).
+const HUD_SIZE := Style.SIZE_BODY + 4
+
 var _obj: PanelContainer
 var _obj_label: Label
 var _dot: Control
@@ -20,10 +23,10 @@ func _ready() -> void:
 	add_child(root)
 
 	_obj = PanelContainer.new()
-	_obj.add_theme_stylebox_override(&"panel", Style.backing(0.7, 14))
+	_obj.add_theme_stylebox_override(&"panel", Style.backing(0.9, 14))  # solid enough over a lit window
 	_obj.position = Vector2(48, 44)
 	_obj.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_obj_label = Style.label("", Style.TEXT, Style.SIZE_BODY, Style.IVORY)
+	_obj_label = Style.label("", Style.TEXT, HUD_SIZE, Style.IVORY)
 	_obj.add_child(_obj_label)
 	root.add_child(_obj)
 
@@ -38,14 +41,14 @@ func _ready() -> void:
 
 	# Prompt: under the centre (at 70% height), never over it.
 	_prompt = PanelContainer.new()
-	_prompt.add_theme_stylebox_override(&"panel", Style.backing(0.7, 12))
+	_prompt.add_theme_stylebox_override(&"panel", Style.backing(0.9, 12))
 	_prompt.anchor_left = 0.5
 	_prompt.anchor_right = 0.5
 	_prompt.anchor_top = 0.7
 	_prompt.anchor_bottom = 0.7
 	_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_prompt_text = Style.label("", Style.TEXT, Style.SIZE_BODY, Style.IVORY, HORIZONTAL_ALIGNMENT_CENTER)
+	_prompt_text = Style.label("", Style.TEXT, HUD_SIZE, Style.IVORY, HORIZONTAL_ALIGNMENT_CENTER)
 	_prompt.add_child(_prompt_text)
 	_prompt.modulate.a = 0.0
 	root.add_child(_prompt)
@@ -79,10 +82,15 @@ func _process(delta: float) -> void:
 	var show_obj := playing and (_idle < 9.0 or Input.is_action_pressed(&"journal")) and _obj_label.text != ""
 	_obj.modulate.a = lerpf(_obj.modulate.a, 1.0 if show_obj else 0.0, 1.0 - exp(-3.0 * delta))
 	var t := Interaction.target if is_instance_valid(Interaction.target) else null
+	var vp := {}
 	if t:
 		var key := _key_name(&"interact")
 		_prompt_text.text = ("Hold %s: %s" if t.hold_time > 0.0 else "%s: %s") % [key, t.prompt.left(1).to_lower() + t.prompt.substr(1)]
-	_prompt.modulate.a = lerpf(_prompt.modulate.a, 1.0 if (t and playing) else 0.0, 1.0 - exp(-10.0 * delta))
+	elif playing and Game.wing and Game.player:
+		vp = Game.wing.verb_prompt()  # the wing's verb, where it can be used now
+		if not vp.is_empty():
+			_prompt_text.text = ("Hold %s: %s" if vp.get("hold", false) else "%s: %s") % [_key_name(vp["action"]), vp["text"]]
+	_prompt.modulate.a = lerpf(_prompt.modulate.a, 1.0 if ((t or not vp.is_empty()) and playing) else 0.0, 1.0 - exp(-10.0 * delta))
 	_dot.visible = playing
 	_dot.queue_redraw()
 
@@ -91,4 +99,10 @@ func _key_name(action: StringName) -> String:
 	for e in InputMap.action_get_events(action):
 		if e is InputEventKey:
 			return (e as InputEventKey).as_text_physical_keycode().trim_suffix(" (Physical)")
+		if e is InputEventMouseButton:
+			match (e as InputEventMouseButton).button_index:
+				MOUSE_BUTTON_LEFT:
+					return "Left click"
+				MOUSE_BUTTON_RIGHT:
+					return "Right click"
 	return "Interact"

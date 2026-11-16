@@ -33,6 +33,13 @@ func on_verb(_verb: StringName, _pressed: bool) -> bool:
 	return false
 
 
+## The verb prompt the HUD shows in the interaction prompt's place when no Interactable is under the
+## crosshair, e.g. {"action": &"primary", "text": "spin a line"} (+ "hold": true), or {} for none.
+## Teach the wing's verb where it can be used; never as a popup.
+func prompt() -> Dictionary:
+	return {}
+
+
 ## 0..1 multiplier on head bob / footsteps.
 func bob_scale() -> float:
 	return 1.0

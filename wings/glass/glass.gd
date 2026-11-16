@@ -507,6 +507,32 @@ func _catch(a: Vector3, b: Vector3) -> void:
 	add_child(tz)
 
 
+## Local haze filling a pit, thickest at the bottom, so looking or falling into it shows depth.
+func _haze(a: Vector3, b: Vector3) -> void:
+	var fv := FogVolume.new()
+	fv.size = (b - a).abs()
+	fv.position = (a + b) * 0.5
+	var fm := FogMaterial.new()
+	fm.density = 0.25
+	fm.albedo = Color(0.32, 0.4, 0.62)
+	fm.emission = Color(0.03, 0.045, 0.09)
+	fm.edge_fade = 0.3
+	fv.material = fm
+	geo.add_child(fv)
+	# a floor of the haze's own colour under it: the background never shows through as a flat void
+	var fl := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(fv.size.x + 20.0, fv.size.z + 20.0)  # past the walls' feet
+	fl.mesh = pm
+	var um := StandardMaterial3D.new()
+	um.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	um.albedo_color = Color(0.07, 0.09, 0.16)
+	fl.material_override = um
+	fl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fl.position = Vector3(fv.position.x, a.y + 1.8, fv.position.z)
+	geo.add_child(fl)
+
+
 func _zone(a: Vector3, b: Vector3, cb: Callable, once: bool = true) -> TriggerZone:
 	var tz := TriggerZone.make_box((b - a).abs(), once)
 	tz.position = (a + b) * 0.5
@@ -663,7 +689,14 @@ func _build_cloister() -> void:
 			var p := Vector3(u, 0, 11) if side == 0 else (Vector3(u, 0, -11) if side == 1 else (Vector3(11, 0, u) if side == 2 else Vector3(-11, 0, u)))
 			if side >= 2 and absf(u) < 5.5:
 				continue
-			_block(p + Vector3(-0.3, 0, -0.3), p + Vector3(0.3, 5.2, 0.3), "glass_gold").visible = false
+			# the pier stands on the walk's rim over the garth: a round collider lets a player
+			# strafing along the edge slide past it instead of catching on a square corner
+			var pc := _block(p + Vector3(-0.3, 0, -0.3), p + Vector3(0.3, 5.2, 0.3), "glass_gold")
+			pc.visible = false
+			var cyl := CylinderShape3D.new()
+			cyl.radius = 0.3
+			cyl.height = 5.2
+			((pc.get_child(0) as StaticBody3D).get_child(0) as CollisionShape3D).shape = cyl
 			_pier_xf(cpier, p, 5.2, [5.2], 0.5)
 			# pointed arches between the piers, 3 m span (the nave arch scaled down)
 			if k < 7 and not (side >= 2 and absf(u + 3.0) < 5.5):
@@ -680,6 +713,9 @@ func _build_cloister() -> void:
 	# the garth is a light-well: a column of white falls into it forever
 	var well := _spot(Vector3(0, 40, 0), Vector3(0, -20, 0), Color("fff1d2"), 16.0, 16.0, 70.0)
 	well.light_volumetric_fog_energy = 4.0
+	# a fall into the well (or the gap) ends in haze a few metres down, not a long drop to a flat void
+	_haze(Vector3(-17.5, -16, -17.5), Vector3(17.5, -1.5, 17.5))
+	_catch(Vector3(-17.5, -4.5, -17.5), Vector3(17.5, -3.5, 17.5))
 	# four lancets in the outer walls tell the Kingdom's ordinary days and light the walks
 	_lancet("c1", Vector3(17.45, 4.6, 8.5), 1.9, Vector3(-1, 0, 0), "cloister_1", 0.0, Vector3(13.5, 0, 6.0), 5.0)
 	_lancet("c2", Vector3(17.45, 4.6, -8.5), 1.9, Vector3(-1, 0, 0), "cloister_2", 0.0, Vector3(13.5, 0, -6.0), 5.0)
@@ -796,6 +832,7 @@ func _build_nave() -> void:
 	pts["p2_m2"] = Vector3(-1.2, 0, -62.0)
 	_zone(Vector3(-4, 0, -65), Vector3(4, 3, -59), func() -> void: complete_step(&"light", &"clockwork"))
 	_catch(Vector3(-15.5, -4, -80), Vector3(15.5, -3, -34))
+	_haze(Vector3(-15.5, -16, -80), Vector3(15.5, -1.5, -34))  # the abyss reads as depth, not a flat floor
 	_placard(Vector3(7, 1.5, -18.2), Vector3(0, 0, -1), "Windows of the nave", "Re-leaded under the present administration", "Stained glass, lead", "214.2",
 		"Each saint has been lifted out of her own miracle and replaced by a pedestal. The miracles proceed regardless. The pedestals are empty. This is described as an improvement.")
 

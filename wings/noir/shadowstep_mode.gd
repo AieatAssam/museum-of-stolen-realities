@@ -50,6 +50,24 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 	return true
 
 
+## Shown while a dark wall is in latch reach (and how to let go once latched).
+func prompt() -> Dictionary:
+	if latched:
+		return {"action": &"secondary", "text": "let go of the wall"}
+	var p := player
+	if p.camera == null:
+		return {}
+	var ex: Array[RID] = [p.get_rid()]
+	var from := p.head.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from - p.camera.global_basis.z * LATCH_RANGE, 1, ex)
+	var res := p.get_world_3d().direct_space_state.intersect_ray(q)
+	if res.is_empty() or (res["normal"] as Vector3).dot(p.up_direction) > 0.7:
+		return {}  # floors are no use to cling to
+	if ShadowField.lit(p, (res["position"] as Vector3) + (res["normal"] as Vector3) * 0.2, ex):
+		return {}
+	return {"action": &"secondary", "text": "cling to the dark wall"}
+
+
 func try_latch() -> bool:
 	var p := player
 	var ex: Array[RID] = [p.get_rid()]

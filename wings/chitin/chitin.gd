@@ -28,6 +28,7 @@ const C_INTERACT := Color("e0c040")
 const C_HAZARD := Color("c0392b")
 const C_GOAL := Color("2ecc71")
 const C_AMBER := Color("ffb03a")
+const DEMO_HOOK := Vector3(-9, 4.6, 0)
 
 const GUILD_STANDARD := 8.0
 const QUEENS_SPAN := 6.0
@@ -258,7 +259,12 @@ func _build_gate(area: Node3D) -> void:
 	_ledge(geo, Vector3(-13, 0, -6), Vector3(-11, 7, -3), _mat["membrane"])
 	_ledge(geo, Vector3(-13, 0, 3), Vector3(-11, 7, 6), _mat["membrane"])
 	_ledge(geo, Vector3(-13, 7, -6), Vector3(-11, 9, 6), _mat["membrane"])
-	_anchor(area, Vector3(6, 10, 0))
+	# the wing's rule, shown before it is needed: a low hook over solid walkway, in the crosshair from
+	# the start, so the first line is a short swing that cannot fall (DESIGN_RULES §1, arrival). Its
+	# rope is clamped short over the floor (silk_mode.fire), so she swings and lands on the walkway.
+	_beacon(_anchor(area, DEMO_HOOK), 4.0, 3.2)
+	# then the gap's hook: the brightest thing at the lip
+	_beacon(_anchor(area, Vector3(6, 10, 0)), 9.0, 5.0)
 	_abyss(area, Vector3(0, -14, -16), Vector3(13, -10, 16))
 	_zone(area, Vector3(13, -3, -14), Vector3(28, 0, 14), func() -> void: complete_step(&"gate", &"swing"))
 	_placard(area, Vector3(-11.9, 1.4, -2.7), Vector3(0, 0, 1), "The molted gate", "Shed in the present reign", "Chitin, one hinge",
@@ -698,6 +704,10 @@ func _dress() -> void:
 		if p.x > -13.5 and p.x < -10.5 and p.y > 1.0:  # not the floor under them
 			_hide_mesh(b)
 	L.put("gate", Transform3D(Basis.IDENTITY, Vector3(-12, 0, 0)))
+	# the arrival walkway: a pale fill washing both walls, so the carapace ribs read on the way in
+	for x: float in [-22.0, -14.0, -5.0]:
+		for z: float in [-7.0, 7.0]:
+			L.light(Vector3(x, 3.2, z), Color(0.85, 0.95, 0.9), 2.2, 10.0, 0.0).light_specular = 0.15
 	# the usher, the doors, the curtain, the case, the dais: models in their boxes
 	_skin(_usher, "usher", Basis(Vector3.UP, -PI / 2.0))
 	_skin(_guild_door, "door_guild")
@@ -1221,6 +1231,19 @@ func _swap_visual(a: Node3D, model: String, glint: float = 0.7) -> Node3D:
 
 
 ## A soft additive billboard glow (a radial gradient), the way a lamp reads through haze.
+## A teaching hook: a wide warm glint and its own light, so it outshines the comb around it.
+func _beacon(a: Node3D, energy: float, glint: float) -> void:
+	var g := _halo(glint, Color(1.0, 0.8, 0.45, 0.85))
+	g.name = "Beacon"
+	a.add_child(g)
+	var l := OmniLight3D.new()
+	l.light_color = Color("ffcf8a")
+	l.light_energy = energy
+	l.omni_range = 7.0
+	l.light_volumetric_fog_energy = 1.5
+	a.add_child(l)
+
+
 func _halo(size: float, col: Color) -> Sprite3D:
 	var s := Sprite3D.new()
 	var gt := GradientTexture2D.new()
