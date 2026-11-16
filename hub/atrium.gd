@@ -366,9 +366,9 @@ func _build_dais_and_sphere() -> void:
 	_sphere_light = OmniLight3D.new()
 	_sphere_light.light_color = _sphere_tint()
 	_sphere_light.omni_range = 17.0  # the brightest pool in the hall: the floor glows round the dais
-	_sphere_light.light_energy = 2.6
+	_sphere_light.light_energy = 3.4
 	_sphere_light.shadow_enabled = false
-	_sphere_light.light_volumetric_fog_energy = 2.5
+	_sphere_light.light_volumetric_fog_energy = 0.6  # a halo, not milk
 	_sphere.add_child(_sphere_light)
 	# finale interaction at the sphere
 	var it := Interactable.make_box(Vector3(6.0, 6.0, 6.0), "Touch Exhibit 0")
@@ -538,6 +538,15 @@ func _build_alcove() -> void:
 	coffer.light_volumetric_fog_energy = 0.0
 	coffer.position = Vector3(0, 4.2, -4.0)
 	root.add_child(coffer)
+	for s: float in [-1.0, 1.0]:  # floor practicals between the plinth rows: the marble aisle reads
+		var low := OmniLight3D.new()
+		low.light_color = Color(1.0, 0.78, 0.52)
+		low.light_energy = 3.2
+		low.omni_range = 7.5
+		low.light_volumetric_fog_energy = 0.0
+		low.light_specular = 0.3
+		low.position = Vector3(s * 2.7, 1.0, -3.6)
+		root.add_child(low)
 	var plq := Placard.new()
 	plq.position = Vector3(-4.7, 1.55, 0.8)
 	root.add_child(plq)
@@ -689,6 +698,15 @@ func _build_docents() -> void:
 		var xf: Transform3D = spots[i]
 		var d := _model("docent", xf)
 		var head: Node3D = d.find_child("head", true, false)
+		var key := SpotLight3D.new()  # a soft key from above and in front: the dark robe reads as a figure
+		key.light_color = Color(1.0, 0.86, 0.68)
+		key.light_energy = 5.0
+		key.spot_range = 7.0
+		key.spot_angle = 24.0
+		key.light_volumetric_fog_energy = 0.0
+		key.light_specular = 0.4
+		key.transform = _aim(Vector3(0.6, 4.6, 2.4), Vector3(0, 1.5, 0))
+		d.add_child(key)
 		_docents.append({"root": d, "head": head, "next": 4.0 + randf() * 6.0, "phase": float(i) * 1.7,
 			"arms": [d.find_child("arm_L", true, false), d.find_child("arm_R", true, false)],
 			"pencil": d.find_child("pencil", true, false)})
@@ -710,7 +728,7 @@ func _build_bench(p: Vector3) -> void:
 
 func _build_atmosphere() -> void:
 	# volumetric shafts falling through the oculus; dust drifts only inside them
-	var shafts := [[Vector3(-2, 48, 3), Vector3(0, 0, 0), 9.0], [Vector3(2.5, 48, -2.5), Vector3(9, 0, -4), 7.0], [Vector3(-1.5, 48, -2), Vector3(-10, 0, -9), 6.0]]
+	var shafts := [[Vector3(-2, 48, 3), Vector3(-6, 0, 7), 9.0], [Vector3(2.5, 48, -2.5), Vector3(9, 0, -4), 7.0], [Vector3(-1.5, 48, -2), Vector3(-10, 0, -9), 6.0]]
 	var dust := _dust_mesh()
 	for sh: Array in shafts:
 		var top: Vector3 = sh[0]
@@ -718,7 +736,7 @@ func _build_atmosphere() -> void:
 		var lo := bot.lerp(top, 0.03)
 		var hi := bot.lerp(top, 0.4)
 		_dust_column(dust, lo, hi, 1.6 if sh == shafts[0] else 1.1, 70 if sh == shafts[0] else 40)
-	_dust_column(dust, Vector3(0, 0.5, 0), Vector3(0, 9.0, 0), 4.0, 50)  # around Exhibit 0's light
+	_dust_column(dust, Vector3(0, 0.5, 0), Vector3(0, 3.5, 0), 4.0, 30)  # around Exhibit 0's light
 	for i in shafts.size():
 		var s := SpotLight3D.new()
 		s.light_color = Color(1.0, 0.88, 0.7)
@@ -788,22 +806,37 @@ func _build_atmosphere() -> void:
 		cove.transform = _aim(Vector3(sin(a), 0, cos(a)) * (APOTHEM - 2.0) + Vector3(0, 18.5, 0),
 			Vector3(-sin(a), 0, -cos(a)) * 6.0 + Vector3(0, 36.0, 0))
 		add_child(cove)
-	# (2) perimeter wash: the damask between the frames reads as wall, not void (dimmer than any pool)
+	# (2) wall washers: one wide spot per bay under the gallery soffit, grazing the damask from above so
+	# the green pattern reads between the columns (dimmer than any pool); a low fill under the gallery
+	# lifts the dado and the floor margin it reflects in
 	for i in 12:
+		if i == ALCOVE_BAY:
+			continue
 		var a := float(i) * TAU / 12.0
-		var wash := OmniLight3D.new()
-		wash.light_color = Color(1.0, 0.74, 0.5)
-		wash.light_energy = 4.0
-		wash.omni_range = 12.0
-		wash.omni_attenuation = 0.9
+		var dir := Vector3(sin(a), 0, cos(a))
+		var wash := SpotLight3D.new()
+		wash.light_color = Color(1.0, 0.8, 0.58)
+		wash.light_energy = 16.0
+		wash.spot_range = 16.0
+		wash.spot_angle = 58.0
+		wash.spot_attenuation = 0.5
 		wash.light_volumetric_fog_energy = 0.0
-		wash.light_specular = 0.2
-		wash.position = Vector3(sin(a), 0, cos(a)) * (APOTHEM - 5.0) + Vector3(0, 6.0, 0)
+		wash.light_specular = 0.15
+		wash.transform = _aim(dir * (APOTHEM - 2.2) + Vector3(0, 11.5, 0), dir * (APOTHEM + 0.4) + Vector3(0, 3.0, 0))
 		add_child(wash)
+		var under := OmniLight3D.new()
+		under.light_color = Color(1.0, 0.76, 0.52)
+		under.light_energy = 1.6
+		under.omni_range = 9.0
+		under.omni_attenuation = 1.2
+		under.light_volumetric_fog_energy = 0.0
+		under.light_specular = 0.25
+		under.position = dir * (APOTHEM - 4.0) + Vector3(0, 2.2, 0)
+		add_child(under)
 	# (1) foreground key: from the gallery over the entrance, a soft pool on the near floor
 	var near := SpotLight3D.new()
 	near.light_color = Color(1.0, 0.8, 0.56)
-	near.light_energy = 9.0
+	near.light_energy = 12.0
 	near.spot_range = 34.0
 	near.spot_angle = 30.0
 	near.spot_attenuation = 1.2
