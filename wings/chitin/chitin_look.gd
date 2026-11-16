@@ -14,12 +14,12 @@ const MATS := "res://wings/chitin/materials"
 const AREAS := {
 	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 2.4},
 	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.35},
-	"HiveShaft": {"wall": "carapace", "win": 0.65, "fungus": 4, "comb": 16, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
-	"Foundry": {"wall": "carapace", "win": 0.8, "fungus": 14, "comb": 8, "lamp": Color(0.55, 1.0, 0.85), "exp": 1.9},
+	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 16, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
+	"Foundry": {"wall": "carapace", "fungus": 14, "comb": 8, "lamp": Color(0.55, 1.0, 0.85), "exp": 1.9},
 	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 2.3},
-	"GeneralArena": {"wall": "comb_dim", "fungus": 18, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 2.8},
-	"CoronationHall": {"wall": "carapace", "win": 0.45, "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 3.0},
-	"Heist": {"wall": "carapace", "win": 0.7, "fungus": 4, "comb": 12, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.8},
+	"GeneralArena": {"wall": "comb", "fungus": 18, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 2.8},
+	"CoronationHall": {"wall": "carapace", "fungus": 12, "comb": 6, "lamp": Color(1.0, 0.65, 0.3), "exp": 3.0},
+	"Heist": {"wall": "carapace", "fungus": 4, "comb": 12, "lamp": Color(1.0, 0.65, 0.3), "exp": 1.8},
 }
 
 var wing: Node3D
@@ -35,13 +35,90 @@ var _meshes := {}                  # model name -> Mesh with the wing's material
 
 const CHUNK := 16.0
 const NEAR := 30.0                 # wall skins switch to flat stand-ins of the same material family past this
-const FAR := {"comb_panel": "comb", "plate_panel": "carapace"}
+const FAR := {"comb_panel": "comb_dim", "plate_panel": "carapace"}
 ## Wall skins and small scatter cast no shadows: the walls behind them already do, and the key's
 ## cascades would otherwise redraw thousands of cells.
 const NO_SHADOW := ["comb_panel", "plate_panel", "web", "shelf_edge", "lip", "fungus_cap", "fungus_shelf", "comb"]
 const FADE := {"fungus_cap": 70.0, "web": 60.0, "fungus_shelf": 80.0}
 ## Per-model material swaps: comb panel caps use a dimmer, cell-varied amber.
 const SWAP := {"comb_panel": {"amber": "amber_cell", "carapace_dull": "wax"}}  # open cells: old dim wax, not void
+
+
+## Sculpted room shells and platform skins (models/src/shells.json) over the unchanged collision:
+## the wall boxes they cover and the platform boxes they skin are hidden, collision stays.
+const SHELLS := "res://wings/chitin/models/src/shells.json"
+var _cover: Array[AABB] = []
+var _skinned: Array[AABB] = []
+
+
+func _shell(n: String) -> void:
+	var m := put(n, Transform3D.IDENTITY)
+	if m:
+		for mi: MeshInstance3D in m.find_children("*", "MeshInstance3D", true, false):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # the eye's light falls through
+
+
+## Amber light falling through the comb in the vault crown: narrow fogged spots, every ~18 m.
+func _shafts(r: Dictionary) -> void:
+	var a: Array = r["a"]
+	var c: Array = r["c"]
+	var n := maxi(1, int((float(a[1]) - float(a[0])) / 18.0))
+	var mid := (float(c[0]) + float(c[1])) * 0.5
+	var drop := float(r["peak"]) - float(r["floor"])
+	for i: int in n:
+		var u := lerpf(float(a[0]), float(a[1]), (i + 0.5) / n)
+		var off := (float(c[1]) - float(c[0])) * 0.18 * (1.0 if i % 2 == 0 else -1.0)
+		var top := Vector3(u, float(r["peak"]) - 1.0, mid + off) if r["axis"] == "x" else Vector3(mid + off, float(r["peak"]) - 1.0, u)
+		_spot(top, top + Vector3(0.25 * signf(off), -1.0, 0.15), drop + 4.0, 15.0)
+
+
+func _spot(from: Vector3, to: Vector3, rng: float, angle: float) -> void:
+	var sp := SpotLight3D.new()
+	sp.light_color = Color(1.0, 0.55, 0.16)
+	sp.light_energy = 9.0
+	sp.spot_range = rng
+	sp.spot_angle = angle
+	sp.spot_attenuation = 0.6
+	sp.light_volumetric_fog_energy = 30.0  # froxels are ~27 px: beams under ~12° vanish
+	sp.shadow_enabled = false
+	add_child(sp)
+	sp.look_at_from_position(from, to, Vector3.FORWARD)
+
+
+## The throat walls carry comb clusters over their full height and webs slung across the corners.
+func _throat_comb(r: Dictionary) -> void:
+	var x0 := float(r["x"][0])
+	var x1 := float(r["x"][1])
+	var z0 := float(r["z"][0])
+	var z1 := float(r["z"][1])
+	var tops: Dictionary = r["tops"]
+	# wall: [start, end, yaw (model front +Z faces into the shaft), top]
+	for w: Array in [[Vector3(x0, 0, z0), Vector3(x0, 0, z1), PI / 2.0, tops["west"]],
+			[Vector3(x1, 0, z0), Vector3(x1, 0, z1), -PI / 2.0, tops["east"]],
+			[Vector3(x0, 0, z0), Vector3(x1, 0, z0), 0.0, tops["south"]],
+			[Vector3(x0, 0, z1), Vector3(x1, 0, z1), PI, tops["north"]]]:
+		var a: Vector3 = w[0]
+		var b: Vector3 = w[1]
+		var top := float(w[3]) - 2.0
+		var n := int(a.distance_to(b) * (top + 68.0) / 55.0)
+		for i: int in n:
+			var p := a.lerp(b, _rng.randf_range(0.06, 0.94))
+			p.y = _rng.randf_range(-67.0, top)
+			if p.y < -64.0 and p.x < 84.0:
+				continue  # keep the stair door clear
+			_add("comb", Transform3D(Basis(Vector3.UP, float(w[2])).rotated(Vector3(0, 0, 1).rotated(Vector3.UP, float(w[2])), _rng.randf_range(-0.6, 0.6)) * Basis.from_scale(Vector3.ONE * _rng.randf_range(1.0, 1.8)), p))
+	for c: Vector3 in [Vector3(x0, 0, z0), Vector3(x1, 0, z0), Vector3(x0, 0, z1), Vector3(x1, 0, z1)]:
+		var yaw := atan2(-(c.x - (x0 + x1) * 0.5), -(c.z - (z0 + z1) * 0.5))
+		for y: float in [-60.0, -44.0, -30.0]:
+			var inward := Vector3(signf((x0 + x1) * 0.5 - c.x), 0, signf((z0 + z1) * 0.5 - c.z)) * 1.6
+			_add("web", Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(1.6, 1.6, 1.0)), c + inward + Vector3(0, y + _rng.randf_range(-3, 3), 0)))
+
+
+func _inside(list: Array[AABB], p: Vector3) -> bool:
+	for b: AABB in list:
+		if b.grow(0.01).has_point(p):
+			return true
+	return false
 
 
 func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void:
@@ -51,6 +128,29 @@ func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void
 	_rng.seed = 340
 	name = "Look"
 	_rope_mat = load("res://wings/chitin/materials/silk_line.tres")
+	var spec: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SHELLS))
+	for r: Dictionary in spec["partitions"]:
+		_shell(r["name"])
+		for c: Array in r["cover"]:
+			_cover.append(AABB(Vector3(c[0], c[1], c[2]), Vector3(c[3] - c[0], c[4] - c[1], c[5] - c[2])))
+	for r: Dictionary in spec["rooms"] + [spec["throat"]]:
+		_shell(r["name"])
+		_shell(r["name"] + "_comb")
+		if r.has("axis"):
+			_shafts(r)
+			if r["name"] == "shell_arena":  # the walkway hangs over a pit; give it its own pools
+				for z: float in [92.0, 76.0, 60.0]:
+					_spot(Vector3(40, -8, z), Vector3(40.2, -9, z + 0.1), 30.0, 12.0)
+		else:  # the throat: three long shafts of eye-light falling to the hall floor
+			for t: Vector3 in [Vector3(98, 12, -16), Vector3(124, 12, 2), Vector3(116, 12, -24)]:
+				_spot(t, t + Vector3(0.1, -1.0, 0.05), 92.0, 9.0)
+			_throat_comb(r)
+		for c: Array in r["cover"]:
+			_cover.append(AABB(Vector3(c[0], c[1], c[2]), Vector3(c[3] - c[0], c[4] - c[1], c[5] - c[2])))
+	for pl: Dictionary in spec["platforms"]:
+		_shell(pl["name"])
+		var q: Array = pl["rect"]
+		_skinned.append(AABB(Vector3(q[0], float(pl["base"]) - 0.5, q[2]), Vector3(q[1] - q[0], float(pl["top"]) - float(pl["base"]) + 0.5, q[3] - q[2])))
 	var areas := w.get_node("Areas")
 	for area: Node in areas.get_children():
 		_dress_area(area as Node3D, AREAS.get(String(area.name), AREAS["OuterGate"]))
@@ -81,7 +181,11 @@ func _dress_area(area: Node3D, cfg: Dictionary) -> void:
 		var size: Vector3 = (mi.mesh as BoxMesh).size
 		var box := AABB((body as Node3D).global_position - size * 0.5, size)
 		var col: Color = (mi.material_override as StandardMaterial3D).albedo_color if mi.material_override is StandardMaterial3D else Color.BLACK
-		if col.is_equal_approx(Color("6b7f8a")):
+		if col.is_equal_approx(Color("6b7f8a")) and _inside(_skinned, box.get_center()):
+			mi.visible = false
+		elif col.is_equal_approx(Color("39424a")) and _inside(_cover, box.get_center()):
+			mi.visible = false
+		elif col.is_equal_approx(Color("6b7f8a")):
 			mi.material_override = _mat("floor")
 			if size.x > 0.5:  # stair treads keep their own trim
 				floors.append(box)
@@ -157,13 +261,13 @@ func _ribs(b: AABB, cfg: Dictionary) -> void:
 		var basis := Basis(Vector3.UP, yaw)
 		for i: int in nx:
 			var u := (i + 0.5) * length / nx
-			# a few carapace columns break up comb streets, a few comb windows light carapace walls
+			# a few carapace columns break up comb streets (the comb on carapace walls grows on the shells now)
 			var stripe := _rng.randf()
 			var lo := 0
 			if not comb_wall and nz > 2:
 				lo = _rng.randi_range(0, nz - 2)  # windows two panels tall, not floor-to-ceiling stripes
 			for k: int in nz:
-				var win := stripe < float(cfg.get("win", 0.22)) and (comb_wall or nz <= 2 or k == lo or k == lo + 1)
+				var win := stripe < float(cfg.get("win", 0.0)) and (comb_wall or nz <= 2 or k == lo or k == lo + 1)
 				var panel := "comb_panel" if (comb_wall and stripe > 0.15) or (not comb_wall and win) else "plate_panel"
 				var p: Vector3
 				if along_x:

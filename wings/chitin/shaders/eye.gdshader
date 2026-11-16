@@ -10,8 +10,8 @@ uniform vec4 glow : source_color = vec4(1.0, 0.6, 0.18, 1.0);
 uniform float energy = 0.55;       // tweened to ~0 for a blink
 uniform float radius = 60.0;
 uniform float facet = 3.6;         // facet size in projected metres
-uniform float pupil_in = 0.985;    // cos of the pupil's dark core
-uniform float pupil_out = 0.955;   // cos of its soft edge
+uniform float pupil_in = 0.975;    // cos of the pupil's dark core
+uniform float pupil_out = 0.93;    // cos of its soft edge
 
 varying vec3 lpos;
 varying vec3 lcam;

@@ -668,7 +668,7 @@ func _build_marks() -> void:
 		["general", Vector3(45, -36, -5), Vector3(40, -36, -16)],
 		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
 		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
-		["harp", Vector3(19, -0.8, 9.5), Vector3(24, -1.4, 13.3)],
+		["first_swing", Vector3(-4, 1.7, 5), Vector3(13, 4, -3)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
