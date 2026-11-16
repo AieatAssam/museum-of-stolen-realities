@@ -700,9 +700,9 @@ func _build_docents() -> void:
 		var head: Node3D = d.find_child("head", true, false)
 		var key := SpotLight3D.new()  # a soft key from above and in front: the dark robe reads as a figure
 		key.light_color = Color(1.0, 0.86, 0.68)
-		key.light_energy = 5.0
-		key.spot_range = 7.0
-		key.spot_angle = 24.0
+		key.light_energy = 9.0
+		key.spot_range = 9.0
+		key.spot_angle = 40.0  # wide enough to pool on the floor round the docent
 		key.light_volumetric_fog_energy = 0.0
 		key.light_specular = 0.4
 		key.transform = _aim(Vector3(0.6, 4.6, 2.4), Vector3(0, 1.5, 0))
@@ -826,7 +826,7 @@ func _build_atmosphere() -> void:
 		add_child(wash)
 		var under := OmniLight3D.new()
 		under.light_color = Color(1.0, 0.76, 0.52)
-		under.light_energy = 1.6
+		under.light_energy = 2.4
 		under.omni_range = 9.0
 		under.omni_attenuation = 1.2
 		under.light_volumetric_fog_energy = 0.0

@@ -21,12 +21,12 @@ void fragment() {
 	vec2 p = wpos.xz;
 	float r = length(p);
 	float a = atan(p.y, p.x);
-	vec3 black = texture(marble_a, p * scale_a).rgb * 0.75;
+	vec3 black = texture(marble_a, p * scale_a).rgb * 1.05;  // nero marquina, not a void: the fill must find it
 	vec3 ivory = texture(marble_b, p * scale_b).rgb * vec3(0.36, 0.32, 0.27);
 	vec3 brass = vec3(0.78, 0.6, 0.32);
 	vec3 col = black;
 	float metal = 0.0;
-	float rough = 0.035 + 0.05 * (1.0 - texture(marble_a, p * scale_a * 3.0).r);
+	float rough = 0.05 + 0.05 * (1.0 - texture(marble_a, p * scale_a * 3.0).r);  // honed a touch: carries the light pools
 
 	// 12-point star between inner_r and outer_r
 	float sector = 3.14159265 / 6.0;
