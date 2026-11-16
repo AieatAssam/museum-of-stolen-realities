@@ -17,7 +17,8 @@ var save_path: String = SAVE_PATH
 
 const DEFAULT_SETTINGS := {
 	"quality": "high",          # low | medium | high | ultra
-	"render_scale": 1.0,
+	"render_scale": 1.0,        # used when render_auto is off
+	"render_auto": true,        # 3D scale from the window size (AUTO_PIXELS)
 	"vol_master": 0.9, "vol_music": 0.8, "vol_sfx": 0.9, "vol_ambience": 0.8, "vol_ui": 0.7,
 	"mouse_sensitivity": 0.12,  # degrees per pixel
 	"invert_y": false,
@@ -104,8 +105,9 @@ func apply_settings() -> void:
 		if idx >= 0:
 			AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(float(settings[pair[1]]), 0.0001)))
 	var vp := get_tree().root
-	vp.scaling_3d_scale = clampf(float(settings["render_scale"]), 0.5, 1.0)
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if vp.scaling_3d_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	_apply_render_scale()
+	if not vp.size_changed.is_connected(_apply_render_scale):
+		vp.size_changed.connect(_apply_render_scale)
 	if not DisplayServer.get_name() == "headless":
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings["vsync"] else DisplayServer.VSYNC_DISABLED)
 		var want_fs: bool = settings["fullscreen"]
@@ -113,6 +115,20 @@ func apply_settings() -> void:
 		if want_fs != is_fs:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if want_fs else DisplayServer.WINDOW_MODE_WINDOWED)
 	settings_changed.emit()
+
+
+## Auto 3D scale never renders more 3D pixels than 1920x1080: 2560x1440 renders at 0.75 with FSR
+## (with MSAA off, 6-10 ms saved on the heaviest chitin/atrium views, measured), 1080p and below stay native.
+const AUTO_PIXELS := 1920 * 1080
+
+
+func _apply_render_scale() -> void:
+	var vp := get_tree().root
+	var s := float(settings["render_scale"])
+	if settings["render_auto"]:
+		s = sqrt(AUTO_PIXELS / float(maxi(vp.size.x * vp.size.y, 1)))
+	vp.scaling_3d_scale = clampf(s, 0.5, 1.0)
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if vp.scaling_3d_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
 
 
 # --- io -----------------------------------------------------------------------

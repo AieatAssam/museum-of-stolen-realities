@@ -30,5 +30,9 @@ static func apply(env: Environment) -> void:
 	RenderingServer.directional_shadow_atlas_set_size(4096 if q >= 2 else 2048, true)
 	var vp := (Engine.get_main_loop() as SceneTree).root
 	vp.positional_shadow_atlas_size = 4096 if q >= 2 else 2048
-	vp.msaa_3d = Viewport.MSAA_2X if q >= 2 else Viewport.MSAA_DISABLED
-	RenderingServer.environment_set_volumetric_fog_volume_size(96 if q >= 2 else 64, 96 if q >= 2 else 48)
+	# MSAA 2x costs ~2.5 ms even at the auto 0.75 FSR scale (chitin, atrium, measured A/B): only ultra keeps
+	# it; below that SMAA, as glass/clay/noir/aria already chose for their own scenes.
+	vp.msaa_3d = Viewport.MSAA_2X if q >= 3 else Viewport.MSAA_DISABLED
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if q >= 3 else Viewport.SCREEN_SPACE_AA_SMAA
+	# 96^3 froxels only at ultra: 64^3 saves ~0.4 ms in chitin/atrium and the shafts stay soft
+	RenderingServer.environment_set_volumetric_fog_volume_size(96 if q >= 3 else 64, 96 if q >= 3 else (64 if q >= 2 else 48))
