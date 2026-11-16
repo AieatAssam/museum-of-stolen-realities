@@ -16,5 +16,5 @@ void fragment() {
 	ALBEDO = vec3(1.0, 0.78, 0.42) * (0.75 + 0.25 * n);
 	METALLIC = 1.0;
 	ROUGHNESS = 0.22 + 0.2 * n;
-	EMISSION = tint.rgb * (0.35 + 2.2 * leak) * heat;
+	EMISSION = tint.rgb * (0.2 + 1.3 * leak) * heat;  // seams glint; the weathers carry the light
 }
