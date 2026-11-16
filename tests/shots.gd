@@ -71,7 +71,9 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 	await _settle_cinematics()
-	print("[shots] %s  window %s  quality %s" % [id, DisplayServer.window_get_size(), Save.settings["quality"]])
+	_switch_off(String(_args.get("off", "")).split(",", false))
+	print("[shots] %s  window %s  quality %s  off %s  load %s" % [id, DisplayServer.window_get_size(), Save.settings["quality"],
+		_args.get("off", "-"), _loadavg()])
 	if not _args.has("ui"):
 		for n: String in ["/root/Placards", "/root/Cinematics"]:
 			(get_node(n) as CanvasLayer).visible = false
@@ -97,6 +99,32 @@ func _run() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
 	print("[shots] done -> ", ProjectSettings.globalize_path(dir))
 	Game.quit(0)
+
+
+func _loadavg() -> String:
+	var out: Array = []
+	OS.execute("sysctl", ["-n", "vm.loadavg"], out)
+	return String(out[0]).strip_edges() if out.size() > 0 else "?"
+
+
+## --off=fog,ssr,ssao,glow,msaa,sphere,shadows: switch features off to find where the GPU time goes.
+func _switch_off(what: PackedStringArray) -> void:
+	var we := get_tree().root.find_children("*", "WorldEnvironment", true, false)
+	var env: Environment = (we[0] as WorldEnvironment).environment if not we.is_empty() else Environment.new()
+	for w in what:
+		match w:
+			"fog": env.volumetric_fog_enabled = false
+			"ssr": env.ssr_enabled = false
+			"ssao": env.ssao_enabled = false
+			"glow": env.glow_enabled = false
+			"msaa": get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			"shadows":
+				for l: Light3D in get_tree().root.find_children("*", "Light3D", true, false):
+					l.shadow_enabled = false
+			"sphere":
+				var skin: ShaderMaterial = Game.wing.get("_skin")
+				if skin:
+					skin.set_shader_parameter("volume", 0.0)
 
 
 func _settle_cinematics() -> void:
