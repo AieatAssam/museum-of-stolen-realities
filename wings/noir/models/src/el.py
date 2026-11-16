@@ -144,13 +144,13 @@ def water_tower():
     z0 = 3.0
     staves = []
     prof = [(1.5, z0), (1.6, z0 + 1.4), (1.5, z0 + 2.8)]
-    p.append(kit.lathe("tank", prof, 32, mat="wood", cap=True))
+    p.append(kit.lathe("tank", prof, 48, mat="wood", cap=True))
     for z in (0.3, 0.9, 1.5, 2.1, 2.6):
         r = 1.5 + 0.1 * math.sin(math.pi * z / 2.8) + 0.02
-        p.append(kit.torus("hoop", r, 0.025, 40, 4, mat="iron", loc=(0, 0, z0 + z)))
-    p.append(kit.lathe("roof", [(0.0, z0 + 2.8), (1.7, z0 + 2.8), (1.7, z0 + 2.85), (0.15, z0 + 3.8), (0.0, z0 + 3.85)], 24, mat="roof"))
-    p.append(kit.lathe("finial", [(0.0, z0 + 3.8), (0.06, z0 + 3.8), (0.04, z0 + 4.1), (0.0, z0 + 4.15)], 8, mat="iron"))
-    p.append(kit.lathe("floor", [(0.0, z0 - 0.15), (1.85, z0 - 0.15), (1.85, z0), (0.0, z0)], 24, mat="wood"))
+        p.append(kit.torus("hoop", r, 0.025, 64, 6, mat="iron", loc=(0, 0, z0 + z)))
+    p.append(kit.lathe("roof", [(0.0, z0 + 2.8), (1.7, z0 + 2.8), (1.7, z0 + 2.85), (0.15, z0 + 3.8), (0.0, z0 + 3.85)], 48, mat="roof"))
+    p.append(kit.lathe("finial", [(0.0, z0 + 3.8), (0.06, z0 + 3.8), (0.04, z0 + 4.1), (0.0, z0 + 4.15)], 16, mat="iron"))
+    p.append(kit.lathe("floor", [(0.0, z0 - 0.15), (1.85, z0 - 0.15), (1.85, z0), (0.0, z0)], 48, mat="wood"))
     legs = [(1.2, 1.2), (-1.2, 1.2), (1.2, -1.2), (-1.2, -1.2)]
     for x, y in legs:
         p.append(kit.tube("leg", [(x * 1.12, y * 1.12, 0), (x * 0.92, y * 0.92, z0 - 0.15)], 0.08, 8, mat="iron"))
