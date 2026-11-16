@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://0rpac7fgosmf"
-path.s3tc="res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.s3tc.ctex"
-path.etc2="res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.etc2.ctex"
+path.bptc="res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.bptc.ctex"
+path.astc="res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://wings/paint/textures/paint_gesso_height.png"
-dest_files=["res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.s3tc.ctex", "res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.etc2.ctex"]
+dest_files=["res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.bptc.ctex", "res://.godot/imported/paint_gesso_height.png-c3e0b40002d2f9c2c58dcd62a25cac00.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -30,13 +30,14 @@ const AREAS := {
 		1.05, Color(0.95, 0.9, 1.0), Color(0.85, 0.66, 0.62), 0.55, 1.1],
 	"horizon": [Color(1.0, 0.86, 0.70), 2.3, -24.0, 100.0, Color(0.55, 0.58, 0.92), 0.6, Color(1.0, 0.88, 0.76), 0.0022,
 		1.0, Color(1.0, 1.0, 1.0), Color(1.0, 0.84, 0.70), 0.0, 1.12],
-	"museum": [Color(0.96, 0.92, 0.86), 1.2, -58.0, -90.0, Color(0.62, 0.60, 0.60), 0.9, Color(0.36, 0.28, 0.24), 0.0008,
+	"museum": [Color(0.96, 0.92, 0.86), 1.2, -58.0, -90.0, Color(0.62, 0.60, 0.60), 0.5, Color(0.36, 0.28, 0.24), 0.0008,
 		1.6, Color(0.8, 0.82, 0.9), Color(0.6, 0.6, 0.66), 0.2, 0.92],
 }
 
 var env: Environment
 var sun: DirectionalLight3D
 var sky_mat: ShaderMaterial
+var backdrop: ShaderMaterial   # the museum wall's inside face, painted out with the same sky
 var grade: PostGrade
 var area: String = "shore"
 var _cur: Array = []
@@ -52,6 +53,10 @@ func build(wing: Node) -> void:
 	sky_mat.set_shader_parameter(&"fair", load(FAIR))
 	sky_mat.set_shader_parameter(&"storm", load(STORM))
 	sky.sky_material = sky_mat
+	backdrop = ShaderMaterial.new()
+	backdrop.shader = load("res://wings/paint/shaders/paint_backdrop.gdshader")
+	backdrop.set_shader_parameter(&"fair", load(FAIR))
+	backdrop.set_shader_parameter(&"storm", load(STORM))
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	env.sky = sky
@@ -141,9 +146,11 @@ func update(cam_pos: Vector3, mood: float, delta: float) -> void:
 	env.fog_light_color = (r[6] as Color).lerp(Color(0.62, 0.62, 0.66), (1.0 - m) * 0.6)
 	env.fog_density = float(r[7]) * lerpf(0.9, 0.35, m)
 	env.tonemap_exposure = r[8]
-	sky_mat.set_shader_parameter(&"tint", r[9])
-	sky_mat.set_shader_parameter(&"haze", (r[10] as Color).lerp(Color(0.6, 0.6, 0.64), (1.0 - m) * 0.6))
-	sky_mat.set_shader_parameter(&"storm_amount", clampf(float(r[11]) + (0.55 - m) * 1.6, 0.0, 1.0))
+	for sm: ShaderMaterial in [sky_mat, backdrop]:
+		sm.set_shader_parameter(&"tint", r[9])
+		sm.set_shader_parameter(&"haze", (r[10] as Color).lerp(Color(0.6, 0.6, 0.64), (1.0 - m) * 0.6))
+		sm.set_shader_parameter(&"storm_amount", clampf(float(r[11]) + (0.55 - m) * 1.6, 0.0, 1.0))
+	backdrop.set_shader_parameter(&"fog_colour", env.fog_light_color)
 	grade.saturation = float(r[12]) * lerpf(0.9, 1.18, m)
 	env.adjustment_saturation = 1.3 * float(r[12]) / 1.12   # the museum, outside the paint, is greyer
 	# screen-space reflections only where something is glossy and large: the river and the parquet

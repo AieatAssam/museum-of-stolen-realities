@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ck7mpdeyh3xuj"
-path.s3tc="res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.s3tc.ctex"
-path.etc2="res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.etc2.ctex"
+path.bptc="res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.bptc.ctex"
+path.astc="res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://wings/paint/textures/paint_sky_storm.png"
-dest_files=["res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.s3tc.ctex", "res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.etc2.ctex"]
+dest_files=["res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.bptc.ctex", "res://.godot/imported/paint_sky_storm.png-2789723a30e0eb925c1bff20cf4b7294.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

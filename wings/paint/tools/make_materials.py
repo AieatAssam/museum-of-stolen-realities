@@ -93,14 +93,16 @@ REAL = {
     "r_brass":   (A + "brass/brass", "1.0, 0.86, 0.6", 1.0, 1.0, 0.1),
     "r_gilt":    (A + "gilt/gilt", "1.0, 0.82, 0.55", 1.0, 1.0, 0.06),
     "r_plaster": (A + "plaster/plaster", "0.93, 0.91, 0.86", 0.0, 1.0, 0.04),
-    "r_wall":    (A + "plaster/plaster", "0.30, 0.48, 0.46", 0.0, 1.0, 0.02),
+    "r_wall":    (A + "plaster/plaster", "0.33, 0.54, 0.52", 0.0, 1.0, 0.012),
     "r_marble":  (A + "marble_ivory/marble_ivory", "1, 1, 1", 0.0, 0.5, 0.05),
 }
+# albedo swapped for a gallery wall-covering (tone-on-tone damask over the plaster, make_damask.py)
+ALBEDO = {"r_wall": T + "damask"}
 for name, (tex, col, metal, rough, uv) in REAL.items():
     with open(os.path.join(D, name + ".tres"), "w") as f:
         f.write(f"""[gd_resource type="StandardMaterial3D" load_steps=4 format=3]
 
-[ext_resource type="Texture2D" path="{tex}_albedo.png" id="1"]
+[ext_resource type="Texture2D" path="{ALBEDO.get(name, tex)}_albedo.png" id="1"]
 [ext_resource type="Texture2D" path="{tex}_normal.png" id="2"]
 [ext_resource type="Texture2D" path="{tex}_roughness.png" id="3"]
 
