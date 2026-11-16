@@ -306,19 +306,57 @@ def _man(parts, b):
 
 def _seated(parts):
     dz = -0.3  # upper body sits 0.3 m lower than standing
+    # legs: tapered thighs run forward from the hips, rounded knees, tapered shins down to the shoes
     for s in (-1, 1):
-        x = s * 0.14
-        parts.append(_tube("thigh", [(x, 0.0, 0.5), (x, 0.42, 0.5)], [0.09, 0.07], "coat"))
-        parts.append(_tube("shin", [(x, 0.42, 0.5), (x, 0.42, 0.16), (x, 0.42, 0.10)], [0.07, 0.06, 0.066], "coat"))
+        x = s * 0.13
+        parts.append(_tube("thigh", [(x, -0.02, 0.56), (x, 0.2, 0.56), (x, 0.4, 0.53)],
+                           [0.095, 0.088, 0.075], "coat", 10))
+        parts.append(_ell("knee", (x, 0.41, 0.5), (0.065, 0.065, 0.065), "coat", 10, 6))
+        parts.append(_tube("shin", [(x, 0.41, 0.48), (x, 0.42, 0.25), (x, 0.42, 0.10)],
+                           [0.062, 0.05, 0.042], "coat", 10))
         _shoe(parts, x, 0.42, -10 * s)
-    parts.append(_box("seat_hips", (0.42, 0.42, 0.22), (0, 0.1, 0.56), "coat", bevel=0.05))
-    _coat(parts, 0.0, dz, skirt=False)
+    # seat: rounded hips, the coat laps over each thigh and a folded panel falls between the knees
+    parts.append(_ell("seat", (0.0, 0.02, 0.56), (0.22, 0.2, 0.12), "coat", 16, 10))
     for s in (-1, 1):
-        parts.append(_tube("arm", [(s * 0.24, 0, 0.99), (s * 0.27, 0.1, 0.8), (s * 0.1, 0.3, 0.72)], 0.055, "coat"))
-        _hand(parts, (s * 0.08, 0.34, 0.7))
-    _head(parts, 0.0, dz, 0.0, hat=False)
-    # fedora resting crown-up on the right knee, brim flat on the thigh
-    _hat(parts, Matrix.Translation((0.14, 0.2, 0.6)) @ Matrix.Rotation(R(10), 4, "Z"))
+        parts.append(_ell("lap", (s * 0.13, 0.2, 0.6), (0.11, 0.2, 0.05), "coat", 12, 6))
+
+    def fold(p):
+        return (p[0], p[1] + 0.014 * math.cos(90 * p[0]), p[2])
+
+    parts.append(_ell("coat_fold", (0.0, 0.36, 0.4), (0.065, 0.045, 0.19), "coat", 12, 8, warp=fold))
+
+    # upper body: the trench coat without skirt, rounded shoulders, head tilted down; the torso
+    # hunches forward about the hips and the head nods onto the chest
+    upper, head_parts = [], []
+    _coat(upper, 0.0, dz, skirt=False)
+    # turned-up collar hides the back of the neck; shoulders sit inside the coat line
+    upper.append(_ell("collar_up", (0.0, -0.03, dz + 1.4), (0.11, 0.08, 0.07), "coat", 12, 8))
+    for s in (-1, 1):
+        upper.append(_ell("shoulder", (s * 0.19, 0.0, dz + 1.33), (0.09, 0.12, 0.07), "coat", 12, 8))
+    _head(head_parts, 0.0, dz, 0.0, hat=False)
+    # dark hair over the top and back of the head, and at the nape so the neck is not a pale tube
+    head_parts.append(_ell("hair", (0.0, -0.012, dz + 1.6), (0.081, 0.098, 0.092), "hat", 12, 8))
+    head_parts.append(_ell("hair_nape", (0.0, -0.04, dz + 1.5), (0.06, 0.05, 0.06), "hat", 10, 6))
+    piv = Vector((0.0, 0.0, 0.7))
+    hunch = Matrix.Translation(piv) @ Matrix.Rotation(R(-14), 4, "X") @ Matrix.Translation(-piv)
+    neck = Vector((0.0, 0.0, dz + 1.5))
+    tilt = Matrix.Translation(neck) @ Matrix.Rotation(R(-18), 4, "X") @ Matrix.Translation(-neck)
+    for ob in upper:
+        ob.data.transform(hunch)
+    for ob in head_parts:
+        ob.data.transform(hunch @ tilt)
+    parts += upper + head_parts
+
+    # arms: forearms rest on the thighs, the right hand on the hat crown, the left on the knee
+    for s in (-1, 1):
+        sh = hunch @ Vector((s * 0.23, 0.0, dz + 1.31))
+        wrist = (0.15, 0.27, 0.8) if s > 0 else (-0.16, 0.3, 0.68)
+        parts.append(_tube("arm", [tuple(sh), (s * 0.27, 0.14, 0.8), wrist], [0.06, 0.05, 0.045], "coat", 10))
+    _hand(parts, (0.14, 0.3, 0.8))
+    _hand(parts, (-0.13, 0.36, 0.66))
+
+    # fedora resting crown-up on the right knee, brim flat on the lap
+    _hat(parts, Matrix.Translation((0.13, 0.3, 0.66)) @ Matrix.Rotation(R(10), 4, "Z"))
 
 
 # --- woman -----------------------------------------------------------------------------------------
