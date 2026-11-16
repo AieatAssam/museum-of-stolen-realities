@@ -695,13 +695,77 @@ def horn():
     kit.join("horn", P)
 
 
+def rect_loop(hx, hy, z):
+    """Closed CCW rectangle loop (half-sizes hx, hy) at height z: a sweep_closed path."""
+    return [(-hx, -hy, z), (hx, -hy, z), (hx, hy, z), (-hx, hy, z)]
+
+
+def ext_box(name, ext, mat, bevel=0.0):
+    """A box from per-axis extents {"x": (a, b), "y": (a, b), "z": (a, b)}, in any order."""
+    lo = [min(ext[a]) for a in "xyz"]
+    hi = [max(ext[a]) for a in "xyz"]
+    return kit.box(name, [h - l for l, h in zip(lo, hi)], [(h + l) / 2 for l, h in zip(lo, hi)], mat=mat, bevel=bevel)
+
+
+def prism_x(name, prof, x0, x1, mat):
+    """A closed (y, z) profile extruded along X from x0 to x1."""
+    import bmesh
+    bm = bmesh.new()
+    a = [bm.verts.new((x0, y, z)) for y, z in prof]
+    b = [bm.verts.new((x1, y, z)) for y, z in prof]
+    n = len(prof)
+    for j in range(n):
+        bm.faces.new((a[j], b[j], b[(j + 1) % n], a[(j + 1) % n]))
+    bm.faces.new(list(reversed(a)))
+    bm.faces.new(b)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return kit._obj(name, bm, mat, 40.0)
+
+
+def fielded_panels(P, axis, sign, centres, w, z0, z1, D, mat):
+    """Raised fields on one body face: axis 'y' (front/back, centres along x) or 'x' (ends, centres along y).
+    Each field stands 0.012 proud of the face at depth D and is framed by a gilt bead 0.02 proud."""
+    along = "x" if axis == "y" else "y"
+
+    def at(a0, a1, d0, d1, zl, zh):
+        return {axis: (sign * d0, sign * d1), along: (a0, a1), "z": (zl, zh)}
+
+    for s in centres:
+        a0, a1 = s - w / 2, s + w / 2
+        P.append(ext_box("field", at(a0, a1, D - 0.02, D + 0.012, z0, z1), mat, 0.004))
+        P.append(ext_box("bead", at(a0 - 0.008, a1 + 0.008, D - 0.004, D + 0.02, z1 - 0.008, z1 + 0.008), "gilt", 0.003))
+        P.append(ext_box("bead", at(a0 - 0.008, a1 + 0.008, D - 0.004, D + 0.02, z0 - 0.008, z0 + 0.008), "gilt", 0.003))
+        P.append(ext_box("bead", at(a0 - 0.008, a0 + 0.008, D - 0.004, D + 0.02, z0 - 0.008, z1 + 0.008), "gilt", 0.003))
+        P.append(ext_box("bead", at(a1 - 0.008, a1 + 0.008, D - 0.004, D + 0.02, z0 - 0.008, z1 + 0.008), "gilt", 0.003))
+
+
+PIPE_PLINTH = [(-0.05, 0.0), (0.02, 0.0), (0.03, 0.008), (0.03, 0.05), (0.025, 0.06), (0.03, 0.075), (0.02, 0.09), (-0.05, 0.09)]
+PIPE_FILLET = [(-0.02, 0.0), (0.01, 0.0), (0.014, 0.004), (0.01, 0.008), (-0.02, 0.008)]
+PIPE_CORNICE = [(-0.02, 0.0), (0.04, 0.0), (0.04, 0.012), (0.025, 0.02), (0.012, 0.035), (0.02, 0.05), (0.0, 0.07), (-0.02, 0.07)]
+
+
 def pipes():
     """Three speaking pipes (C, E, G) on a wind-chest: conical feet, gilt-banded mouths with upper lips,
-    tin bodies, a panelled ebony chest with gilt mouldings."""
-    P = [kit.box("chest", (2.1, 0.7, 0.55), (0, 0, 0.275), mat="ebony", bevel=0.03)]
-    P.append(sweep("chest_top", [(0.0, 0.0), (0.05, 0.0), (0.07, 0.03), (0.05, 0.06), (0.0, 0.06)], [(-1.05, -0.35, 0.55), (1.05, -0.35, 0.55)], "gilt"))
-    for k in range(3):
-        P.append(frame("chest_panel", 0.55, 0.32, (-0.65 + 0.65 * k, -0.36, 0.27), mat="gilt", prof=[(0.0, 0.0), (0.0, 0.02), (0.02, 0.025), (0.03, 0.0)]))
+    tin bodies, and a panelled ebony wind-chest: moulded toe, raised teal and damask fields in gilt beads,
+    gilt corner pilasters and capitals, an ogee cornice, three brass pallet knobs on the front."""
+    P = [kit.box("chest", (2.1, 0.7, 0.55), (0, 0, 0.275), mat="ebony", bevel=0.02),
+         kit.sweep_closed("plinth", PIPE_PLINTH, rect_loop(1.05, 0.35, 0.0), mat="ebony"),
+         kit.sweep_closed("plinth_fillet", PIPE_FILLET, rect_loop(1.05, 0.35, 0.09), mat="gilt"),
+         kit.sweep_closed("chest_cornice", PIPE_CORNICE, rect_loop(1.05, 0.35, 0.48), mat="gilt")]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            P.append(ext_box("pilaster", {"x": (sx * 0.93, sx * 1.065), "y": (sy * 0.33, sy * 0.365), "z": (0.09, 0.48)}, "gilt", 0.006))
+            P.append(ext_box("capital", {"x": (sx * 0.92, sx * 1.075), "y": (sy * 0.32, sy * 0.375), "z": (0.44, 0.48)}, "gilt", 0.008))
+            P.append(ext_box("capital", {"x": (sx * 0.92, sx * 1.075), "y": (sy * 0.32, sy * 0.375), "z": (0.09, 0.13)}, "gilt", 0.008))
+    fielded_panels(P, "y", -1, (-0.65, 0.0, 0.65), 0.46, 0.17, 0.42, 0.35, "marble_teal")
+    fielded_panels(P, "y", 1, (-0.65, 0.0, 0.65), 0.46, 0.17, 0.42, 0.35, "marble_teal")
+    for sx in (-1, 1):
+        fielded_panels(P, "x", sx, (-0.17, 0.17), 0.22, 0.17, 0.42, 1.05, "damask_ox")
+    for x in (-0.65, 0.0, 0.65):
+        k = kit.lathe("pallet", [(0.0, 0.0), (0.02, 0.0), (0.022, 0.006), (0.016, 0.014), (0.0, 0.018)], segments=14, mat="brass")
+        k.rotation_euler = (math.pi / 2, 0, 0)
+        k.location = (x, -0.37, 0.295)
+        P.append(k)
     for x, h, r in [(-0.62, 3.6, 0.15), (0.0, 3.0, 0.135), (0.62, 2.45, 0.12)]:
         foot = kit.lathe("foot", [(0.03, 0.55), (r * 0.9, 0.55 + 0.45), (r, 1.0)], segments=16, mat="pipe_tin", cap=False)
         body = kit.lathe("body", [(r, 1.0), (r, 1.0 + h), (r * 1.08, 1.04 + h), (r, 1.08 + h)], segments=20, mat="pipe_tin", cap=False)
@@ -740,42 +804,63 @@ def glass_bowls():
     kit.join("glass_bowls", P)
 
 
+FORK_FLOOR = [(-0.1, 0.0), (0.02, 0.0), (0.05, 0.015), (0.045, 0.035), (0.025, 0.05), (-0.1, 0.05)]
+FORK_CYMA = [(-0.1, 0.0), (0.02, 0.0), (0.05, 0.008), (0.04, 0.022), (0.02, 0.034), (0.035, 0.05), (0.01, 0.065), (-0.1, 0.065)]
+FORK_CAP = [(-0.1, 0.0), (0.12, 0.0), (0.14, 0.02), (0.12, 0.05), (0.08, 0.08), (0.02, 0.1), (-0.02, 0.12), (-0.1, 0.12)]
+
+
+def sunk_die(name, c, k, z0, z1, mat, rim=0.1, depth=0.02):
+    """An octagonal die (half-size c, vertical corners chamfered by k). Each side carries a sunk fielded
+    panel: the rim is inset by rim and the field pushed back by depth, with a gilt bead round each field."""
+    import bmesh
+    from mathutils import Vector
+    bm = bmesh.new()
+    ring = [(-c + k, -c), (c - k, -c), (c, -c + k), (c, c - k), (c - k, c), (-c + k, c), (-c, c - k), (-c, -c + k)]
+    bot = [bm.verts.new((x, y, z0)) for x, y in ring]
+    top = [bm.verts.new((x, y, z1)) for x, y in ring]
+    n = len(ring)
+    for i in range(n):
+        bm.faces.new((bot[i], bot[(i + 1) % n], top[(i + 1) % n], top[i]))
+    bm.faces.new(list(reversed(bot)))
+    bm.faces.new(top)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    out = []
+    A = c - k - rim
+    zl, zh = z0 + rim, z1 - rim
+    for axis, sign in (("x", 1), ("x", -1), ("y", 1), ("y", -1)):
+        along = "y" if axis == "x" else "x"
+        for a0, a1, b0, b1 in ((-A - 0.012, A + 0.012, zh - 0.012, zh + 0.012), (-A - 0.012, A + 0.012, zl - 0.012, zl + 0.012),
+                               (-A - 0.012, -A + 0.012, zl - 0.012, zh + 0.012), (A - 0.012, A + 0.012, zl - 0.012, zh + 0.012)):
+            out.append(ext_box("die_bead", {axis: (sign * (c - depth), sign * (c + 0.012)), along: (a0, a1), "z": (b0, b1)}, "gilt", 0.005))
+    out.insert(0, kit._obj(name, bm, mat, 40.0))
+    return out
+
+
 def fork_statue():
-    """The tuning fork: a 3.6 m verdigris bronze fork on a stepped marble pedestal, its stem sunk in a
-    gilt ball, the prongs squared and chamfered, an A cut into the pedestal face."""
-    P = [kit.box("step0", (1.5, 1.5, 0.25), (0, 0, 0.125), mat="marble_teal", bevel=0.03),
-         kit.box("step1", (1.2, 1.2, 0.25), (0, 0, 0.375), mat="marble_teal", bevel=0.03),
-         kit.box("die", (0.9, 0.9, 0.9), (0, 0, 0.95), mat="marble_ivory", bevel=0.03),
-         kit.box("die_cap", (1.05, 1.05, 0.12), (0, 0, 1.46), mat="marble_teal", bevel=0.03)]
+    """The tuning fork: a 3.6 m verdigris bronze fork on a moulded marble pedestal (a two-step base with
+    torus and cyma mouldings, a chamfered die with sunk fielded panels, a cyma cap). The gilt A sits proud
+    of the front panel."""
+    P = [kit.box("base_core", (1.4, 1.4, 0.24), (0, 0, 0.12), mat="marble_teal", bevel=0.01),
+         kit.sweep_closed("base_floor", FORK_FLOOR, rect_loop(0.7, 0.7, 0.0), mat="marble_teal"),
+         kit.sweep_closed("base_cyma", FORK_CYMA, rect_loop(0.7, 0.7, 0.24), mat="marble_teal"),
+         kit.box("step_core", (1.1, 1.1, 0.16), (0, 0, 0.32), mat="marble_teal", bevel=0.01),
+         kit.sweep_closed("step_cyma", FORK_CYMA, rect_loop(0.55, 0.55, 0.40), mat="marble_teal")]
+    P += sunk_die("die", 0.45, 0.06, 0.40, 1.40, "marble_ivory")
+    P.append(kit.sweep_closed("cap_cyma", FORK_CAP, rect_loop(0.45, 0.45, 1.40), mat="marble_teal"))
+    P.append(kit.box("cap_core", (0.72, 0.72, 0.12), (0, 0, 1.46), mat="marble_teal", bevel=0.01))
     P.append(kit.lathe("ball", [(0.0, 0.0), (0.15, 0.03), (0.22, 0.18), (0.15, 0.33), (0.0, 0.36)], segments=20, mat="gilt"))
     P[-1].location = (0, 0, 1.52)
     P.append(kit.lathe("stem", [(0.06, 0.0), (0.06, 0.5), (0.09, 0.56), (0.07, 0.62)], segments=12, mat="verdigris"))
     P[-1].location = (0, 0, 1.85)
-    # the U: a chamfered square section swept round the yoke and up both prongs
-    u = [(-0.32, 0, 4.7)] + [(-0.32, 0, 2.9)] + [(0.32 * math.cos(math.pi + math.pi * k / 10), 0, 2.9 + 0.32 * math.sin(math.pi + math.pi * k / 10)) for k in range(1, 10)] + [(0.32, 0, 2.9), (0.32, 0, 4.7)]
-    bm = bmesh.new()
-    prof = [(-0.06, -0.05), (0.06, -0.05), (0.07, -0.04), (0.07, 0.04), (0.06, 0.05), (-0.06, 0.05), (-0.07, 0.04), (-0.07, -0.04)]
-    pts = [Vector(p) for p in u]
-    rings = []
-    for i, p in enumerate(pts):
-        t = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
-        nrm = Vector((0, 1, 0))
-        side = t.cross(nrm).normalized()
-        rings.append([bm.verts.new(p + side * a + nrm * b) for a, b in prof])
-    for i in range(len(rings) - 1):
-        for j in range(len(prof)):
-            bm.faces.new((rings[i][j], rings[i + 1][j], rings[i + 1][(j + 1) % len(prof)], rings[i][(j + 1) % len(prof)]))
-    bm.faces.new(rings[0])
-    bm.faces.new(list(reversed(rings[-1])))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    P.append(kit._obj("fork", bm, "verdigris", 30))
+    P.append(sweep("fork", [(-0.06, -0.05), (0.06, -0.05), (0.07, -0.04), (0.07, 0.04), (0.06, 0.05), (-0.06, 0.05), (-0.07, 0.04), (-0.07, -0.04)],
+                   [(-0.32, 0, 4.7), (-0.32, 0, 2.9)] + [(0.32 * math.cos(math.pi + math.pi * k / 10), 0, 2.9 + 0.32 * math.sin(math.pi + math.pi * k / 10)) for k in range(1, 10)] + [(0.32, 0, 2.9), (0.32, 0, 4.7)],
+                   "verdigris", smooth=30.0))
     P.append(kit.box("fork_neck", (0.16, 0.12, 0.42), (0, 0, 2.5), mat="verdigris", bevel=0.03))
-    # an A in raised gilt on the die face
-    P.append(kit.box("a_l", (0.05, 0.03, 0.42), (-0.07, -0.46, 0.95), mat="gilt"))
+    P.append(kit.box("a_l", (0.05, 0.03, 0.42), (-0.07, -0.44, 0.9), mat="gilt"))
     P[-1].rotation_euler = (0, math.radians(-17), 0)
-    P.append(kit.box("a_r", (0.05, 0.03, 0.42), (0.07, -0.46, 0.95), mat="gilt"))
+    P.append(kit.box("a_r", (0.05, 0.03, 0.42), (0.07, -0.44, 0.9), mat="gilt"))
     P[-1].rotation_euler = (0, math.radians(17), 0)
-    P.append(kit.box("a_bar", (0.14, 0.03, 0.04), (0, -0.46, 0.9), mat="gilt"))
+    P.append(kit.box("a_bar", (0.14, 0.03, 0.04), (0, -0.44, 0.85), mat="gilt"))
     kit.join("fork_statue", P)
 
 
@@ -939,19 +1024,62 @@ def royal_box():
 
 
 def coffer_panel():
-    """The corridor's flip ceiling dressed (10 x 6 m, faces down at z=0): three sunk coffers in gilt
-    ribs, each with a rosette. The player walks on it upside down, so it reads from both sides."""
-    P = [kit.box("deck", (10.0, 6.0, 0.4), (0, 0, 0.2), mat="marble_teal")]
-    for k in range(3):
-        x = -3.33 + 3.33 * k
-        P.append(frame("coffer", 2.8, 5.2, (0, 0, 0), mat="gilt"))
-        P[-1].rotation_euler = (math.pi / 2, 0, 0)
-        P[-1].location = (x, 0, -0.01)
-        ro = kit.lathe("rose", [(0.0, 0.0), (0.45, 0.0), (0.5, -0.06), (0.3, -0.16), (0.0, -0.2)], segments=20, mat="gilt")
-        ro.location = (x, 0, 0)
-        P.append(ro)
-    for sy in (-1, 1):
-        P.append(sweep("edge", [(0.0, -0.2), (0.12, -0.2), (0.14, -0.1), (0.12, 0.0), (0.0, 0.0)], [(-5.0, sy * 3.0, 0.0), (5.0, sy * 3.0, 0.0)] if sy < 0 else [(5.0, sy * 3.0, 0.0), (-5.0, sy * 3.0, 0.0)], "gilt"))
+    """The corridor's flip ceiling dressed (10 x 6 m, faces down at z=0): a gilt-ribbed walk face of 3 x 2
+    marble coffers with rosettes, a moulded entablature and scrolled consoles at each short end, a moulded
+    cornice strip along each long side, and four gilt hanger rods rising to the flies."""
+    OX, OY = 5.0, 2.99
+    fx = (2 * OX - 2 * 0.12) / 3
+    fy = (2 * OY - 0.12) / 2
+    rib = OX - fx - 0.06
+    P = [kit.box("deck", (2 * OX, 6.0, 0.4), (0, 0, 0.2), mat="ebony", bevel=0.03),
+         kit.box("walk_border", (2 * OX, 2 * OY, 0.005), (0, 0, -0.0025), mat="marble_teal")]
+    for sx in (-1, 1):
+        P.append(kit.box("rib", (0.12, 2 * OY, 0.025), (sx * rib, 0, -0.0025), mat="gilt", bevel=0.006))
+    P.append(kit.box("rib", (2 * OX, 0.12, 0.025), (0, 0, -0.0025), mat="gilt", bevel=0.006))
+    for i in range(3):
+        xc = -OX + fx / 2 + i * (fx + 0.12)
+        for yc in (-(0.06 + fy / 2), 0.06 + fy / 2):
+            P.append(kit.box("coffer_ivory", (fx - 0.6, fy - 0.6, 0.008), (xc, yc, -0.009), mat="marble_ivory", bevel=0.003))
+            hx, hy = fx / 2 - 0.3, fy / 2 - 0.3
+            P.append(kit.box("fillet", (2 * hx + 0.024, 0.024, 0.012), (xc, yc + hy, -0.011), mat="gilt", bevel=0.004))
+            P.append(kit.box("fillet", (2 * hx + 0.024, 0.024, 0.012), (xc, yc - hy, -0.011), mat="gilt", bevel=0.004))
+            P.append(kit.box("fillet", (0.024, 2 * hy + 0.024, 0.012), (xc - hx, yc, -0.011), mat="gilt", bevel=0.004))
+            P.append(kit.box("fillet", (0.024, 2 * hy + 0.024, 0.012), (xc + hx, yc, -0.011), mat="gilt", bevel=0.004))
+            ro = kit.lathe("rosette", [(0.0, -0.028), (0.1, -0.028), (0.16, -0.022), (0.25, -0.014), (0.34, -0.006), (0.42, 0.0), (0.45, 0.0)], segments=24, mat="gilt")
+            ro.location = (xc, yc, 0.0)
+            P.append(ro)
+            P.append(kit.torus("rosette_ring", 0.32, 0.012, seg=32, rseg=6, mat="gilt", loc=(xc, yc, -0.014)))
+    ARCH = [(-0.1, -0.25), (0.12, -0.25), (0.13, -0.24), (0.12, -0.22), (0.1, -0.2), (0.1, -0.15), (0.12, -0.13), (0.1, -0.11),
+            (0.09, -0.07), (0.07, -0.05), (0.07, 0.0), (-0.1, 0.0)]
+    FRIEZE = [(-0.1, 0.0), (0.06, 0.0), (0.07, 0.02), (0.06, 0.04), (0.06, 0.38), (0.07, 0.4), (0.06, 0.42), (-0.1, 0.42)]
+    CROWN = [(0.1, 0.5), (0.2, 0.5), (0.22, 0.52), (0.2, 0.54), (0.26, 0.58), (0.31, 0.64), (0.33, 0.72), (0.3, 0.8),
+             (0.22, 0.86), (0.2, 0.9), (0.24, 0.93), (0.22, 0.95), (-0.1, 0.95), (-0.1, 0.5)]
+    for sx in (-1, 1):
+        path = [(sx * OX, -2.99, 0.0), (sx * OX, 2.99, 0.0)]
+        if sx < 0:
+            path.reverse()
+        P.append(sweep("arch_band", ARCH, path, "gilt"))
+        P.append(sweep("frieze", FRIEZE, path, "marble_teal"))
+        P.append(sweep("crown", CROWN, path, "gilt"))
+        for k in range(49):
+            P.append(kit.box("dentil", (0.08, 0.06, 0.08), (sx * 5.1, -2.88 + 0.12 * k, 0.46), mat="gilt", bevel=0.008))
+        for sy in (-1, 1):
+            y = sy * 2.45
+            P.append(kit.box("console", (0.18, 0.2, 0.06), (sx * 5.09, y, -0.27), mat="gilt", bevel=0.012))
+            scroll = [(sx * u, y, z) for u, z in [(5.12, -0.3), (5.24, -0.34), (5.32, -0.42), (5.26, -0.5), (5.16, -0.565), (5.07, -0.5)]]
+            P.append(kit.tube("scroll", scroll, 0.03, sides=8, mat="gilt"))
+            P.append(kit.torus("volute", 0.05, 0.018, seg=14, rseg=6, mat="gilt", loc=(sx * 5.2, y, -0.42), rot=(math.pi / 2, 0, 0)))
+            x = sx * 4.6
+            zs = [0.4 + 0.5 * k for k in range(16)] + [8.0]
+            P.append(kit.tube("hanger", [(x, sy * 2.55, z) for z in zs], 0.045, sides=12, mat="gilt"))
+            for k in range(1, 8):
+                P.append(kit.torus("collar", 0.06, 0.02, seg=16, rseg=6, mat="gilt", loc=(x, sy * 2.55, float(k))))
+            P.append(kit.torus("hanger_ring", 0.12, 0.025, seg=24, rseg=6, mat="gilt", loc=(x, sy * 2.55, 8.0)))
+    CORNICE = [(2.65, 0.0), (2.70, -0.02), (2.78, -0.07), (2.88, -0.115), (2.985, -0.115), (2.995, -0.06), (2.98, -0.035),
+               (2.995, -0.01), (2.95, 0.12), (2.88, 0.22), (2.94, 0.36), (2.90, 0.5), (2.84, 0.56), (2.92, 0.62), (2.92, 0.66),
+               (2.90, 0.70), (2.65, 0.70)]
+    P.append(prism_x("cornice", CORNICE, -OX, OX, "gilt"))
+    P.append(prism_x("cornice", [(-y, z) for y, z in CORNICE], -OX, OX, "gilt"))
     kit.join("coffer_panel", P)
 
 
