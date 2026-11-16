@@ -14,7 +14,9 @@ import bisect
 import json
 import math
 import os
+import random
 import sys
+import zlib
 
 import bmesh
 from mathutils import Vector, noise
@@ -362,31 +364,36 @@ class _Throat:
                 ob.data.materials.append(kit.material(name))
             return ob
 
-        # --- comb patches: separate blob meshes on the finished wall (comb_patch.py), own model
-        def sample(rng):
-            cx, cz = (X0 + X1) / 2.0, (Z0 + Z1) / 2.0
-            ym = (FLOOR + TOP_MIN) / 2.0
-            th = rng.uniform(0.0, math.tau)
-            dy = rng.uniform(-0.2, 0.2)
-            origin = Vector((cx, -cz, ym))
-            return origin, origin + Vector((math.cos(th), -math.sin(th), dy)), None
+        # --- comb flows: each runs 40-60 m along the wall between two spiral ribs (the rib crests sit at BULGE, so no
+        # room for a mound there), from a random height near the top; blobs big at the core, sparse at the ends
+        rng = random.Random(zlib.crc32(b"shell_shaft_comb flows") & 0xFFFFFFFF)
+        cx, cz = (X0 + X1) / 2.0, (Z0 + Z1) / 2.0
+        NS = 240
+        flows = []
+        for k in rng.sample(range(NRIB), rng.randint(3, 6)):
+            tau_top = (rng.uniform(FLOOR + 14.0, TOP_MIN - 3.0) - Y_BOT) / self.slope
+            run = rng.uniform(40.0, 60.0)
+            flow = []
+            for i in range(NS):
+                t = i / (NS - 1.0)
+                tau = tau_top - run * t             # run metres along the rib, descending
+                X, Z = self.fr((self.phi[k] + self.P / (2.0 * NRIB) - tau) % self.P)[0:2]  # midway between ribs k, k+1
+                y = Y_BOT + tau * self.slope
+                size = math.sin(math.pi * (0.04 + 0.92 * t)) ** 0.6
+                flow.append((Vector((cx, -cz, y)), Vector((X - cx, -(Z - cz), 0.0)), size))
+            flows.append(flow)
 
-        def accept(g, meta):
-            """Clusters near the top rim (2-4 m below it), fewer low down, none on the stair arch."""
+        def radius(g):
+            """Largest blob at g (Godot): 0 near the floor, the top rim and the stair arch."""
             y = g[1]
             if y < FLOOR + 1.0 or y > TOP_MIN - 1.0:
                 return 0.0
             if abs(g[0] - X0) < 2.0 and OY0 - 1.2 < y < OY1 + 1.2 and abs(g[2] - OZC) < OR + 1.2:
                 return 0.0  # keep patches off the stair arch
-            if y > TOP_MIN - 4.0:
-                return 0.9
-            return 0.5 if y < FLOOR + 3.0 else 0.6  # spread down the full height, lower walls included
+            return min(comb_patch.MAX_R, TOP_MIN - 0.4 - y, y - FLOOR - 1.0)
 
-        def radius(g, meta):
-            return min(comb_patch.MAX_R, TOP_MIN - 0.4 - g[1], g[1] - FLOOR - 1.0)
-
-        pbm, pst = comb_patch.build_patches(bm, "shell_shaft_comb", sample, radius, accept, _dn,
-                                            TOP_MIN, BULGE, TOTAL_CAP, cheap=True)
+        pbm, pst = comb_patch.build_flows(bm, "shell_shaft_comb", flows, radius, _dn, TOP_MIN, BULGE,
+                                          TOTAL_CAP, cheap=True)
         bm.free()
         print("TRIS shell_shaft_comb %d (cap 60000, budget %d)" % (pst["tris"], TOTAL_CAP))
         assert pst["tris"] <= 60000, pst["tris"]

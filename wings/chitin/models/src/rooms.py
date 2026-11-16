@@ -16,7 +16,9 @@ gives the comb patches only (same deterministic shell, own 60000-tri budget).
 import json
 import math
 import os
+import random
 import sys
+import zlib
 
 import bmesh
 import bpy
@@ -290,50 +292,87 @@ def _ribs(room):
     return ribs
 
 
-def _patch_hooks(room, ribs):
-    """sample / accept / radius / dn for comb_patch.build_patches, from this room's data."""
+def _comb_hooks(room):
+    """Flows, radius and dn for comb_patch.build_flows, from this room's data.
+
+    3-6 flows per shell, each a dense sample list of (origin_b, dir_b, size). Arch flows run from the crown
+    down one wall (fixed station along the axis, the section angle sweeping from the crown); axis flows run
+    along the vault (fixed section angle, the station sweeping the length). Size is a bump: small at both ends,
+    full in the middle. Flows are spaced so the dark wall stays between them."""
     a0, a1 = room["a"]
     c0, c1 = room["c"]
     uc = (c0 + c1) / 2.0
     H = (c1 - c0) / 2.0
     ax = room["axis"]
-    wt = room["wall_top"]
     floor = room["floor"]
     peak = room["peak"]
     mid = (floor + peak) / 2.0
     closed_s = room["start"] == "closed"
     closed_e = room["end"] == "closed"
     openings = room["openings"]
+    rng = random.Random(zlib.crc32(("flows " + room["name"]).encode()) & 0xFFFFFFFF)
+    NS = 240
 
-    def sample(rng):
-        s = rng.uniform(a0, a1)
-        th = rng.uniform(0.0, math.tau)
+    def ray(s, phi):
         origin = _blender(_godot(room, s, uc, mid))
-        direction = _blender(_godot(room, 0.0, math.cos(th), math.sin(th)))
-        return origin, origin + direction, s
+        return origin, _blender(_godot(room, 0.0, math.cos(phi), math.sin(phi)))
 
-    def accept(g, s):
-        """Probability of keeping a hit: clusters along the ribs and in the vault crown, few near floors."""
+    def bump(t):
+        return math.sin(math.pi * (0.04 + 0.92 * t)) ** 0.6
+
+    def flow_of(path):
+        out = []
+        for i in range(NS):
+            t = i / (NS - 1.0)
+            origin, d = path(t)
+            out.append((origin, d, bump(t)))
+        return out
+
+    flows, arch_s, axis_phi = [], [], []
+    room_len = a1 - a0
+    n_flows = rng.randint(4, 6)
+    for _ in range(400):
+        if len(flows) >= n_flows:
+            break
+        if rng.random() < 0.5:
+            s0 = rng.uniform(a0 + 4.0, a1 - 4.0)
+            if any(abs(s0 - s) < 2.0 * comb_patch.MAX_R + 3.0 for s in arch_s):
+                continue
+            side = rng.choice((-1.0, 1.0))
+            end = rng.uniform(-25.0, 40.0)
+            arch_s.append(s0)
+
+            def path(t, s0=s0, side=side, end=end):
+                phi = math.radians(88.0 + (end - 88.0) * t)
+                return ray(s0, math.pi - phi if side < 0 else phi)
+            flows.append(flow_of(path))
+        else:
+            phi_deg = rng.uniform(20.0, 80.0)
+            if any(abs(phi_deg - p) < 20.0 for p in axis_phi):
+                continue
+            axis_phi.append(phi_deg)
+            L = rng.uniform(0.5, 0.9) * (room_len - 6.0)
+            sa = a0 + 3.0 + rng.uniform(0.0, room_len - 6.0 - L)
+
+            def path(t, phi_deg=phi_deg, sa=sa, L=L):
+                return ray(sa + L * t, math.radians(phi_deg))
+            flows.append(flow_of(path))
+
+    def radius(g):
+        """Largest blob allowed at g (Godot): 0 on floors, inside openings, past closed ends."""
         y = g[1]
         if y < floor + 0.8:
             return 0.0
         for x0, y0, z0, x1, y1, z1 in openings:
             if x0 - 1.2 <= g[0] <= x1 + 1.2 and y0 - 1.2 <= g[1] <= y1 + 1.2 and z0 - 1.2 <= g[2] <= z1 + 1.2:
                 return 0.0
-        p = 0.08 if y < floor + 2.0 else (0.3 if y < wt else 0.5)
-        p += 0.3 * _smooth(wt, peak, y)                      # vault crown
-        if ribs:
-            near = min(abs(s - c) for c in ribs)
-            p += 0.9 * max(0.0, 1.0 - max(0.0, near - RIB_HALF) / 0.9)  # on and beside a rib
-        return min(1.0, p)
-
-    def radius(g, s):
-        lim = comb_patch.MAX_R
+        s = g[0] if ax == "x" else g[2]
+        lim = min(comb_patch.MAX_R, 1.5 * H)
         if closed_s:
             lim = min(lim, s - a0 - 1.0)
         if closed_e:
             lim = min(lim, a1 - s - 1.0)
-        return min(lim, 1.5 * H)
+        return max(0.0, lim)
 
     def dn(g):
         s = g[0] if ax == "x" else g[2]
@@ -345,7 +384,7 @@ def _patch_hooks(room, ribs):
             dl.append(a1 - s)
         return min(dl, key=abs)
 
-    return sample, accept, radius, dn
+    return flows, radius, dn
 
 
 # --- build -----------------------------------------------------------------------------------------
@@ -509,10 +548,10 @@ def build(args):
     _selfcheck(bm, room, base)
 
     if comb_only:
-        sample, accept, radius, dn = _patch_hooks(room, _ribs(room))
-        pbm, pst = comb_patch.build_patches(bm, base + "_comb", sample, radius, accept, dn,
-                                            room["wall_top"], room["bulge"], TOTAL_CAP,
-                                            cheap=base in CHEAP_COMB_ROOMS)
+        flows, radius, dn = _comb_hooks(room)
+        pbm, pst = comb_patch.build_flows(bm, base + "_comb", flows, radius, dn,
+                                          room["wall_top"], room["bulge"], TOTAL_CAP,
+                                          cheap=base in CHEAP_COMB_ROOMS)
         bm.free()
         print("TRIS %s comb %d (cap 60000, budget %d)" % (base + "_comb", pst["tris"], TOTAL_CAP))
         assert pst["tris"] <= 60000, pst["tris"]

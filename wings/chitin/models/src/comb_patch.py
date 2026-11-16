@@ -5,7 +5,9 @@ clusters, hex cells 0.6-0.7 m across (wax walls and a wax top ring, ~30 tris eac
 25% open dull cells, 5% broken. Cells are tallest at the centre of the patch and shortest at its rim, so it
 swells out of the shell; heights are limited so that vertices below wall_top stay within the bulge.
 
-Patches are exported as their own models "<shell>_comb" (materials wax, amber, carapace_dull by index 0-2).
+Patches are placed in FLOWS (build_flows): 3-6 long runs of blobs per shell, each following a rib or the vault
+curvature, big and dense at the core and thinning to sparse small cells at the ends; the dark wall between flows
+stays empty. Patches are exported as their own models "<shell>_comb" (materials wax, amber, carapace_dull by index 0-2).
 A patch is kept only if every vertex passes the wall check below wall_top (inward distance in [-0.05, bulge]).
 """
 import math
@@ -27,11 +29,13 @@ ROLL_R = 0.05       # rolled wax rim radius
 ROLL_LIFT = 0.03    # rim centreline above the shell
 ROLL_SIDES = 4
 OUT_N = 20          # outline samples
-MIN_R = 1.5         # blob radius range (m)
+R_MIN = 0.9         # blob radius range (m): edge blobs R_MIN, flow cores MAX_R
 MAX_R = 2.6
+SPACE_K = 1.2       # blob spacing along a flow: SPACE_K * R + SPACE_ADD (neighbours overlap a little)
+SPACE_ADD = 0.6
+TRIES = 16           # ray attempts per flow sample (sideways jitter after the first)
+JITTER = 0.08
 HMAX = 0.5          # mound height at the centre (m); clamped below wall_top by the bulge
-COVER = 0.12        # target share of shell surface covered by blobs
-MEAN_AREA = 12.0    # mean blob area (m2), for the patch count
 SAT_R = 0.8         # satellite cluster radius (m)
 MIN_DEPTH = 0.06
 TOL_BEHIND = 0.05
@@ -53,7 +57,7 @@ def _blob(rng, R):
     return lambda th: R * (1.0 + a1 * math.sin(k * th + p1) + a2 * math.sin((k + 1) * th + p2))
 
 
-def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False):
+def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False, rscale=1.0, min_cells=6):
     """Plan one patch centred on loc (Blender) with inward normal N. Returns (verts, faces, cells, tris),
     or None if the patch cannot be made to pass the wall check. faces: (index tuple, material, smooth).
     cheap: low-poly cells (16 tris dome/open, 12 broken): one wall band, then a flat cap (dome), a sunken
@@ -65,7 +69,7 @@ def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False):
     cp, sp = math.cos(phi), math.sin(phi)
     t1, t2 = t1 * cp + t2 * sp, t2 * cp - t1 * sp
     rad = _blob(rng, R)
-    r = rng.uniform(0.30, 0.36)              # cell circumradius: 0.6-0.72 m across corners
+    r = rng.uniform(0.30, 0.36) * rscale    # cell circumradius: 0.6-0.72 m across corners (rscale < 1 at flow edges)
     ri = r - WALL / COS30                    # inner corner radius for 0.04 m flats
     ANG = [k * math.pi / 3.0 for k in range(6)]
     sats = []
@@ -214,7 +218,7 @@ def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False):
             else:
                 del verts[n0:]
                 del faces[f0:]
-    if cells < 6 or not rim():
+    if cells < min_cells or not rim():
         return None
     for v in verts:
         g = to_g(v)
@@ -226,62 +230,78 @@ def _plan(bvh, rng, loc, N, R, dn, wt, bulge, cheap=False):
     return verts, faces, cells, tris
 
 
-def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budget, cheap=False):
-    """Place comb patches on the finished shell bmesh (Blender coords; normals face into the room).
+def _perp(d, rng):
+    """Random unit vector perpendicular to the unit vector d."""
+    a = d.cross(Vector((0.0, 0.0, 1.0)))
+    if a.length < 0.1:
+        a = d.cross(Vector((1.0, 0.0, 0.0)))
+    a.normalize()
+    t = rng.uniform(0.0, math.tau)
+    return a * math.cos(t) + d.cross(a) * math.sin(t)
 
-    Hooks (Godot coordinates unless noted):
-      sample(rng) -> (origin_b, target_b, meta): a ray from inside the room toward a candidate wall point.
-      accept(g, meta) -> probability of keeping a hit (clusters on ribs and the crown, few near floors).
-      radius(g, meta) -> largest blob radius allowed at hit g (ends, top, floor).
-      dn(g) -> signed inward distance to the collision faces (positive into the room).
-    cheap: low-poly hex cells (see _plan); default False keeps the detailed cells.
-    Returns (bmesh of all patches, stats). Patches stop once the triangle budget is spent."""
+
+def build_flows(shell, name, flows, radius, dn, wall_top, bulge, budget, cheap=False):
+    """Place comb FLOWS on the finished shell bmesh (Blender coords; normals face into the room).
+
+    flows: list of flows, each a list of (origin_b, dir_b, size) samples ordered along the flow: a ray from
+    origin_b along dir_b hits the wall; size in [0, 1] is 1 at the flow core and 0 at its ends and edges.
+    Blob radius = R_MIN + (MAX_R - R_MIN) * size, further capped by radius(g) (Godot coords; 0 excludes the
+    sample: floors, openings, closed ends). Blobs are placed greedily along each flow SPACE_K * R + SPACE_ADD
+    apart: they overlap in the core and thin out to sparse small cells at the ends. dn(g) -> signed inward
+    distance (Godot). Each flow gets an equal share of budget (triangles) and stops when its share is spent.
+    Returns (bmesh of all patches, stats)."""
     bvh = BVHTree.FromBMesh(shell)
     area = sum(f.calc_area() for f in shell.faces)
-    want_n = max(1, round(COVER * area / MEAN_AREA))
     rng = random.Random(zlib.crc32(name.encode()) & 0xFFFFFFFF)
     placed = []
     out_v, out_f = [], []
     tris = cells = 0
-    blob_area = 0.0
-    tries = 0
-    fails = {"hit": 0, "accept": 0, "radius": 0, "space": 0, "plan": 0}
-    while len(placed) < want_n and tries < 60000:
-        tries += 1
-        origin, target, meta = sample(rng)
-        hit = bvh.ray_cast(origin, (target - origin).normalized(), 1000.0)
-        if hit[0] is None:
-            fails["hit"] += 1
-            continue
-        loc = hit[0]
-        n = hit[1].normalized()
-        if n.dot(origin - loc) < 0.0:
-            n = -n
-        g = to_g(loc)
-        if rng.random() > accept(g, meta):
-            fails["accept"] += 1
-            continue
-        R = min(rng.uniform(MIN_R, MAX_R), radius(g, meta))
-        if R < MIN_R:
-            fails["radius"] += 1
-            continue
-        if any((loc - c).length < R + rc + 0.3 for c, rc in placed):
-            fails["space"] += 1
-            continue
-        plan = _plan(bvh, rng, loc, n, R, dn, wall_top, bulge, cheap)
-        if plan is None:
-            fails["plan"] += 1
-            continue
-        pv, pf, nc, pt = plan
-        if tris + pt > budget:
-            break
-        base = len(out_v)
-        out_v.extend(pv)
-        out_f.extend((tuple(i + base for i in idx), mat, sm) for idx, mat, sm in pf)
-        placed.append((loc, R))
-        tris += pt
-        cells += nc
-        blob_area += math.pi * R * R
+    fails = {"hit": 0, "radius": 0, "plan": 0}
+    for fi, flow in enumerate(flows):
+        share = (budget - tris) / (len(flows) - fi)   # unused budget of earlier flows goes to the rest
+        ftris = 0
+        last = None
+        for origin, direction, size in flow:
+            if size <= 0.0:
+                continue
+            d0 = direction.normalized()
+            found = None
+            for attempt in range(TRIES):
+                # retries jitter the ray sideways a little, so a bad spot shifts the blob along the flow band
+                d = d0 if attempt == 0 else (d0 + _perp(d0, rng) * rng.uniform(-JITTER, JITTER)).normalized()
+                hit = bvh.ray_cast(origin, d, 1000.0)
+                if hit[0] is None:
+                    fails["hit"] += 1
+                    continue
+                loc = hit[0]
+                n = hit[1].normalized()
+                if n.dot(origin - loc) < 0.0:
+                    n = -n
+                R = min(R_MIN + (MAX_R - R_MIN) * size, radius(to_g(loc)))
+                if R < R_MIN:
+                    fails["radius"] += 1
+                    continue
+                if last is not None and (loc - last).length < SPACE_K * R + SPACE_ADD:
+                    break
+                plan = _plan(bvh, rng, loc, n, R, dn, wall_top, bulge, cheap, 0.6 + 0.4 * size, 3)
+                if plan is None:
+                    fails["plan"] += 1
+                    continue
+                found = (loc, R, plan)
+                break
+            if found is None:
+                continue
+            loc, R, (pv, pf, nc, pt) = found
+            if tris + pt > budget or ftris + pt > share:
+                break
+            base = len(out_v)
+            out_v.extend(pv)
+            out_f.extend((tuple(i + base for i in idx), mat, sm) for idx, mat, sm in pf)
+            placed.append((loc, R))
+            tris += pt
+            ftris += pt
+            cells += nc
+            last = loc
     bvh = None
 
     bm = bmesh.new()
@@ -298,11 +318,18 @@ def build_patches(shell, name, sample, radius, accept, dn, wall_top, bulge, budg
     lo = min(below) if below else 0.0
     hi = max(below) if below else 0.0
     assert not below or (-TOL_BEHIND - 1e-9 <= lo and hi <= bulge + 1e-6), "comb patch outside wall band"
-    stats = {"patches": len(placed), "cells": cells, "tris": tris, "area": area,
-             "coverage": blob_area / area, "budget": budget, "tries": tries, "fails": fails,
-             "below": len(below), "lo": lo, "hi": hi}
-    print("COMB %s: %d patches (target %d), %d cells, %d tris (budget %d), blob cover %.1f%% of %.0f m2"
-          % (name, len(placed), want_n, cells, tris, budget, 100.0 * stats["coverage"], area))
+    disc_area = sum(math.pi * R * R for _, R in placed)
+    union_area = 0.0
+    for f in shell.faces:
+        c = f.calc_center_median()
+        if any((c - loc).length_squared <= R * R for loc, R in placed):
+            union_area += f.calc_area()
+    stats = {"flows": len(flows), "blobs": len(placed), "cells": cells, "tris": tris, "area": area,
+             "coverage": union_area / area, "disc_cover": disc_area / area, "budget": budget,
+             "fails": fails, "below": len(below), "lo": lo, "hi": hi}
+    print("COMB %s: %d flows, %d blobs, %d cells, %d tris (budget %d), cover %.1f%% (discs %.1f%%) of %.0f m2"
+          % (name, len(flows), len(placed), cells, tris, budget, 100.0 * stats["coverage"],
+             100.0 * stats["disc_cover"], area))
     print("COMB-CHECK %s: %d patch verts below wall_top, inward range [%.3f, %.3f] within [-%.2f, %.2f]; fails %s"
           % (name, len(below), lo, hi, TOL_BEHIND, bulge, fails))
     return bm, stats

@@ -4,8 +4,10 @@ One script; build(args) with args[0] = a platform name from shells.json "platfor
 bracket (fungus shelf of fan lobes), shelf (shingled chitin plates that splay out and curl under),
 stump (wax comb with dripping clusters), cocoon (silk-slung ovoid wider than the deck).
 
-Every platform has a flat "floor" top at exactly `top` covering its rect. For the top 0.4 m the outline sits
-0.05..0.3 m outside the rect (corners 0.3 m). Below that the body may reach up to 1.8 m beyond the rect and
+Every platform has a flat "floor" top at exactly `top`. For the top 0.4 m the outline sits
+0.05..0.3 m outside the rect (corners 0.3 m). A platform with "round": R has its collision as the rect with
+corners rounded by R; its top outline lies inside that rounded rect (corners >= R, notches <= 0.5 m deep),
+and its underside tapers in and wobbles on a ~1.5 m wave. Below that the body may reach up to 1.8 m beyond the rect and
 breaks the rectangle: lobes, plates, cell clusters and an ovoid, all with off-centre stems or keels.
 Coordinates are Godot world (x, y up, z); G() maps them to Blender (x, -z, y).
 
@@ -80,6 +82,14 @@ def load_platform(name):
     raise SystemExit("unknown platform: " + name)
 
 
+def rr_dist(x, z, rect, r):
+    """Signed distance from (x, z) to the rect with corners rounded by r: positive outside."""
+    x0, x1, z0, z1 = rect
+    qx = abs(x - (x0 + x1) / 2.0) - ((x1 - x0) / 2.0 - r)
+    qz = abs(z - (z0 + z1) / 2.0) - ((z1 - z0) / 2.0 - r)
+    return math.hypot(max(qx, 0.0), max(qz, 0.0)) + min(max(qx, qz), 0.0) - r
+
+
 def inside(poly, x, z):
     """Even-odd point-in-polygon on (x, z) pairs."""
     hit = False
@@ -104,6 +114,7 @@ class Plat:
         self.hx, self.hz = (x1 - x0) / 2.0, (z1 - z0) / 2.0
         self.top, self.base = float(p["top"]), float(p["base"])
         self.H = self.top - self.base
+        self.round = float(p.get("round", 0.0))            # corner radius of the collision rect; 0 = square
         self.crc = zlib.crc32(self.name.encode())
         ph = random.Random(self.crc ^ 0x9E37)
         self.ph = [ph.uniform(0.0, TAU) for _ in range(3)]
@@ -114,7 +125,7 @@ class Plat:
         self.maxoff = list(self.d)                          # widest outward offset seen per outline point
 
     def _outline(self):
-        r0 = CORNER_R
+        r0 = self.round + 0.6 if self.round else CORNER_R  # round: corners stay >= round after 0.55 m of notches
         ax, az = self.hx - r0, self.hz - r0
         cen = [(ax, az), (-ax, az), (-ax, -az), (ax, -az)]
         pts = []   # (x, z, nx, nz, arc length) relative to centre
@@ -146,6 +157,8 @@ class Plat:
         na = max(1, round(P / 6.0))     # integer harmonics: the wobble closes exactly around the loop
         nb = max(1, round(P / 9.0))
         nc = max(1, round(P / 13.0))
+        nr = max(8, round(P / 2.8))     # round platforms: notch count, 2-4 per long side
+        nf = max(3, round(P / 1.5))     # round platforms: underside wave about 1.5 m long
 
         def cdist(sk):
             best = P
@@ -159,14 +172,21 @@ class Plat:
         self.px, self.pz, self.nx, self.nz = [], [], [], []
         self.d, self.rf, self.wk, self.th = [], [], [], []
         self.ang, self.sk, self.cw, self.wb = [], [], [], []
+        self.fine = []
         for x, z, nx, nz, sk in pts:
             ph_s = TAU * sk / P
             lob = 0.6 * math.sin(n1 * ph_s + 0.9) + 0.3 * math.sin(n2 * ph_s + 2.1) + 0.1 * math.sin(n3 * ph_s + 0.4)
-            dl = 0.06 + 0.24 * (lob + 1.0) / 2.0             # top lobes: 0.06..0.30 m outside the rect
-            cw = max(0.0, 1.0 - cdist(sk) / 0.9)            # top corners: pushed out to 0.3 m
-            d = dl + (max(dl, 0.3) - dl) * cw
+            if self.round:
+                # top outline inside the rounded rect: 8-ish soft notches 0.5 m deep, never past the rounded edge
+                d = -0.3 - 0.25 * math.sin(nr * ph_s + self.ph[0])
+                cw = 0.0
+            else:
+                dl = 0.06 + 0.24 * (lob + 1.0) / 2.0             # top lobes: 0.06..0.30 m outside the rect
+                cw = max(0.0, 1.0 - cdist(sk) / 0.9)            # top corners: pushed out to 0.3 m
+                d = dl + (max(dl, 0.3) - dl) * cw
             self.d.append(d)
-            self.rf.append(min(RIM_R, 0.4 * d))
+            self.rf.append(RIM_R if self.round else min(RIM_R, 0.4 * d))
+            self.fine.append(0.5 + 0.5 * math.sin(nf * ph_s + self.ph[2]))
             self.px.append(self.cx + x)
             self.pz.append(self.cz + z)
             self.nx.append(nx)
@@ -216,10 +236,17 @@ class Plat:
     def stem(self, k):
         return (self.sx + STEM_R * math.cos(self.th[k]), self.base, self.sz + STEM_R * math.sin(self.th[k]))
 
-    def reach(self, k, e):
-        """Outline offset of point k with extra reach e. Soft limit: linear to 1.4 m, then approaching 1.8 m
-        asymptotically, so the crest stays curved instead of clamping flat (the 1.8 m rule still holds)."""
-        r = self.d[k] + e
+    def under(self, k, depth):
+        """Round platforms: the underside tapers in toward its base and wobbles on a ~1.5 m wave, so no run
+        stays straight. Zero in the top band and for square platforms."""
+        if not self.round:
+            return 0.0
+        return ramp(depth) * (-0.6 * smooth01(depth / self.H) + 0.25 * self.fine[k])
+
+    def reach(self, k, e, depth=0.0):
+        """Outline offset of point k with extra reach e at depth. Soft limit: linear to 1.4 m, then approaching
+        1.8 m asymptotically, so the crest stays curved instead of clamping flat (the 1.8 m rule still holds)."""
+        r = self.d[k] + e + self.under(k, depth)
         if r <= 1.6:
             return r
         return 1.6 + 0.2 * (1.0 - math.exp(-(r - 1.6) / 0.2))
@@ -349,7 +376,7 @@ def kind_bracket(P, parts, fr):
         for k in range(P.M):
             hd = P.H * (0.3 + 0.7 * math.sqrt(Lk[k]))      # lobe tips hang to full depth, valleys stay shallow
             depth = P.rf[k] + (hd - P.rf[k]) * u
-            p = P.pt(k, P.reach(k, ext(k, depth)), P.top - depth)
+            p = P.pt(k, P.reach(k, ext(k, depth), depth), P.top - depth)
             row.append(lerp3(p, P.stem(k), smooth01((u - 0.55) / 0.45)))
         rings.append(row)
     chain(parts.get("lip", "carapace"), fr)
@@ -388,7 +415,7 @@ def kind_shelf(P, parts, fr):
             depth = P.rf[k] + (T[k] - P.rf[k]) * S
             r = ramp(depth)
             e = Emax[k] * curl + 0.6 * P.wb[k] + P.bl[k] + saw
-            out.append(P.pt(k, P.reach(k, r * e), P.top - depth))
+            out.append(P.pt(k, P.reach(k, r * e, depth), P.top - depth))
         return out
 
     rings = [row(j) for j in range(1, J + 1)]
@@ -427,19 +454,21 @@ def kind_stump(P, parts, fr):
     def slab_e(k, depth):
         return ramp(depth) * (CR[k] + 0.6 * P.wb[k] + P.bl[k])
 
+    # round: the cap droops under its lobes (up to 0.6 m deeper than the centre), so it reads as a wax cap
+    droop = [0.6 * smooth01(CR[k] / 1.0) if P.round else 0.0 for k in range(P.M)]
     SJ = 4
     rings = []
     for j in range(1, SJ + 1):
         u = j / float(SJ)
         row = []
         for k in range(P.M):
-            depth = P.rf[k] + (slab_d - P.rf[k]) * u
-            row.append(P.pt(k, P.reach(k, slab_e(k, depth)), P.top - depth))
+            depth = P.rf[k] + (slab_d + droop[k] - P.rf[k]) * u
+            row.append(P.pt(k, P.reach(k, slab_e(k, depth), depth), P.top - depth))
         rings.append(row)
     chain(parts.get("lip", "wax"), fr)
     body = parts.get("body", "wax")
     vl = chain(body, [fr[-1]] + rings)
-    body.fan(vl[-1], (P.cx, P.top - slab_d, P.cz))
+    body.fan(vl[-1], (P.cx, P.top - slab_d - sum(droop) / P.M, P.cz))
 
     def hexring(cx, cz, rad, ys):
         out = []
@@ -576,6 +605,10 @@ KINDS = {"bracket": kind_bracket, "shelf": kind_shelf, "stump": kind_stump, "coc
 # --- checks and build --------------------------------------------------------------------------------
 
 def check_floor(P, ring):
+    if P.round:
+        for p in ring:
+            assert rr_dist(p[0], p[2], P.rect, P.round) <= 1e-6, (P.name, "top outline outside rounded rect", p)
+        return
     poly = [(p[0], p[2]) for p in ring]
     x0, x1, z0, z1 = P.rect
     for i in range(41):
@@ -594,7 +627,7 @@ def check_mesh(P, objs):
             w = ob.matrix_world @ v.co
             x, y, z = w.x, w.z, -w.y
             assert y <= P.top + 0.001, (P.name, ob.name, "above top", y)
-            dist = math.hypot(max(x0 - x, 0.0, x - x1), max(z0 - z, 0.0, z - z1))
+            dist = max(rr_dist(x, z, P.rect, P.round), 0.0)
             assert dist <= REACH_MAX + 0.005, (P.name, ob.name, "reach", dist)   # 5 mm: float32 mesh coords
             if y > P.top - TOP_BAND:
                 assert dist <= 0.3 + 0.005, (P.name, ob.name, "top band beyond 0.3 m", round(dist, 3), round(y, 3))
@@ -624,5 +657,5 @@ def build(args):
     print(f"TOTAL {P.name} kind={P.kind} tris={total} budget={BUDGET} outline_offset=[{min(P.d):.3f},{max(P.maxoff):.3f}] "
           f"outline_pts={P.M}")
     assert total <= BUDGET, (P.name, total)
-    print("SELF-CHECK ok: floor y == top (+-0.001), floor covers rect, nothing in top 0.4 m beyond 0.3 m, "
-          "nothing beyond 1.8 m, nothing above top")
+    print("SELF-CHECK ok: floor y == top (+-0.001), floor covers rect (or lies in the rounded rect when round), "
+          "nothing in top 0.4 m beyond 0.3 m, nothing beyond 1.8 m, nothing above top")
