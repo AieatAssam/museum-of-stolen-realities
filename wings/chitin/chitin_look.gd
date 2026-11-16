@@ -13,7 +13,7 @@ const MATS := "res://wings/chitin/materials"
 ## hushed gallery, a black arena under rim light, then the amber blaze of the hall.
 const AREAS := {
 	"OuterGate": {"wall": "carapace", "fungus": 6, "comb": 4, "lamp": Color(1.0, 0.72, 0.38), "exp": 2.4},
-	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.35},
+	"SilkDistricts": {"wall": "comb", "fungus": 14, "comb": 0, "lamp": Color(1.0, 0.7, 0.35), "exp": 1.75},
 	"HiveShaft": {"wall": "carapace", "fungus": 4, "comb": 16, "lamp": Color(0.55, 1.0, 0.85), "exp": 3.3},
 	"Foundry": {"wall": "carapace", "fungus": 14, "comb": 8, "lamp": Color(0.55, 1.0, 0.85), "exp": 1.9},
 	"TapestryGallery": {"wall": "comb_dim", "fungus": 8, "comb": 0, "lamp": Color(0.6, 1.0, 0.88), "exp": 2.3},
@@ -100,13 +100,23 @@ func _throat_comb(r: Dictionary) -> void:
 		var a: Vector3 = w[0]
 		var b: Vector3 = w[1]
 		var top := float(w[3]) - 2.0
-		var n := int(a.distance_to(b) * (top + 68.0) / 55.0)
-		for i: int in n:
-			var p := a.lerp(b, _rng.randf_range(0.06, 0.94))
-			p.y = _rng.randf_range(-67.0, top)
-			if p.y < -64.0 and p.x < 84.0:
-				continue  # keep the stair door clear
-			_add("comb", Transform3D(Basis(Vector3.UP, float(w[2])).rotated(Vector3(0, 0, 1).rotated(Vector3.UP, float(w[2])), _rng.randf_range(-0.6, 0.6)) * Basis.from_scale(Vector3.ONE * _rng.randf_range(1.0, 1.8)), p))
+		# two flows per wall, each running diagonally down the wall like the spiral ribs: dense and
+		# large on the flow line, thinning to small sparse cells at its edges; bare wall between
+		var len := a.distance_to(b)
+		for f: int in 2:
+			var u0 := _rng.randf_range(0.1, 0.9)
+			var u1 := clampf(u0 + _rng.randf_range(-0.35, 0.35), 0.06, 0.94)
+			var n := int(len * (top + 68.0) / 60.0)
+			for i: int in n:
+				var t := _rng.randf()
+				var spread := _rng.randfn(0.0, 0.4)  # in units of the flow's half-width
+				var half := 3.0 + 9.0 * (1.0 - t)  # spilling from the rim, narrowing as it runs down
+				var p := a.lerp(b, lerpf(u0, u1, t)) + (b - a).normalized() * spread * half
+				p.y = lerpf(top, -67.0, t)
+				if p.y < -64.0 and p.x < 84.0:
+					continue  # keep the stair door clear
+				var k := clampf(1.0 - absf(spread), 0.15, 1.0) * (1.0 - 0.7 * t)
+				_add("comb", Transform3D(Basis(Vector3.UP, float(w[2])).rotated(Vector3(0, 0, 1).rotated(Vector3.UP, float(w[2])), _rng.randf_range(-0.6, 0.6)) * Basis.from_scale(Vector3.ONE * lerpf(0.6, 2.6, k)), p))
 	for c: Vector3 in [Vector3(x0, 0, z0), Vector3(x1, 0, z0), Vector3(x0, 0, z1), Vector3(x1, 0, z1)]:
 		var yaw := atan2(-(c.x - (x0 + x1) * 0.5), -(c.z - (z0 + z1) * 0.5))
 		for y: float in [-60.0, -44.0, -30.0]:
@@ -129,6 +139,12 @@ func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void
 	name = "Look"
 	_rope_mat = load("res://wings/chitin/materials/silk_line.tres")
 	var spec: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SHELLS))
+	for n: String in ["masses_hiveshaft", "masses_generalarena", "masses_foundry", "masses_silkdistricts", "masses_outergate", "eye_lid"]:
+		_shell(n)
+	# the eye's light pools under the lid's sagging rim
+	for p: Vector3 in [Vector3(88, 9, -8), Vector3(142, 9, -8), Vector3(115, 9, -36), Vector3(115, 9, 18), Vector3(70, 13, -8)]:
+		light(p, Color(1.0, 0.6, 0.22), 6.0, 30.0, 0.0)
+	light(Vector3(63, 2.5, 10.5), Color(1.0, 0.62, 0.25), 3.0, 14.0, 0.5)  # honey seep at the districts' last buttress
 	for r: Dictionary in spec["partitions"]:
 		_shell(r["name"])
 		for c: Array in r["cover"]:
