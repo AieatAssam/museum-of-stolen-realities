@@ -61,32 +61,118 @@ def _on_slope(s, dz=0.0, y=0.0):
     return tuple(s * D + dz * N + Vector((0.0, y, 0.0)))
 
 
-def _break(ob, half, low, high, rng, zamp):
-    """Ragged low end, snapped high end: jitter the vertices in the last 0.3 m of each end."""
-    for v in ob.data.vertices:
-        if v.co.x > half - 0.3:
-            v.co.x -= rng.uniform(0.0, high)
-            v.co.z += rng.uniform(-zamp, zamp)
-        elif v.co.x < -half + 0.3:
-            v.co.x += rng.uniform(0.0, low)
-            v.co.z += rng.uniform(-zamp, zamp)
+COPE_HALF = 0.8                                  # half width of the walk = the coping's upper edges
+RELIEF = 0.04                                    # depth of the sunk blind-arcade panels in the side faces
+ARCH_PITCH, ARCH_SPAN, ARCH_RISE = 0.35, 0.30, 0.16
+ARCH_S0, ARCH_NUM = 0.12, 10                     # first arch starts at s 0.12, ten arches
+ARCH_Z0, ARCH_ZS = -0.36, -0.26                  # opening bottom, springing line (pointed head to -0.10)
+CROCKET_STEP = 0.45                              # along each upper edge, the two edges staggered by half
+
+
+def _cope_point(s, y, dz):
+    return s * D + dz * N + Vector((0.0, y, 0.0))
+
+
+def _cope_loop():
+    """Closed section (y, dz) on the slope: weathering top falling to the edges, a roll moulding on each
+    upper edge, the side faces, a chamfer and drip groove on the underside."""
+    h = [(0.0, 0.0), (0.3, -0.004), (0.6, -0.016), (0.74, -0.03)]
+    h += [(0.77 + 0.03 * math.cos(math.radians(a)), -0.06 + 0.03 * math.sin(math.radians(a)))
+          for a in (90, 60, 30, 0)]
+    h += [(COPE_HALF, -0.06 - 0.02 * k) for k in range(1, 18)]           # side face, -0.08 .. -0.40
+    h += [(0.76, -0.44), (0.73, -0.45), (0.70, -0.45), (0.69, -0.42), (0.67, -0.42), (0.66, -0.45), (0.0, -0.45)]
+    return h + [(-y, dz) for y, dz in reversed(h)][1:-1]
+
+
+def _arch_depth(s, dz):
+    """RELIEF inside a pointed blind arch cut into a side face (straight jambs, then a two-centred head)."""
+    s2 = ARCH_SPAN / 2
+    r = (ARCH_RISE ** 2 + s2 ** 2) / ARCH_SPAN       # radius of each arc of the head
+    c = s2 - r                                        # arc centres at u = +-c
+    for k in range(ARCH_NUM):
+        u = s - (ARCH_S0 + ARCH_PITCH * (k + 0.5))
+        if abs(u) > s2:
+            continue
+        if ARCH_Z0 <= dz < ARCH_ZS:
+            return RELIEF
+        z = dz - ARCH_ZS
+        if 0.0 <= z <= ARCH_RISE and (u - c) ** 2 + z * z <= r * r and (u + c) ** 2 + z * z <= r * r:
+            return RELIEF
+    return 0.0
+
+
+def _coping(rng, LEN):
+    """The coping as two pieces with a jagged break at 60% of the length (gap 0.02-0.04), ragged ends.
+    Side faces carry the sunk arcade: the recess floor is gold, the rest red."""
+    loop = _cope_loop()
+    M = len(loop)
+    bm = bmesh.new()
+
+    def ring(s_of):
+        out = []
+        for j, (y, dz) in enumerate(loop):
+            s = s_of(j)
+            d = _arch_depth(s, dz) if abs(y) > COPE_HALF - 1e-6 else 0.0
+            out.append(bm.verts.new(_cope_point(s, y - math.copysign(d, y) if d else y, dz)))
+        return out
+
+    n = math.ceil(LEN / 0.07)
+    st = [LEN * i / n for i in range(n + 1)]
+    sc = 0.6 * LEN
+    a = [rng.uniform(0.0, 0.01) for _ in range(M)]
+    b = [rng.uniform(0.0, 0.01) for _ in range(M)]
+    t0 = [rng.uniform(0.0, 0.12) for _ in range(M)]
+    t1 = [rng.uniform(0.0, 0.12) for _ in range(M)]
+    pieces = [
+        [ring(lambda j: t0[j])] + [ring(lambda j, s=s: s) for s in st if 0.0 < s < sc - 0.05]
+        + [ring(lambda j: sc - 0.01 - a[j])],
+        [ring(lambda j: sc + 0.01 + b[j])] + [ring(lambda j, s=s: s) for s in st if sc + 0.05 < s < LEN]
+        + [ring(lambda j: LEN - t1[j])],
+    ]
+    for rings in pieces:
+        for r0, r1 in zip(rings, rings[1:]):
+            for j in range(M):
+                k = (j + 1) % M
+                bm.faces.new((r0[j], r1[j], r1[k], r0[k]))
+        bm.faces.new(rings[0])
+        bm.faces.new(rings[-1])
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])     # the jagged end caps are n-gons
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    ob = kit._obj("coping", bm, RED, 30.0)
+    ob.data.materials.append(kit.material(GOLD))
+    for poly in ob.data.polygons:                    # recess floors (|y| = 0.76) take the gold slot
+        if all(abs(abs(ob.data.vertices[i].co.y) - (COPE_HALF - RELIEF)) < 1e-4 for i in poly.vertices):
+            poly.material_index = 1
+    return ob
+
+
+def _crockets():
+    """Curled leaf knobs on each upper edge, outside |y| 0.8 so they never sit on the walk."""
+    out = []
+    for sg, s_off in ((1, 0.3), (-1, 0.525)):
+        s0, k = s_off, 0
+        while s0 < TOP.length - 0.2:
+            lean = 0.02 if k % 2 == 0 else -0.02
+            pts = []
+            for i in range(7):
+                th = math.pi - i * math.pi / 6
+                pts.append(_cope_point(s0 + lean * math.sin(th), sg * (0.87 + 0.05 * math.cos(th)),
+                                       -0.06 + 0.05 * math.sin(th)))
+            out.append(kit.tube("crocket", pts, 0.012, 6, mat=GOLD))
+            s0 += CROCKET_STEP
+            k += 1
+    return out
 
 
 def fallen_flyer():
     rng = random.Random(11)
-    mid = TOP / 2
     s0, s1 = 0.7, 2.9
 
     def depth(s):
         return 0.42 + 0.3 * math.sin(math.pi * (s - s0) / (s1 - s0)) ** 0.8
 
-    p = []
-    cop = kit.box("coping", (LEN, 1.6, 0.45), mat=RED, bevel=0.05)
-    _break(cop, LEN / 2, 0.25, 0.2, rng, 0.05)
-    p.append(_put(cop, tuple(mid - N * 0.225), SLOPE_ROT))       # top face on the slope line
-    cap = kit.box("cap", (LEN, 1.66, 0.06), mat="glass_gold_m", bevel=0.015)
-    _break(cap, LEN / 2, 0.25, 0.2, rng, 0.01)
-    p.append(_put(cap, tuple(mid), SLOPE_ROT))                   # lead cap, 0.03 proud of the line
+    p = [_coping(rng, LEN)]                                      # section top sits on the slope line (dz 0)
+    p.extend(_crockets())
 
     # the rib: flyer()'s arch shortened to the middle of the span, hung under the coping
     path = [(s, -depth(s)) for s in (s0 + (s1 - s0) * i / 16 for i in range(17))]
