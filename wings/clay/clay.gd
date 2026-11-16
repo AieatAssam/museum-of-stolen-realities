@@ -8,6 +8,7 @@ const WORLD_FPS := 12.0
 const STEP := 1.0 / WORLD_FPS
 const PULL_RATE := 0.9        # m of height per second at the brush centre
 const BRUSH_R := 1.25
+const PULL_R := 1.6           # a free pull takes the neighbouring cells with it: a rounded mound, not a spike
 const POUCH_START := 4.0
 const POUCH_MAX := 9.0
 const TOOL_POUCH_BONUS := 3.0
@@ -725,7 +726,7 @@ func _on_beat(_dt: float) -> void:
 func _pull(keep: Vector3) -> void:
 	var dh := PULL_RATE * STEP
 	var at := _aim
-	var r := BRUSH_R
+	var r := PULL_R
 	var ceiling := Callable()
 	# The first step: a pull at or near the knoll is centred just off its edge (towards her), wider,
 	# and never rises above a walkable ramp down from the plateau, so it always joins the ledge.
