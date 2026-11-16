@@ -72,14 +72,18 @@ func _run() -> void:
 		return
 	await _settle_cinematics()
 	_switch_off(String(_args.get("off", "")).split(",", false))
-	print("[shots] %s  window %s  quality %s  off %s  load %s" % [id, DisplayServer.window_get_size(), Save.settings["quality"],
-		_args.get("off", "-"), _loadavg()])
+	print("[shots] %s  window %s  quality %s  3d scale %.2f mode %d  off %s  load %s" % [id, DisplayServer.window_get_size(),
+		Save.settings["quality"], get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode, _args.get("off", "-"), _loadavg()])
 	if not _args.has("ui"):
 		for n: String in ["/root/Placards", "/root/Cinematics"]:
 			(get_node(n) as CanvasLayer).visible = false
 		if Game._hud:  # the HUD re-shows itself every frame while playing: stop it, then hide
 			Game._hud.process_mode = Node.PROCESS_MODE_DISABLED
 			Game._hud.visible = false
+	if _args.has("ab"):
+		await _run_ab(String(_args["ab"]), String(_args.get("marks", "")).split(",", false))
+		Game.quit(0)
+		return
 	await _measure_at("player_view", dir, null)
 	var cam := Camera3D.new()
 	cam.fov = 70.0
@@ -125,6 +129,104 @@ func _switch_off(what: PackedStringArray) -> void:
 				var skin: ShaderMaterial = Game.wing.get("_skin")
 				if skin:
 					skin.set_shader_parameter("volume", 0.0)
+
+
+## --ab=lever [--marks=a,b] [--rounds=3]: interleaved A/B at each mark (A,B,A,B,...) in one process, so
+## load and thermals hit both sides alike. Prints mean frame ms per side. Levers: see _lever().
+func _run_ab(lever: String, only: PackedStringArray) -> void:
+	print("[ab] defaults: ssr half %s  ssao q %s half %s" % [ProjectSettings.get_setting("rendering/environment/screen_space_reflection/half_size", "?"),
+		ProjectSettings.get_setting("rendering/environment/ssao/quality"), ProjectSettings.get_setting("rendering/environment/ssao/half_size")])
+	var cam := Camera3D.new()
+	cam.fov = 70.0
+	cam.far = 600.0
+	Game.wing.add_child(cam)
+	var views: Array = []  # [name, Transform3D]
+	var marks := Game.wing.get_node_or_null("ShotMarks")
+	if marks:
+		for m: Node in marks.get_children():
+			if m is Node3D:
+				views.append([String(m.name), (m as Node3D).global_transform])
+	else:
+		for n: String in ATRIUM_MARKS:
+			views.append([n, Transform3D.IDENTITY.translated(ATRIUM_MARKS[n][0]).looking_at(ATRIUM_MARKS[n][1])])
+	cam.make_current()
+	if _args.has("base"):  # --base=fsr77: held on for both sides, so the lever's marginal cost shows
+		_lever(String(_args["base"]), true)
+	for v: Array in views:
+		if not only.is_empty() and not only.has(v[0]):
+			continue
+		cam.global_transform = v[1]
+		var sums := [0.0, 0.0]
+		var runs := [[], []]
+		for r in int(_args.get("rounds", "3")):
+			for side in 2:
+				_lever(lever, side == 1)
+				await get_tree().create_timer(0.6).timeout
+				for x in _rec:
+					x.clear()
+				_recording = true
+				await get_tree().create_timer(float(_args["secs"])).timeout
+				_recording = false
+				var avg := 0.0
+				for f: float in _rec[0]:
+					avg += f
+				avg /= maxi(_rec[0].size(), 1)
+				runs[side].append("%.1f" % avg)
+				sums[side] += avg
+		var n := float(runs[0].size())
+		print("[ab] %-6s %-14s A %.2f  B %.2f  delta %+.2f ms   A%s B%s  load %s" % [lever, v[0], sums[0] / n, sums[1] / n,
+			(sums[1] - sums[0]) / n, runs[0], runs[1], _loadavg()])
+	_lever(lever, false)
+
+
+func _lever(lever: String, on: bool) -> void:
+	if "+" in lever:  # a package: msaa+fsr77
+		for l in lever.split("+"):
+			_lever(l, on)
+		return
+	var vp := get_viewport()
+	if lever.begins_with("fsr") or lever.begins_with("bil"):  # fsr77, bil85: 3D scale 0.77 / 0.85
+		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if lever.begins_with("fsr") and on else Viewport.SCALING_3D_MODE_BILINEAR
+		vp.scaling_3d_scale = float(lever.substr(3)) / 100.0 if on else 1.0
+		return
+	var env: Environment = Game.wing.environment() if Game.wing else null
+	match lever:
+		"none": pass
+		"newq":  # B: the shipped "high" preset + auto scale; A: the pre-2026-11 high (MSAA 2x + FXAA, fog 96^3, native)
+			if on:  # mirrors Quality.apply at high (not called: it would undo chitin's SSR step clamp)
+				vp.msaa_3d = Viewport.MSAA_DISABLED
+				vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
+				RenderingServer.environment_set_volumetric_fog_volume_size(64, 64)
+				Save._apply_render_scale()
+			else:
+				vp.msaa_3d = Viewport.MSAA_2X
+				vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+				RenderingServer.environment_set_volumetric_fog_volume_size(96, 96)
+				vp.scaling_3d_scale = 1.0
+				vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+		"fog64": RenderingServer.environment_set_volumetric_fog_volume_size(64 if on else 96, 64 if on else 96)
+		"fog64x48": RenderingServer.environment_set_volumetric_fog_volume_size(64 if on else 96, 48 if on else 96)
+		"fogfilter": RenderingServer.environment_set_volumetric_fog_filter_active(not on)
+		"fogoff": env.volumetric_fog_enabled = not on
+		"msaa": vp.msaa_3d = Viewport.MSAA_DISABLED if on else Viewport.MSAA_2X
+		"ssroff": env.ssr_enabled = not on
+		"ssrrough": RenderingServer.environment_set_ssr_roughness_quality(
+			RenderingServer.ENV_SSR_ROUGHNESS_QUALITY_LOW if on else ProjectSettings.get_setting("rendering/environment/screen_space_reflection/roughness_quality"))
+		"ssaooff": env.ssao_enabled = not on
+		"ssaolow": RenderingServer.environment_set_ssao_quality(
+			RenderingServer.ENV_SSAO_QUALITY_LOW if on else ProjectSettings.get_setting("rendering/environment/ssao/quality"),
+			ProjectSettings.get_setting("rendering/environment/ssao/half_size"), 0.5, 2, 50.0, 300.0)
+		"glowoff": env.glow_enabled = not on
+		"glowbicubic": RenderingServer.environment_glow_set_use_bicubic_upscale(not on)
+		"softshadow":
+			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW if on else RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
+			RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW if on else RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
+		"atlas2k":
+			RenderingServer.directional_shadow_atlas_set_size(2048 if on else 4096, true)
+			vp.positional_shadow_atlas_size = 2048 if on else 4096
+		"ssrhalf": RenderingServer.environment_set_ssr_half_size(on != bool(
+			ProjectSettings.get_setting("rendering/environment/screen_space_reflection/half_size", true)))  # flips the default
+		_: push_error("unknown lever " + lever)
 
 
 func _settle_cinematics() -> void:
