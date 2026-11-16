@@ -675,21 +675,21 @@ def horn():
         base = 0.34 - 0.12 * t + 0.05 * math.sin(t * math.pi)
         return base + 0.025 * math.sin(9 * th + 2 * z) * (1.0 - t)
     P.append(lathe_fn("gown", [1.34 + 1.3 * k / 14 for k in range(15)], gown, 36, "bronze"))
-    P.append(kit.lathe("bodice", [(0.2, 2.6), (0.22, 2.8), (0.2, 2.95), (0.12, 3.05), (0.06, 3.1), (0.06, 3.16)], segments=18, mat="bronze"))
-    hd = kit.lathe("head", [(0.0, 0.0), (0.08, 0.02), (0.11, 0.1), (0.1, 0.19), (0.05, 0.25), (0.0, 0.26)], segments=14, mat="bronze")
+    P.append(kit.lathe("bodice", [(0.2, 2.6), (0.22, 2.8), (0.2, 2.95), (0.12, 3.05), (0.06, 3.1), (0.06, 3.16)], segments=32, mat="bronze"))
+    hd = kit.lathe("head", [(0.0, 0.0), (0.08, 0.02), (0.11, 0.1), (0.1, 0.19), (0.05, 0.25), (0.0, 0.26)], segments=24, mat="bronze")
     hd.location = (0, 0, 3.14)
     P.append(hd)
-    P.append(kit.lathe("bun", [(0.0, 0.0), (0.07, 0.02), (0.08, 0.07), (0.0, 0.1)], segments=10, mat="bronze"))
+    P.append(kit.lathe("bun", [(0.0, 0.0), (0.07, 0.02), (0.08, 0.07), (0.0, 0.1)], segments=16, mat="bronze"))
     P[-1].location = (0, 0.08, 3.34)
     for sx in (-1, 1):
         P.append(kit.tube("arm", [(sx * 0.18, 0.0, 2.95), (sx * 0.28, -0.12, 3.1), (sx * 0.16, -0.32, 3.28), (sx * 0.04, -0.42, 3.34)], 0.045, 8, "bronze"))
     # trumpet: a long tube from the lips to a flared bell
     P.append(kit.tube("leadpipe", [(0, -0.12, 3.26), (0, -0.4, 3.36), (0, -0.9, 3.55), (0, -1.3, 3.7)], 0.035, 10, "brass"))
-    bell = kit.lathe("bell", [(0.035, 0.0), (0.05, 0.25), (0.09, 0.45), (0.18, 0.6), (0.32, 0.68), (0.36, 0.7), (0.34, 0.7)], segments=24, mat="brass", cap=False)
+    bell = kit.lathe("bell", [(0.035, 0.0), (0.05, 0.25), (0.09, 0.45), (0.18, 0.6), (0.32, 0.68), (0.36, 0.7), (0.34, 0.7)], segments=48, mat="brass", cap=False)
     bell.rotation_euler = (math.radians(70), 0, 0)
     bell.location = (0, -1.28, 3.69)
     P.append(bell)
-    P.append(kit.torus("bell_rim", 0.355, 0.02, seg=24, rseg=6, mat="gilt", loc=(0, -1.28 - 0.7 * math.sin(math.radians(70)), 3.69 + 0.7 * math.cos(math.radians(70))), rot=(math.radians(70), 0, 0)))
+    P.append(kit.torus("bell_rim", 0.355, 0.02, seg=48, rseg=8, mat="gilt", loc=(0, -1.28 - 0.7 * math.sin(math.radians(70)), 3.69 + 0.7 * math.cos(math.radians(70))), rot=(math.radians(70), 0, 0)))
     for k in range(2):
         P.append(kit.torus("ferrule", 0.045, 0.012, seg=10, rseg=4, mat="gilt", loc=(0, -0.55 - 0.4 * k, 3.42 + 0.14 * k), rot=(math.radians(70), 0, 0)))
     kit.join("horn", P)
@@ -867,21 +867,21 @@ def fork_statue():
 def chandelier():
     """The great chandelier (origin at the hanging point): a gilt corona, three tiers of scrolled arms
     with candle cups and flames, swags of crystal chains, a cascade of drops and a pendant ball."""
-    P = [kit.lathe("stem", [(0.08, 0.0), (0.08, -1.0), (0.14, -1.05), (0.08, -1.1), (0.08, -2.6)], segments=10, mat="gilt")]
-    P.append(kit.lathe("corona", [(0.0, -0.9), (0.6, -1.0), (0.9, -1.25), (0.75, -1.45), (0.25, -1.55), (0.0, -1.6)], segments=24, mat="gilt"))
-    P.append(kit.lathe("body", [(0.0, -2.4), (0.5, -2.6), (0.7, -3.1), (0.55, -3.6), (0.8, -4.0), (0.6, -4.3), (0.2, -4.7), (0.12, -5.1), (0.25, -5.3), (0.0, -5.5)], segments=24, mat="gilt"))
+    P = [kit.lathe("stem", [(0.08, 0.0), (0.08, -1.0), (0.14, -1.05), (0.08, -1.1), (0.08, -2.6)], segments=16, mat="gilt")]
+    P.append(kit.lathe("corona", [(0.0, -0.9), (0.6, -1.0), (0.9, -1.25), (0.75, -1.45), (0.25, -1.55), (0.0, -1.6)], segments=48, mat="gilt"))
+    P.append(kit.lathe("body", [(0.0, -2.4), (0.5, -2.6), (0.7, -3.1), (0.55, -3.6), (0.8, -4.0), (0.6, -4.3), (0.2, -4.7), (0.12, -5.1), (0.25, -5.3), (0.0, -5.5)], segments=48, mat="gilt"))
     P.append(kit.lathe("pendant", [(0.0, 0.0), (0.18, -0.1), (0.2, -0.25), (0.1, -0.42), (0.0, -0.5)], segments=12, mat="crystal"))
     P[-1].location = (0, 0, -5.5)
     flames = []
     drops = []
     for z, R, n in [(-2.7, 1.7, 8), (-3.6, 2.7, 12), (-4.4, 3.5, 16)]:
-        P.append(kit.torus("ring", R, 0.06, seg=48, rseg=8, mat="gilt", loc=(0, 0, z)))
+        P.append(kit.torus("ring", R, 0.06, seg=64, rseg=12, mat="gilt", loc=(0, 0, z)))
         for i in range(n):
             a = TAU * i / n
             c, s = math.cos(a), math.sin(a)
             arm = [(c * 0.3, s * 0.3, z + 0.25), (c * R * 0.5, s * R * 0.5, z - 0.25), (c * R * 0.85, s * R * 0.85, z + 0.05), (c * R, s * R, z + 0.25)]
-            P.append(kit.tube("arm", arm, 0.035, 6, "gilt"))
-            cup = kit.lathe("cup", [(0.0, 0.0), (0.08, 0.02), (0.1, 0.06), (0.05, 0.08)], segments=10, mat="gilt")
+            P.append(kit.tube("arm", arm, 0.035, 8, "gilt"))
+            cup = kit.lathe("cup", [(0.0, 0.0), (0.08, 0.02), (0.1, 0.06), (0.05, 0.08)], segments=16, mat="gilt")
             cup.location = (c * R, s * R, z + 0.25)
             P.append(cup)
             cdl = kit.lathe("candle", [(0.025, 0.0), (0.025, 0.2), (0.0, 0.21)], segments=8, mat="wax")
