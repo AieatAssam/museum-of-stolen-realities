@@ -47,7 +47,6 @@ var _dip: float = 0.0
 var _dip_vel: float = 0.0
 var _eye: float = 1.62
 var _was_on_floor: bool = true
-var _fall_speed: float = 0.0
 var _fov_kick: float = 0.0
 var _last_step_sign: float = 1.0
 var _look_lag: Vector2 = Vector2.ZERO

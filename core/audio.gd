@@ -27,13 +27,13 @@ var music_bar: float = 0.0
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for surface: String in ["marble", "carpet", "wood", "stone"]:
-		var set: Array[AudioStream] = []
+		var bank: Array[AudioStream] = []
 		for i in range(1, 7):
 			var s := _load("%sstep_%s_%d.ogg" % [DIR, surface, i])
 			if s:
-				set.append(s)
-		if not set.is_empty():
-			_footsteps[surface] = set
+				bank.append(s)
+		if not bank.is_empty():
+			_footsteps[surface] = bank
 
 
 func _load(path: String) -> AudioStream:
@@ -180,14 +180,14 @@ func register_footsteps(surface: StringName, streams: Array[AudioStream]) -> voi
 
 
 func footstep(surface: StringName, pos: Vector3, loudness: float = 1.0) -> void:
-	var set: Array = _footsteps.get(String(surface), _footsteps.get("marble", []))
-	if set.is_empty():
+	var bank: Array = _footsteps.get(String(surface), _footsteps.get("marble", []))
+	if bank.is_empty():
 		return
-	var i := randi() % set.size()
-	if set.size() > 1 and i == _last_step.get(surface, -1):
-		i = (i + 1) % set.size()
+	var i := randi() % bank.size()
+	if bank.size() > 1 and i == _last_step.get(surface, -1):
+		i = (i + 1) % bank.size()
 	_last_step[surface] = i
-	sfx(set[i], pos, linear_to_db(loudness) - 4.0, 0.55, randf_range(0.93, 1.06))
+	sfx(bank[i], pos, linear_to_db(loudness) - 4.0, 0.55, randf_range(0.93, 1.06))
 
 
 func emitter(s: AudioStream, parent: Node3D, volume_db: float = 0.0, unit_size: float = 8.0) -> AudioStreamPlayer3D:
