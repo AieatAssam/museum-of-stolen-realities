@@ -138,5 +138,5 @@ func _pulls() -> void:
 	Input.action_press(&"primary")
 	await get_tree().create_timer(2.0).timeout
 	Input.action_release(&"primary")
-	await _shot("15_pulled_column", Vector3(2.0, _ground(2.0, 21.5) + 0.2, 21.5), Vector3(-1.0, 0.6, 19.0))
+	await _shot("15_pulled_column", Vector3(3.5, _ground(3.5, 23.5) + 0.2, 23.5), Vector3(-1.0, 1.2, 19.0))
 
