@@ -616,7 +616,9 @@ func _build_orchard() -> void:
 	_stroke(A, "bough_1", [Vector3(0, 0.25, -59), Vector3(0, 0.25, -82)], "blue")
 	_stroke(A, "bough_2", [Vector3(0, -1.2, -87), Vector3(0, -1.2, -106)], "blue")
 	_stroke(A, "bough_3", [Vector3(0, -2.5, -111), Vector3(0, -2.5, -130)], "blue", 2.0, {"kicks": [17.0]})
-	_ground(A, "Crown", -6, -136, 6, -152, 0.5, "goal")
+	var crown := _ground(A, "Crown", -6, -136, 6, -152, 0.5, "goal")
+	crown.get_node("Visual").visible = false   # the collider stays the box; the tree crown is the visual
+	_model(A, "crown", Vector3(0, 0.5, -144))
 	_zone(A, Vector3(-6, 0, -136), Vector3(6, 4, -152), func() -> void: complete_step(&"orchard", &"crown"))
 	_stroke(A, "stray_bough", [Vector3(-4.6, 0.5, -139), Vector3(-4.6, 0.5, -148)], "blue", 1.5, {"up": true, "t": 0.4})
 	var kn := _model(A, "knife", Vector3(2, 0.56, -146), 0.4, 2.2)   # shown large: it is the wing's one tool
@@ -656,6 +658,7 @@ func _build_windfall() -> void:
 	_block(A, "LookoutEast", Vector3(13.6, 23.4, -166), Vector3(19, 24.4, -176.5))
 	_block(A, "LookoutWest", Vector3(4.8, 23.4, -166), Vector3(10.0, 24.4, -176.5))   # the hole is the green column's, plus her shoulders
 	_block(A, "LookoutNorth", Vector3(4.8, 23.4, -163), Vector3(19, 24.4, -166))
+	_model(A, "lookout_scaffold", Vector3.ZERO)   # stretcher-bar legs under the decks (built in world position)
 	_well(A, "lamp_oil", Vector3(-12, 0.5, -163), Vector3(-12, 0.5, -167), "yellow")
 	_well(A, "ultramarine_bank", Vector3(-26, 0.5, -185.5), Vector3(-8, 0.5, -185.5), "blue")
 	_well(A, "red_tube", Vector3(9, 0.5, -186), Vector3(12, 0.5, -186), "red")

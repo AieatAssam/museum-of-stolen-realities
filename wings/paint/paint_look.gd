@@ -97,7 +97,8 @@ func build(wing: Node) -> void:
 	wing.add_child(sun)
 	grade = PostGrade.new()
 	grade.contrast = 1.04
-	grade.grain = 0.015
+	grade.grain = 0.0         # per-pixel grain reads as stipple on the impasto
+	grade.aberration = 0.0    # the default 0.6 split the fine ridges into red/cyan stippling
 	grade.vignette = 0.28
 
 

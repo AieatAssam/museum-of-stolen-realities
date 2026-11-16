@@ -81,6 +81,9 @@ func _spot(from: Vector3, to: Vector3, rng: float, angle: float) -> void:
 	sp.spot_attenuation = 0.6
 	sp.light_volumetric_fog_energy = 30.0  # froxels are ~27 px: beams under ~12° vanish
 	sp.shadow_enabled = false
+	sp.distance_fade_enabled = true   # out of the fog volume (90 m) they only cost clustering
+	sp.distance_fade_begin = 85.0   # the throat beams must hold from the hall floor up to the eye
+	sp.distance_fade_length = 20.0
 	add_child(sp)
 	sp.look_at_from_position(from, to, Vector3.FORWARD)
 

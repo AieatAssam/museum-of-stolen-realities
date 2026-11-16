@@ -227,6 +227,9 @@ func _build_environment() -> void:
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.1
 	Quality.apply(env)
+	# the floors are rough chitin: 16 steps over their short glossy streaks look the same as 32 and
+	# halve the trace (16 ms budget in the arena and under the eye)
+	env.ssr_max_steps = mini(env.ssr_max_steps, 16)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -235,7 +238,10 @@ func _build_environment() -> void:
 	key_light.light_energy = 1.4
 	key_light.rotation_degrees = Vector3(-78, 28, 0)  # steep: the eye is overhead, the shaft floor gets it
 	key_light.shadow_enabled = true
-	key_light.directional_shadow_max_distance = 110.0
+	# two splits over 70 m, not four over 110: every split re-draws the dense shells (16 ms budget);
+	# past 70 m the fog has eaten the contact shadows anyway
+	key_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	key_light.directional_shadow_max_distance = 70.0
 	key_light.light_volumetric_fog_energy = 0.8
 	add_child(key_light)
 
@@ -653,7 +659,7 @@ func _checkpoint(id: StringName, pos: Vector3, yaw_deg: float) -> Checkpoint:
 	return cp
 
 
-## Twelve camera marks: Marker3Ds under ShotMarks (shots.gd looks down each one's -Z), also in
+## Thirteen camera marks: Marker3Ds under ShotMarks (shots.gd looks down each one's -Z), also in
 ## group shot_marks.
 func _build_marks() -> void:
 	var holder := _group(self, "ShotMarks")
@@ -670,6 +676,7 @@ func _build_marks() -> void:
 		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
 		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
 		["first_swing", Vector3(-4, 1.7, 5), Vector3(13, 4, -3)],
+		["heist_rim", Vector3(108, -1.3, -31), Vector3(121, 1.5, -40.5)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()

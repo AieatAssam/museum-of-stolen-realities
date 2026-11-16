@@ -52,7 +52,7 @@ func _deliverables() -> void:
 			long += 1
 	check(long == 0, "every placard body is 40 words or fewer")
 	var marks := w.get_node("ShotMarks").get_children()
-	check(marks.size() == 12 and marks.all(func(m: Node) -> bool: return m is Marker3D and m.is_in_group(&"shot_marks")), "12 shot marks in ShotMarks and group shot_marks")
+	check(marks.size() == 13 and marks.all(func(m: Node) -> bool: return m is Marker3D and m.is_in_group(&"shot_marks")), "13 shot marks in ShotMarks and group shot_marks")
 	check(w.provenances().size() == 3, "three provenances")
 
 

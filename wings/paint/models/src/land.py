@@ -310,36 +310,149 @@ def lean_to(P, w, d):
 # --- church -------------------------------------------------------------------------------------
 
 def church(P):
-    box(P, "p_plaster", Vector((-7.0, -3.5, 0.0)), Vector((3.0, 3.5, 5.5)), n=5, amp=0.05)
-    gable_roof(P, "p_roof", -2.0, 0.0, 5.5, 10.0, 7.0, 3.6, ov=0.45, K=5)
-    gable_end(P, "p_plaster", -7.15, -6.88, 0.0, 5.5, 7.0, 3.6)
-    for xw in (-5.9, -3.2, 1.8):
-        box(P, "p_wood_dark", Vector((xw - 0.3, -3.56, 2.3)), Vector((xw + 0.3, -3.44, 3.9)), n=1, amp=0.01)
-        box(P, "p_wood_dark", Vector((xw - 0.3, 3.44, 2.3)), Vector((xw + 0.3, 3.56, 3.9)), n=1, amp=0.01)
-    box(P, "p_wood_dark", Vector((-0.9, -3.58, 0.0)), Vector((-0.1, -3.42, 2.8)), n=2, amp=0.01)
-    # tower: square, stone below, quoined corners, louvres, pointed cap
-    box(P, "p_stone", Vector((3.0, -2.0, 0.0)), Vector((7.0, 2.0, 16.0)), n=4, amp=0.05)
-    for cx in (3.0, 7.0):
-        for cy in (-2.0, 2.0):
-            sx = -1 if cx == 3.0 else 1
-            sy = -1 if cy == -2.0 else 1
-            for kk in range(8):
-                z0 = 2.0 * kk + (0.2 if kk % 2 else 0.0)
-                box(P, "p_plaster",
-                    Vector((min(cx, cx + sx * 0.4), min(cy, cy + sy * 0.4), z0)),
-                    Vector((max(cx, cx + sx * 0.4), max(cy, cy + sy * 0.4), z0 + 1.85)), n=1, amp=0.02)
-    box(P, "p_wood_dark", Vector((4.2, -2.06, 12.8)), Vector((5.8, -1.94, 14.4)), n=1, amp=0.01)
-    box(P, "p_wood_dark", Vector((6.94, -0.8, 12.8)), Vector((7.06, 0.8, 14.4)), n=1, amp=0.01)
-    base = [(2.75, -2.25), (7.25, -2.25), (7.25, 2.25), (2.75, 2.25)]
-    mid = [(3.35, -1.6), (6.65, -1.6), (6.65, 1.6), (3.35, 1.6)]
-    cos = [Vector((x, y, 16.0)) for x, y in base] + [Vector((x, y, 17.7)) + P.jit(0.06) for x, y in mid]
-    cos.append(Vector((5.0, 0.0, 19.6)))
+    """Provencal village church: a plastered nave with stone string courses, stepped buttresses and arched
+    windows, a half-round apse at the west end under its own cone roof, a three-stage stone tower with
+    cornices and belfry openings on all four faces, and an 8-sided spire. Brush and slab, all jittered."""
+    rng = P.rng
+    PL, ST, RF, DK, WD, YL = "p_plaster", "p_stone", "p_roof", "p_wood_dark", "p_wood", "p_yellow"
+
+    def slab(axis, plane, t, a0, a1, c0, c1, mat, n=1, amp=0.01):
+        """Axis-aligned slab on a wall. axis 1: wall normal along Y (a runs along X); axis 0: normal along X."""
+        if axis == 1:
+            lo, hi = Vector((a0, plane - t, c0)), Vector((a1, plane + t, c1))
+        else:
+            lo, hi = Vector((plane - t, a0, c0)), Vector((plane + t, a1, c1))
+        box(P, mat, lo, hi, n=n, amp=amp)
+
+    def opening(axis, plane, u, z0, w, h, depth=0.06):
+        """Arched opening: dark recess, six stone voussoirs around the round head, and a sill."""
+        slab(axis, plane, depth, u - w / 2, u + w / 2, z0, z0 + h, DK, n=2)
+        rc = w / 2 + 0.1
+        for k in range(6):
+            th = math.pi * (k + 0.5) / 6
+            cu, cz = u + rc * math.cos(th), z0 + h + rc * math.sin(th)
+            slab(axis, plane, 0.09, cu - 0.11, cu + 0.11, cz - 0.11, cz + 0.11, ST, amp=0.012)
+        slab(axis, plane, 0.09, u - w / 2 - 0.08, u + w / 2 + 0.08, z0 - 0.12, z0, ST, amp=0.01)
+
+    def buttress(yf, x):
+        """Two-step buttress on a long wall: a broad base, then a narrower, shallower set-back above."""
+        s = -1.0 if yf < 0 else 1.0
+        for dx, dep, z0, z1 in ((0.45, 0.4, 0.0, 2.8), (0.3, 0.22, 2.8, 4.6)):
+            a, b = sorted((yf - s * 0.05, yf + s * dep))
+            box(P, ST, Vector((x - dx, a, z0)), Vector((x + dx, b, z1)), n=2, amp=0.03)
+
+    # nave: plaster box, gable roof, both gable ends (the apse closes the west one)
+    box(P, PL, Vector((-7.0, -3.5, 0.0)), Vector((3.0, 3.5, 5.5)), n=5, amp=0.05)
+    gable_roof(P, RF, -2.0, 0.0, 5.5, 10.0, 7.0, 3.6, ov=0.45, K=5)
+    gable_end(P, PL, -7.15, -6.88, 0.0, 5.5, 7.0, 3.6)
+    gable_end(P, PL, 2.88, 3.12, 0.0, 5.5, 7.0, 3.6)
+
+    # long walls: string courses, buttresses, arched windows (the front has the door at x -1.5)
+    for yf, wins in ((-3.5, (-4.6, 1.8)), (3.5, (-4.6, -1.5, 1.8))):
+        s = -1.0 if yf < 0 else 1.0
+        for xb in (-6.4, -3.0, 0.3):
+            buttress(yf, xb)
+        for zc in (1.75, 4.55):
+            stroke(P, ST, [Vector((x, yf + s * 0.02, zc)) for x in (-7.0, -4.0, -1.0, 2.0, 3.0)],
+                   [0.14] * 5, sides=6, thick=1.0, ref=Vector((0, 1, 0)), jit=0.008)
+        for xw in wins:
+            opening(1, yf, xw, 2.0, 0.6, 1.6)
+
+    # front door: stone jambs and arch, steps, and a small gabled porch on two posts
+    opening(1, -3.5, -1.5, 0.0, 0.9, 2.2)
+    for a0, a1 in ((-2.12, -1.95), (-1.05, -0.88)):
+        slab(1, -3.5, 0.1, a0, a1, 0.0, 2.3, ST, amp=0.01)
+    box(P, ST, Vector((-2.0, -4.45, 0.0)), Vector((-1.0, -3.45, 0.18)), n=1, amp=0.02)
+    gable_roof(P, RF, -1.5, -4.0, 3.0, 2.0, 1.2, 0.7, ov=0.2, K=3)
+    for px in (-2.22, -0.92):
+        box(P, WD, Vector((px, -4.7, 0.0)), Vector((px + 0.14, -4.56, 3.0)), n=1, amp=0.01)
+
+    # west apse: half-cylinder of plaster (14 facets), half-cone roof, two small arched windows
+    cx, R, eave, apex_z, N = -7.0, 3.0, 4.4, 6.4, 14
+
+    def arc(r, k):
+        ph = -math.pi / 2 + math.pi * k / N
+        return cx - r * math.cos(ph), r * math.sin(ph)
+
+    cos, faces = [], []
+    for k in range(N + 1):
+        x, y = arc(R, k)
+        cos.append(Vector((x, y, 0.0)) + P.jit(0.03, z=False))
+        cos.append(Vector((x, y, eave)) + P.jit(0.03))
+    for k in range(N):
+        faces.append((2 * k, 2 * k + 2, 2 * k + 3, 2 * k + 1))
+    P.add(PL, cos, faces)
+    cos = [Vector((cx, 0.0, apex_z))]
+    for k in range(N + 1):
+        x, y = arc(R + 0.3, k)
+        cos.append(Vector((x, y, eave - 0.1)) + P.jit(0.03))
+    P.add(RF, cos, [(0, k + 1, k + 2) for k in range(N)])
+    for k in (4, 10):
+        x, y = arc(R, k)
+        opening(0, x, y, 1.9, 0.4, 1.4, depth=0.15)
+
+    # west gable: round rose window, a ring of stone around a dark disc, with stone tracery
+    rx, rz = -7.2, 7.4
+    cos = [Vector((rx, 0.0, rz))] + [Vector((rx, 0.62 * math.cos(TAU * k / 12), rz + 0.62 * math.sin(TAU * k / 12)))
+                                     for k in range(12)]
+    P.add(DK, cos, [(0, 1 + k, 1 + (k + 1) % 12) for k in range(12)])
+    ring = [Vector((rx, 0.74 * math.cos(TAU * k / 12), rz + 0.74 * math.sin(TAU * k / 12))) for k in range(13)]
+    stroke(P, ST, ring, [0.16] * 13, sides=6, thick=0.6, ref=Vector((1, 0, 0)), jit=0.01)
+    slab(0, rx, 0.05, -0.74, 0.74, rz - 0.03, rz + 0.03, ST)
+    slab(0, rx, 0.05, -0.03, 0.03, rz - 0.74, rz + 0.74, ST)
+
+    # tower: three stone stages with cornices, plaster quoins, belfry openings on all four faces
+    box(P, ST, Vector((3.0, -2.0, 0.0)), Vector((7.0, 2.0, 7.0)), n=4, amp=0.05)
+    box(P, ST, Vector((3.0, -2.0, 7.3)), Vector((7.0, 2.0, 11.5)), n=4, amp=0.05)
+    box(P, ST, Vector((3.0, -2.0, 11.8)), Vector((7.0, 2.0, 15.7)), n=3, amp=0.05)
+    for z0 in (7.0, 11.5, 15.7):
+        box(P, ST, Vector((2.84, -2.16, z0)), Vector((7.16, 2.16, z0 + 0.3)), n=2, amp=0.03)
+    for cx_ in (3.0, 7.0):
+        for cy_ in (-2.0, 2.0):
+            sx = -1 if cx_ == 3.0 else 1
+            sy = -1 if cy_ == -2.0 else 1
+            for kk in range(7):
+                z0 = 1.6 * kk + (0.2 if kk % 2 else 0.0)
+                box(P, PL,
+                    Vector((min(cx_, cx_ + sx * 0.4), min(cy_, cy_ + sy * 0.4), z0)),
+                    Vector((max(cx_, cx_ + sx * 0.4), max(cy_, cy_ + sy * 0.4), z0 + 1.4)), n=1, amp=0.02)
+    # clock on the front of the middle stage: plaster disc, gold ring, two hands
+    cy_, cz_, rr = -2.12, 9.4, 0.5
+    cos = [Vector((5.0, cy_, cz_))] + [Vector((5.0 + rr * math.cos(TAU * k / 12), cy_, cz_ + rr * math.sin(TAU * k / 12)))
+                                       for k in range(12)]
+    P.add(PL, cos, [(0, 1 + k, 1 + (k + 1) % 12) for k in range(12)])
+    ring = [Vector((5.0 + 0.56 * math.cos(TAU * k / 12), cy_, cz_ + 0.56 * math.sin(TAU * k / 12))) for k in range(13)]
+    stroke(P, YL, ring, [0.1] * 13, sides=6, thick=1.0, ref=Vector((0, 1, 0)), jit=0.005)
+    slab(1, cy_, 0.03, 4.97, 5.03, cz_, cz_ + 0.42, DK, amp=0.005)
+    slab(1, cy_, 0.03, 5.0, 5.3, cz_ - 0.03, cz_ + 0.03, DK, amp=0.005)
+    # belfry: paired round-arched openings on each face, a slim column between each pair
+    for axis, plane, us, c in ((1, -2.0, (4.45, 5.55), 5.0), (1, 2.0, (4.45, 5.55), 5.0),
+                               (0, 3.0, (-0.45, 0.45), 0.0), (0, 7.0, (-0.45, 0.45), 0.0)):
+        for u in us:
+            opening(axis, plane, u, 12.3, 0.5, 2.0)
+        slab(axis, plane, 0.07, c - 0.08, c + 0.08, 12.3, 14.3, ST, amp=0.01)
+    # narrow lancets on the stage-two back and east faces
+    opening(1, 2.0, 5.0, 8.4, 0.3, 1.4)
+    opening(0, 7.0, 0.0, 8.4, 0.3, 1.4)
+
+    # spire: lip overhanging the tower top, then an 8-sided spire to ~22.6 m, ball and cross
+    def ring8(z, r):
+        return [Vector((5.0 + r * math.cos(TAU * k / 8 + 0.2), r * math.sin(TAU * k / 8 + 0.2), z)) + P.jit(0.04)
+                for k in range(8)]
+
+    lip = ring8(16.0, 2.15) + ring8(16.3, 1.55)
+    P.add(ST, lip, [(k, (k + 1) % 8, 8 + (k + 1) % 8, 8 + k) for k in range(8)])
+    rA, rB, rC = ring8(16.3, 1.55), ring8(19.2, 0.95), ring8(21.4, 0.4)
+    apex = Vector((5.0, 0.0, 22.6))
     faces = []
-    for i in range(4):
-        j = (i + 1) % 4
-        faces.append((i, j, 4 + j, 4 + i))
-        faces.append((4 + i, 4 + j, 8))
-    P.add("p_roof", cos, faces)
+    for k in range(8):
+        faces.append((k, (k + 1) % 8, 8 + (k + 1) % 8, 8 + k))
+        faces.append((8 + k, 8 + (k + 1) % 8, 16 + (k + 1) % 8, 16 + k))
+        faces.append((16 + k, 16 + (k + 1) % 8, 24))
+    P.add(RF, rA + rB + rC + [apex], faces)
+    blob(P, YL, Vector((5.0, 0.0, 22.9)), (0.22, 0.22, 0.22), rng, detail=1, lump=0.06)
+    box(P, DK, Vector((4.97, -0.03, 23.1)), Vector((5.03, 0.03, 24.2)), n=1, amp=0.01)
+    box(P, DK, Vector((4.78, -0.03, 23.6)), Vector((5.22, 0.03, 23.68)), n=1, amp=0.01)
 
 
 # --- hills --------------------------------------------------------------------------------------

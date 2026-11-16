@@ -119,9 +119,34 @@ def _dn(g):
     return -d
 
 
+def _tines(P):
+    """Chitin tines on the top edge: (arc s, height m), one every 11-17 m, deterministic."""
+    out, s, i = [], 0.0, 0
+    while True:
+        s += 11.0 + 6.0 * _hash(i + 0.5, 3.3)
+        if s >= P:
+            return out
+        out.append((s, 1.2 * (0.7 + 0.6 * _hash(i + 0.5, 8.1))))
+        i += 1
+
+
+def _crest(s, P, tines):
+    """Organic raise of the top edge at arc length s (m, always >= 0), periodic in P."""
+    raw = 0.0
+    for lam, amp, ph in ((23.0, 1.4, 0.6), (9.0, 0.7, 2.1), (3.7, 0.25, 4.0)):
+        k = max(1, round(P / lam))  # integer count of waves round the perimeter: no seam
+        raw += amp * math.sin(2 * math.pi * k * s / P + ph)
+    crest = 2.6 * (raw + 2.35) / 4.7  # shifted so min is 0 and max is 2.6 m (sum of amplitudes is 2.35)
+    for c, h in tines:
+        ds = (s - c + P / 2) % P - P / 2
+        crest += h * math.exp(-((ds / 0.64) ** 2))  # ~1.5 m wide at half height
+    return crest
+
+
 class _Throat:
     def __init__(self):
         pts, self.S, self.P, first = _perimeter()
+        self.tines = _tines(self.P)
         # top height: side values, blended smoothly over +-BLEND m around each corner (smoothstep)
         mids = {c: self.S[first[c]] + RC * math.pi / 4 for c, _, _ in CORNERS}
         self.FR = []  # (x, z, inward nx, nz, top y) per dense sample
@@ -134,7 +159,7 @@ class _Throat:
                     u = u * u * (3 - 2 * u)
                     T = SIDE[a] + (SIDE[b] - SIDE[a]) * u
                     break
-            self.FR.append((x, z, nx, nz, T))
+            self.FR.append((x, z, nx, nz, T + _crest(s, self.P, self.tines)))
         self.ncol = 2 * max(2, int(round(self.P / 8.0)))  # even, so the row stagger wraps
         self.cs = self.P / self.ncol
         self.slope = DROP / self.P  # rib climb per metre of run

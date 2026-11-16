@@ -12,6 +12,10 @@ uniform float radius = 60.0;
 uniform float facet = 3.6;         // facet size in projected metres
 uniform float pupil_in = 0.975;    // cos of the pupil's dark core
 uniform float pupil_out = 0.93;    // cos of its soft edge
+// our own haze in place of the scene fog: the volumetric in-scatter is additive and washed the pupil
+// out, so the veil thins to nothing over the pupil and it stays black from the hall floor
+uniform vec4 haze : source_color = vec4(0.36, 0.34, 0.22, 1.0);
+uniform float haze_amount = 0.45;
 
 varying vec3 lpos;
 varying vec3 lcam;
@@ -61,4 +65,5 @@ void fragment() {
 	col *= mix(1.0, 0.04, pp);
 	col += glow.rgb * 0.12 * pp * smoothstep(pupil_in, pupil_out, dot(axis, v) + 0.01);  // ember edge
 	ALBEDO = col * energy * 1.8;
+	FOG = vec4(haze.rgb * energy * 1.8, haze_amount * (1.0 - pp));
 }
