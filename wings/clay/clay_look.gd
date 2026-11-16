@@ -132,6 +132,13 @@ func build(wing: Wing) -> void:
 	candle.omni_range = 3.2
 	add_child(candle)
 	candle.position = BURROW + Vector3(-0.38, 1.6, -2.0)
+	var dusk := OmniLight3D.new()  # cool dusk spill round the doorway: the warm pool on the reel reads against it
+	dusk.name = "BurrowDusk"
+	dusk.light_color = Color(0.45, 0.58, 0.95)
+	dusk.light_energy = 0.7
+	dusk.omni_range = 3.6
+	add_child(dusk)
+	dusk.position = BURROW + Vector3(-1.6, 1.1, 0.0)
 
 	wing.grade = PostGrade.new()
 	wing.grade.tint = Color(1.02, 1.0, 0.97)
