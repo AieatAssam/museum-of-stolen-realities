@@ -175,11 +175,39 @@ def door_frame():
 # --- cinema --------------------------------------------------------------------------------------
 
 def _seat(p, x, y):
-    p.append(B("cushion", (0.46, 0.44, 0.1), (x, y - 0.02, 0.44), "velvet", bevel=0.04, seg=3))
-    back = B("back", (0.46, 0.1, 0.5), (x, y + 0.2, 0.72), "velvet", bevel=0.04, seg=3)
-    back.rotation_euler = (math.radians(-10), 0, 0)
-    p.append(back)
-    p.append(B("back_shell", (0.48, 0.03, 0.52), (x, y + 0.27, 0.72), "wood", bevel=0.01))
+    """A cinema seat: a crowned, channel-tufted velvet back on a curved wooden shell, a rounded cushion."""
+    p.append(B("cushion", (0.46, 0.44, 0.1), (x, y - 0.02, 0.44), "velvet", bevel=0.045, seg=4))
+    p.append(B("cush_lip", (0.44, 0.05, 0.08), (x, y - 0.235, 0.43), "velvet", bevel=0.03, seg=3))
+    back = []
+    back.append(B("back", (0.46, 0.1, 0.40), (0, 0, -0.04), "velvet", bevel=0.045, seg=4))
+    crown = kit.tube("crown", [(-0.21 + 0.42 * k / 12, 0, 0.16 + 0.07 * math.sin(math.pi * k / 12)) for k in range(13)],
+                     0.05, 10, mat="velvet")
+    back.append(crown)
+    for k in range(4):  # channel tufts: rolled pleats down the face
+        back.append(kit.tube("channel%d" % k, [(-0.165 + 0.11 * k, -0.035, -0.2), (-0.165 + 0.11 * k, -0.035, 0.15 + 0.06 * math.sin(math.pi * (0.5 + k) / 4))],
+                             0.024, 8, mat="velvet"))
+    back.append(B("back_shell", (0.48, 0.03, 0.44), (0, 0.07, -0.03), "wood", bevel=0.012))
+    back.append(kit.tube("shell_top", [(-0.235 + 0.47 * k / 12, 0.07, 0.19 + 0.075 * math.sin(math.pi * k / 12)) for k in range(13)],
+                         0.018, 8, mat="wood"))
+    ob = kit.join("seat_back", back)
+    ob.rotation_euler = (math.radians(-10), 0, 0)
+    ob.location = (x, y + 0.2, 0.72)
+    p.append(kit.join("seat_back", [ob]))
+
+
+def _standard(p, x, y):
+    """Cast-iron end standard: two legs, a scrolled web between them, a rounded wooden armrest, a gilt knob."""
+    p.append(kit.tube("leg_f", [(x, y - 0.2, 0.0), (x, y - 0.18, 0.62)], 0.022, 8, mat="iron"))
+    p.append(kit.tube("leg_b", [(x, y + 0.22, 0.0), (x, y + 0.2, 0.6)], 0.022, 8, mat="iron"))
+    p.append(B("foot", (0.07, 0.5, 0.025), (x, y + 0.01, 0.012), "iron", bevel=0.008))
+    # a cast lyre between the legs: an oval loop on a cross bar
+    p.append(kit.tube("lyre", [(x, y + 0.01 + 0.13 * math.cos(2 * math.pi * k / 16), 0.34 + 0.17 * math.sin(2 * math.pi * k / 16))
+                               for k in range(17)], 0.013, 6, mat="iron"))
+    p.append(kit.tube("bar", [(x, y - 0.19, 0.34), (x, y + 0.21, 0.34)], 0.011, 6, mat="iron"))
+    p.append(kit.tube("arm", [(x, y + 0.19, 0.64), (x, y - 0.12, 0.645), (x, y - 0.2, 0.635)], 0.032, 10, mat="wood"))
+    p.append(kit.lathe("knob", [(0.0, 0.0), (0.03, 0.0), (0.038, 0.025), (0.02, 0.05), (0.0, 0.055)], 12, mat="gilt"))
+    p[-1].rotation_euler = (math.pi / 2, 0, 0)
+    p[-1].location = (x, y - 0.2, 0.635)
 
 
 def seat_block():
@@ -187,11 +215,8 @@ def seat_block():
     for row, y in enumerate((-0.4, 0.4)):
         for k in range(3):
             _seat(p, -0.53 + k * 0.53, y)
-        for k in range(4):  # cast-iron standards with an armrest between seats
-            x = -0.8 + k * 0.53
-            p.append(B("standard", (0.05, 0.5, 0.62), (x, y + 0.02, 0.31), "iron", bevel=0.01))
-            p.append(B("arm", (0.07, 0.42, 0.04), (x, y - 0.02, 0.64), "wood", bevel=0.012))
-            p.append(B("scroll", (0.06, 0.14, 0.14), (x, y - 0.18, 0.2), "gilt", bevel=0.03))
+        for k in range(4):
+            _standard(p, -0.8 + k * 0.53, y)
     kit.join("seat_block", p)
 
 

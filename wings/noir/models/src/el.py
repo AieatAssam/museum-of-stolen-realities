@@ -179,11 +179,31 @@ def roof_vent():
 
 
 def roof_hatch():
-    p = [B("curb", (1.2, 1.0, 0.45), (0, 0, 0.225), "brick", bevel=0.02)]
-    lid = B("lid", (1.3, 1.1, 0.06), (0, 0, 0.0), "zinc", bevel=0.01)
-    lid.rotation_euler = (math.radians(-12), 0, 0)
-    lid.location = (0, 0.05, 0.56)
-    p.append(lid)
+    """Brick curb with a zinc cap flashing; a framed zinc lid with standing seams, strap hinges at the back,
+    a pull handle at the front and a prop rod holding it a hand's width open."""
+    p = [B("curb", (1.2, 1.0, 0.40), (0, 0, 0.20), "brick", bevel=0.02)]
+    p.append(B("flashing", (1.28, 1.08, 0.05), (0, 0, 0.425), "zinc", bevel=0.012))
+    p.append(B("drip", (1.3, 1.1, 0.02), (0, 0, 0.395), "zinc", bevel=0.005))
+    p.append(B("well", (1.04, 0.84, 0.02), (0, 0, 0.452), "iron"))  # the dark gap under the open lid
+    # the lid, hinged at the back edge (+Y), opened 12 degrees: built flat about the hinge, then turned
+    hinge = (0.0, 0.53, 0.47)
+    lid = [B("panel", (1.3, 1.1, 0.035), (0, -0.55, 0.0175), "zinc", bevel=0.008)]
+    for x in (-0.63, 0.63):
+        lid.append(B("rim_x%d" % (x > 0), (0.04, 1.1, 0.06), (x, -0.55, 0.03), "zinc", bevel=0.01))
+    lid.append(B("rim_f", (1.3, 0.04, 0.06), (0, -1.08, 0.03), "zinc", bevel=0.01))
+    for k in range(-2, 3):
+        lid.append(B("seam%d" % (k + 2), (0.018, 1.02, 0.03), (k * 0.22, -0.55, 0.045), "zinc", bevel=0.006))
+    for x in (-0.4, 0.4):
+        lid.append(B("strap%d" % (x > 0), (0.06, 0.34, 0.012), (x, -0.17, 0.042), "iron", bevel=0.003))
+        lid.append(kit.tube("knuckle%d" % (x > 0), [(x - 0.06, 0.0, 0.0), (x + 0.06, 0.0, 0.0)], 0.018, 10, mat="iron"))
+    lid.append(kit.tube("handle", [(-0.1, -1.1, 0.03), (-0.1, -1.16, 0.06), (0.1, -1.16, 0.06), (0.1, -1.1, 0.03)],
+                        0.011, 8, mat="iron"))
+    lid_ob = _join_baked("lid", lid)
+    lid_ob.rotation_euler = (math.radians(-12), 0, 0)  # front edge up
+    lid_ob.location = hinge
+    p.append(lid_ob)
+    # prop rod from the curb's front corner up under the lid's front rim
+    p.append(kit.tube("prop", [(0.5, -0.42, 0.45), (0.5, -0.5, 0.68)], 0.012, 8, mat="iron"))
     kit.join("roof_hatch", p)
 
 
