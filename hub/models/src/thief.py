@@ -239,9 +239,9 @@ def body():
         (V(0, 0.0, 0.97), (0.17, 0.17)), (V(0, 0.0, 1.06), (0.152, 0.152)), (V(0, -0.005, 1.20), (0.172, 0.172)),
         (V(0, 0.0, 1.31), (0.16, 0.16)), (V(0, 0.0, 1.40), (0.062, 0.062)), (V(0, 0.005, 1.49), (0.054, 0.054)),
         # 6,7 shoulder balls (right one is shared with the separate right arm)
-        (V(0.175, 0.0, 1.355), (0.064, 0.064)), (V(-0.175, 0.0, 1.355), (0.064, 0.064)),
+        (V(0.17, 0.0, 1.35), (0.060, 0.060)), (V(-0.17, 0.0, 1.35), (0.060, 0.060)),
         # 8-11 left arm: upper arm, elbow, forearm, wrist (bent up to the fist at the chest)
-        (V(0.20, -0.05, 1.25), (0.056, 0.056)), (V(0.20, -0.10, 1.11), (0.044, 0.044)),
+        (V(0.20, -0.05, 1.25), (0.050, 0.050)), (V(0.20, -0.10, 1.11), (0.040, 0.040)),
         (V(0.155, -0.14, 1.165), (0.041, 0.041)), (V(0.12, -0.16, 1.215), (0.032, 0.032)),
         # 12-15 left leg (straight, weight-bearing): hip, thigh, knee, into the boot
         (V(0.095, 0.0, 0.88), (0.105, 0.105)), (V(0.10, 0.0, 0.72), (0.082, 0.082)),
@@ -257,7 +257,7 @@ def body():
     ob.data.materials.append(kit.material(MAT_SKIN))
     for f in ob.data.polygons:
         c = f.center
-        if c.z > 1.385 and abs(c.x) < 0.075:
+        if c.z > 1.43 and abs(c.x) < 0.075:
             f.material_index = 1
     return ob
 
@@ -345,7 +345,7 @@ def coat():
 def hood():
     """Stand-up collar."""
     # a stand-up collar: a flared band round the neck, open at the throat, thickened and softened
-    prof = [(0.066, 1.37), (0.068, 1.39), (0.072, 1.41), (0.078, 1.425)]
+    prof = [(0.072, 1.37), (0.070, 1.40), (0.071, 1.43), (0.076, 1.455)]
     ob = kit.lathe("collar", prof, 40, mat=MAT_CLOTH, smooth_angle=80.0, cap=False)
     bm = bmesh.new()
     bm.from_mesh(ob.data)
@@ -422,9 +422,9 @@ PART_X = -0.035  # side parting, on the figure's right
 
 def hairline(x, y):
     """Hair edge: a fringe over the brow swept off the side parting, lower over the temples, down to the nape."""
-    if y < 0.0:
-        return 0.205 - 0.035 * min(1.0, abs(x - PART_X) / 0.08)
-    return 0.12
+    if y < 0.0:  # the fringe comes down to the visor's top edge, a little higher at the parting
+        return 0.150 + 0.012 * max(0.0, 1.0 - abs(x - PART_X) / 0.03)
+    return 0.10
 
 
 SKULL_C = V(0, 0.008, 0.115)
@@ -493,8 +493,10 @@ def hair_shell():
         crown = 0.010 + 0.010 * smooth((lat - 0.2) / 0.9)  # thicker over the crown
         ridge = 0.0025 * math.sin(26 * (u + 0.35 * lat))  # strands swept back and round
         nn = Vector((p.x - SKULL_C.x, p.y - SKULL_C.y, p.z - SKULL_C.z)).normalized()
-        vt.co = p + nn * (crown + ridge)
-    kill = [vt for vt in bm.verts if vt.co.z < hairline(vt.co.x, vt.co.y) + (0.0 if vt.co.y < 0 else -0.01)]
+        # below the hairline the shell tucks under the skin, so the edge is the clean line where the two meet
+        under = smooth((hairline(p.x, p.y) - p.z) / 0.012)
+        vt.co = p + nn * ((crown + ridge) * (1.0 - under) - 0.012 * under)
+    kill = [vt for vt in bm.verts if vt.co.z < hairline(vt.co.x, vt.co.y) - 0.05]
     bmesh.ops.delete(bm, geom=kill, context="VERTS")
     ob = kit._obj("hair", bm, MAT_HAIR, 80.0)
     solidify(ob, 0.006)
@@ -604,8 +606,8 @@ def arm_r():
     sh = R_SHOULDER
     keys = [(sh, 0.066, 0.07), (V(-0.2, -0.05, 1.27), 0.058, 0.06), (V(-0.215, -0.13, 1.13), 0.037, 0.04),
             (V(-0.21, -0.25, 1.08), 0.042, 0.044), (V(-0.2, -0.36, 1.04), 0.033, 0.03)]
-    parts = [skin_graph("thief_arm_sleeve", [(V(-0.175, 0.0, 1.355), 0.064), (keys[1][0], 0.057),
-                                             (keys[2][0], 0.043), (keys[3][0], 0.042), (keys[4][0], 0.033)],
+    parts = [skin_graph("thief_arm_sleeve", [(V(-0.17, 0.0, 1.35), 0.060), (keys[1][0], 0.051),
+                                             (keys[2][0], 0.040), (keys[3][0], 0.039), (keys[4][0], 0.032)],
                         [(0, 1), (1, 2), (2, 3), (3, 4)], MAT_CLOTH)]
     W = V(-0.2, -0.36, 1.04)
     d_arm = (W - V(-0.21, -0.25, 1.08)).normalized()
