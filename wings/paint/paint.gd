@@ -357,6 +357,11 @@ func _sfx(n: String, at: Variant = null, db: float = 0.0, pitch: float = 1.0) ->
 func _build_course() -> void:
 	var O := COURSE
 	var A := "TestCourse"
+	# painted country 31 m below, so a rider looks down on fields, not the sky's underside
+	var land := _model(A, "course_land", O + Vector3(0, -31, -70))
+	_paint_hill(land)
+	for gi in land.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ground(A, "Pad0", O.x - 5, O.z + 5, O.x + 5, O.z - 3)
 	_stroke(A, "course_a", [O + Vector3(0, 0.25, -1), O + Vector3(0, 0.25, -24)], "blue")
 	_stroke(A, "course_b", [O + Vector3(0, -1.2, -29), O + Vector3(0, -1.2, -48)], "blue")
