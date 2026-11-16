@@ -497,21 +497,23 @@ def elbow_warp(t, a):
 
 
 def fist(C):
-    """Closed left fist: one rounded block 9 x 8 x 10 cm, three shallow grooves down the front for the fingers."""
-    ob = orn.ellipsoid("fist", V(0, 0, 0), (0.09, 0.08, 0.10), MAT_LEATHER, 16, 8)
-    ob.data.transform(Matrix.Diagonal((0.09, 0.08, 0.10, 1.0)))  # bake the size into the mesh
-    ob.scale = (1, 1, 1)
-
-    def groove(x, y, z):
-        if y >= -0.01:
-            return (0.0, 0.0, 0.0)
-        band = gauss(z, 0.0, 0.035)  # grooves run over the finger band only
-        g = sum(gauss(x, xg, 0.0045) for xg in (-0.018, 0.0, 0.018))
-        return (0.0, 0.005 * g * band, 0.0)
-
-    sculpt(ob, groove)
-    ob.location = C
-    return subsurf(ob, 1)
+    """Closed left fist, about 9 x 8 x 10 cm, centred on C, knuckles forward (-Y): a back-of-hand block with four
+    curled fingers (index, middle, ring, little; middle longest, little shortest). The thumb is in left_arm()."""
+    parts = [limb("fist_hand", [(C + V(0, 0.030, 0), 0.036, 0.040), (C + V(0, 0.0, 0), 0.044, 0.046),
+                                (C + V(0, -0.026, 0), 0.043, 0.044), (C + V(0, -0.040, 0), 0.032, 0.034)],
+                  MAT_LEATHER, per=2, sides=14, sup=2.5)]
+    # (name, x across the knuckle row, forward reach factor); index on the inner (-X) side, little on the outer
+    # each finger is a tight arc (knuckle over the top, down the front, curling back under to the palm); the arc
+    # radius scales with the finger's reach. X hint keeps the loft frame stable where the tangent points along Z.
+    for name, xo, L in (("index", -0.027, 1.0), ("middle", -0.009, 1.08), ("ring", 0.009, 0.97),
+                        ("little", 0.027, 0.85)):
+        R, cy, cz = 0.018 * L, -0.024, -0.010
+        keys = []
+        for th, rad in ((90, 0.0105), (150, 0.0100), (210, 0.0093), (270, 0.0085)):
+            t = math.radians(th)
+            keys.append((C + V(xo, cy + R * math.cos(t), cz + R * math.sin(t)), rad, rad))
+        parts.append(limb("fist_" + name, keys, MAT_LEATHER, per=2, sides=8, sup=2.2, hint=(1, 0, 0)))
+    return parts
 
 
 def left_arm():
@@ -525,10 +527,11 @@ def left_arm():
     parts.append(subsurf(loft("cuff_L", [Wr - d * 0.03, Wr - d * 0.01, Wr + d * 0.005], [0.036, 0.042, 0.036],
                               [0.036, 0.042, 0.036], MAT_LEATHER, sides=14, sup=2.4), 1))
     C = V(0.075, -0.18, 1.25)
-    parts.append(fist(C))
-    # thumb lying on the top of the fist block
-    keys = [(C + V(0.025, -0.005, 0.056), 0.009, 0.009), (C + V(0.0, -0.035, 0.058), 0.009, 0.009),
-            (C + V(-0.025, -0.058, 0.055), 0.009, 0.009)]
+    parts.extend(fist(C))
+    # thumb from the inner side of the hand, wrapping across the front of the curled index and middle fingers,
+    # ending over the middle finger's second segment
+    keys = [(C + V(-0.044, -0.016, 0.012), 0.0095, 0.0095), (C + V(-0.034, -0.048, 0.008), 0.0093, 0.0093),
+            (C + V(-0.018, -0.060, 0.0), 0.0089, 0.0089), (C + V(-0.005, -0.060, -0.014), 0.0085, 0.0085)]
     parts.append(limb("thumb_L", keys, MAT_LEATHER, per=2, sides=8, sup=2.2))
     return parts
 
@@ -552,20 +555,23 @@ def arm_r():
     parts.append(subsurf(loft("palm", [W - d * 0.005, W + d * 0.03, W + d * 0.06, palm_end],
                               [0.030, 0.042, 0.044, 0.038], [0.014, 0.020, 0.022, 0.018],
                               MAT_LEATHER, sides=12, sup=2.4), 1))
-    # four fingers, about 1.7 cm thick, three phalanges each, bent slightly at every knuckle
-    for k, (off, f) in enumerate(zip((-0.024, -0.008, 0.008, 0.024), (1.0, 1.05, 1.0, 0.85))):
+    # four relaxed fingers, little (-X) to index (+X): fanned a few degrees outward, reach index 1.0 / middle 1.08 /
+    # ring 1.0 / little 0.8, curl growing toward the little finger, tapered 11.5 -> 7.5 mm with a swollen base knuckle
+    for k, (off, fan, reach, curl) in enumerate(((-0.024, -6, 0.80, 1.3), (-0.008, -2, 1.0, 1.1),
+                                                 (0.008, 2, 1.08, 0.9), (0.024, 6, 1.0, 0.7))):
+        dk = Matrix.Rotation(math.radians(fan), 3, "Z") @ d
         B = palm_end + X * off
-        keys = [(B, 0.011, 0.011),
-                (B + d * 0.040 * f - Z * 0.003, 0.0105, 0.0105),
-                (B + d * 0.070 * f - Z * 0.014, 0.0098, 0.0098),
-                (B + d * 0.092 * f - Z * 0.024, 0.0090, 0.0090)]
-        parts.append(limb("finger_R%d" % k, keys, MAT_LEATHER, per=2, sides=8, sup=2.2))
-    # thumb from the palm's inner side, angled out
-    keys = [(W + d * 0.02 + X * 0.036 - Z * 0.004, 0.011, 0.011),
-            (W + d * 0.05 + X * 0.060 - Z * 0.008, 0.0105, 0.0105),
-            (W + d * 0.08 + X * 0.075 - Z * 0.020, 0.0095, 0.0095),
-            (W + d * 0.11 + X * 0.085 - Z * 0.024, 0.0085, 0.0085)]
-    parts.append(limb("thumb_R", keys, MAT_LEATHER, per=2, sides=8, sup=2.2))
+        keys = [(B, 0.0115 * 1.1, 0.0115 * 1.1),
+                (B + dk * 0.040 * reach - Z * 0.003 * curl, 0.0105, 0.0105),
+                (B + dk * 0.070 * reach - Z * 0.014 * curl, 0.0092, 0.0092),
+                (B + dk * 0.092 * reach - Z * 0.024 * curl, 0.0075, 0.0075)]
+        parts.append(limb("finger_R%d" % k, keys, MAT_LEATHER, per=3, sides=8, sup=2.2))
+    # thumb from the palm's inner side, angled forward and slightly in, tapered
+    keys = [(W + d * 0.02 + X * 0.030 - Z * 0.004, 0.0115, 0.0115),
+            (W + d * 0.055 + X * 0.052 - Z * 0.008, 0.0102, 0.0102),
+            (W + d * 0.085 + X * 0.068 - Z * 0.014, 0.0090, 0.0090),
+            (W + d * 0.11 + X * 0.078 - Z * 0.018, 0.0075, 0.0075)]
+    parts.append(limb("thumb_R", keys, MAT_LEATHER, per=3, sides=8, sup=2.2))
     return pivot(kit.join("thief_arm", parts), sh)
 
 
