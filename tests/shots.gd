@@ -100,6 +100,9 @@ func _run() -> void:
 			cam.global_position = ATRIUM_MARKS[n][0]
 			cam.look_at(ATRIUM_MARKS[n][1])
 			await _measure_at(n, dir, cam)
+	if _args.has("ride"):  # paint: --ride=<stroke sid> boards that stroke last (riding changes the wing) and shoots her view
+		cam.queue_free()
+		await _ride(String(_args["ride"]), dir)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.save_path))
 	print("[shots] done -> ", ProjectSettings.globalize_path(dir))
 	Game.quit(0)
@@ -252,6 +255,21 @@ func _measure_at(mark: String, dir: String, cam: Camera3D) -> void:
 	var gpu := _stats(_rec[2])
 	print("[perf] %-16s frames=%d  frame %s  cpu %s  gpu %s" % [mark, _rec[0].size(), _stats(_rec[0]), _stats(_rec[1]),
 		"n/a (driver)" if _rec[2].is_empty() or _sorted(_rec[2])[-1] == 0.0 else gpu])
+
+
+func _ride(sid: String, dir: String) -> void:
+	var st: Node3D = Game.wing.canvas.get_stroke(sid)
+	if st == null:
+		push_error("shots: no stroke %s" % sid)
+		return
+	var p := Game.player
+	p.global_position = st.sample(1.0)
+	p.look_at_from_position(p.global_position, st.sample(4.0) * Vector3(1, 0, 1) + Vector3(0, p.global_position.y, 0))
+	Game.wing.surf.pending = [st, 1.0]
+	p.set_mode(&"surf")
+	await get_tree().create_timer(0.9).timeout  # eye height eases up as she boards
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("%s/ride_%s.png" % [dir, sid]))
 
 
 func _sorted(a: PackedFloat32Array) -> Array:

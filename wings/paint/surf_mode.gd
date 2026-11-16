@@ -183,6 +183,8 @@ func bob_scale() -> float:
 	return 0.0
 
 
-## Riding stands taller than walking, so the stroke underfoot sits low in the view, not across it.
+## Riding stands taller than walking, so the stroke underfoot sits low in the view, not across it
+## (camera only: the capsule, speed and branch choice are untouched; 2.8 m keeps the 2 m wide stroke a
+## narrow wedge at the bottom of the frame).
 func eye_height() -> float:
-	return 2.0
+	return 2.8
