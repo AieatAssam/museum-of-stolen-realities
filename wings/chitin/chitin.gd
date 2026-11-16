@@ -170,6 +170,7 @@ func _ready() -> void:
 	_build_arena(_group(areas, "GeneralArena"))
 	_build_hall(_group(areas, "CoronationHall"))
 	_build_heist(_group(areas, "Heist"))
+	_build_masses()
 	_build_checkpoints()
 	_build_marks()
 	look = Look.new()
@@ -289,7 +290,7 @@ func _build_districts(area: Node3D) -> void:
 	_harp_moth.name = "MothHarp"
 	_moth = _anchor(area, Vector3(66, 9, -6), false)
 	_moth.name = "Moth"
-	_ledge(geo, Vector3(74, -4, -10), Vector3(79, 0, -2), walk)  # the high perch, 3 m up
+	_round(_ledge(geo, Vector3(74, -4, -10), Vector3(79, 0, -2), walk), 1.5)  # the high perch, 3 m up
 	_provenance(area, "bell", Vector3(77.5, 0, -8.5))
 	_placard(area, Vector3(16, -1.6, -13.4), Vector3(0, 0, 1), "The tailors' quarter", "Working district", "Silk, wax, tape",
 		"Every garment at court is cut to the queen's span, which the tailors record as six metres, wrist to wrist. No garment has been delivered. The tailors are confident she will grow into them.")
@@ -316,7 +317,7 @@ func _build_shaft(area: Node3D) -> void:
 	# the chain: the gate course offset to the district rim (x 80, y -3)
 	for x: float in [86.0, 99.0, 112.0]:
 		_anchor(area, Vector3(x, 7, 0))
-	_ledge(geo, Vector3(115, -8, -8), Vector3(130, -7, 8), _mat["walk"])  # the balcony
+	_round(_ledge(geo, Vector3(115, -8, -8), Vector3(130, -7, 8), _mat["walk"]), 1.5)  # the balcony
 	_zone(area, Vector3(115, -7, -8), Vector3(130, -4, 8), func() -> void: complete_step(&"shaft", &"chain"))
 	# the zip: two hooks off the balcony's east lip, a 22 m line sloping down to the foundry
 	_anchor(area, Vector3(132, -10.5, 0))
@@ -525,7 +526,7 @@ func _build_hall(area: Node3D) -> void:
 	# the hall floor: the shaft's base, x 80..150, z -30..14
 	_ledge(geo, Vector3(80, -71, -30), Vector3(150, -70, 14), walk)
 	# the dais and its case (resonance-locked: weave the two pegs, pluck the line)
-	_ledge(geo, Vector3(109, -70, -14), Vector3(121, -69.7, -2), _mat["int"])
+	_round(_ledge(geo, Vector3(109, -70, -14), Vector3(121, -69.7, -2), _mat["int"]), 2.5)
 	for p: Vector3 in [Vector3(111, -69.65, -14), Vector3(119, -69.65, -14)]:
 		_hall_pegs.append(_peg(area, p))
 	_fragment_spot = _group(area, "FragmentSpot")
@@ -599,8 +600,8 @@ func _build_heist(area: Node3D) -> void:
 	var geo := _group(area, "Geometry")
 	var walk: Material = _mat["walk"]
 	# H1: west-wall balcony; H2: a lower ledge across; R: the rim balcony outside the south wall
-	_ledge(geo, Vector3(82, -36, -28), Vector3(96, -35, -16), walk)
-	_ledge(geo, Vector3(109, -39, -28), Vector3(124, -38, -16), walk)
+	_round(_ledge(geo, Vector3(82, -36, -28), Vector3(96, -35, -16), walk), 1.5)
+	_round(_ledge(geo, Vector3(109, -39, -28), Vector3(124, -38, -16), walk), 1.5)
 	_ledge(geo, Vector3(105, -4, -40), Vector3(130, -3, -30), walk)
 	_ledge(geo, Vector3(104, -4, -41), Vector3(131, 4, -40), _mat["wall"])
 	_lifts.append(_lift(area, [Vector3(100, -58, -22), Vector3(100, -20, -22), Vector3(89, -20, -22), Vector3(89, -24, -22)], 4.0))
@@ -668,7 +669,7 @@ func _build_marks() -> void:
 		["general", Vector3(45, -36, -5), Vector3(40, -36, -16)],
 		["hall_dais", Vector3(102, -67.6, 2), Vector3(115, -68.5, -9)],
 		["heist_lift", Vector3(92, -33.5, -18), Vector3(110, -37, -24)],
-		["harp", Vector3(19, -0.8, 9.5), Vector3(24, -1.4, 13.3)],
+		["first_swing", Vector3(-4, 1.7, 5), Vector3(13, 4, -3)],
 	]
 	for m: Array in marks:
 		var mk := Marker3D.new()
@@ -1344,6 +1345,41 @@ func _glow(c: Color, energy: float, transparent: bool) -> StandardMaterial3D:
 
 
 ## A static box from its AABB corners (mesh + collision).
+## Buttress columns and wall bulges (models/src/shells.json "masses"): vertical cylinders, so every
+## room plan reads as a rounded cavern; the look skins them with masses_<area>.glb.
+func _build_masses() -> void:
+	var spec: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://wings/chitin/models/src/shells.json"))
+	var body := StaticBody3D.new()
+	body.name = "Masses"
+	add_child(body)
+	for m: Dictionary in spec["masses"]:
+		var cs := CollisionShape3D.new()
+		var cy := CylinderShape3D.new()
+		cy.radius = float(m["r"])
+		cy.height = float(m["y"][1]) - float(m["y"][0])
+		cs.shape = cy
+		cs.position = Vector3(float(m["c"][0]), (float(m["y"][0]) + float(m["y"][1])) * 0.5, float(m["c"][1]))
+		body.add_child(cs)
+
+
+## Swap a box body's collision for the same slab with its plan corners rounded by r.
+func _round(body: StaticBody3D, r: float) -> void:
+	var cs: CollisionShape3D = body.get_child(1)
+	var h: Vector3 = (cs.shape as BoxShape3D).size * 0.5
+	var pts := PackedVector3Array()
+	for k: int in 4:
+		var sx := 1.0 if k == 0 or k == 3 else -1.0
+		var sz := 1.0 if k < 2 else -1.0
+		for i: int in 5:
+			var a := (k + i / 4.0) * PI / 2.0
+			var p := Vector3(sx * (h.x - r) + cos(a) * r, 0, sz * (h.z - r) + sin(a) * r)
+			pts.append(p + Vector3.UP * h.y)
+			pts.append(p - Vector3.UP * h.y)
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = pts
+	cs.shape = shape
+
+
 func _ledge(parent: Node3D, mn: Vector3, mx: Vector3, mat: Material = null) -> StaticBody3D:
 	return _box(parent, mx - mn, (mn + mx) * 0.5, mat if mat else _mat["wall"])
 

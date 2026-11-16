@@ -1,0 +1,907 @@
+{
+ "_doc": "Organic room shells and platform skins over the unchanged collision boxes. All coordinates are GODOT WORLD (x, y up, z); a builder maps Godot (x, y, z) -> Blender (x, -z, y). Shell and platform models are built in world position (pivot = world origin) and placed at identity in Godot. chitin_look.gd reads this file too: 'cover' boxes hide the collision box meshes they contain (walls), 'rect' hides the platform box under a skin.",
+ "rooms": [
+  {
+   "name": "shell_gate",
+   "area": "OuterGate",
+   "axis": "x",
+   "a": [
+    -26,
+    13
+   ],
+   "c": [
+    -10,
+    10
+   ],
+   "floor": 0,
+   "drops": [
+    [
+     0,
+     13,
+     -14
+    ]
+   ],
+   "wall_top": 6,
+   "peak": 15,
+   "start": "closed",
+   "end": "open",
+   "openings": [],
+   "bulge": 0.3,
+   "rib": 4.5,
+   "grid": 0.5,
+   "comb": 0.22,
+   "cover": [
+    [
+     -27.5,
+     -2,
+     -11.5,
+     1,
+     7,
+     11.5
+    ]
+   ]
+  },
+  {
+   "name": "shell_districts",
+   "area": "SilkDistricts",
+   "axis": "x",
+   "a": [
+    13,
+    80
+   ],
+   "c": [
+    -14,
+    14
+   ],
+   "floor": -3,
+   "drops": [
+    [
+     40,
+     52,
+     -12
+    ]
+   ],
+   "wall_top": 6,
+   "peak": 16,
+   "start": "closed",
+   "end": "open",
+   "openings": [
+    [
+     12,
+     -14.5,
+     -10.2,
+     14,
+     15.5,
+     10.2
+    ]
+   ],
+   "bulge": 0.3,
+   "rib": 5.0,
+   "grid": 0.55,
+   "comb": 0.25,
+   "cover": [
+    [
+     12,
+     -4,
+     -15,
+     81,
+     7,
+     -13.4
+    ],
+    [
+     12,
+     -4,
+     13.4,
+     81,
+     7,
+     15
+    ]
+   ]
+  },
+  {
+   "name": "shell_foundry",
+   "area": "Foundry",
+   "axis": "z",
+   "a": [
+    14,
+    100
+   ],
+   "c": [
+    95,
+    160
+   ],
+   "floor": -28,
+   "drops": [
+    [
+     50,
+     63,
+     -50
+    ],
+    [
+     63,
+     100,
+     -31
+    ]
+   ],
+   "wall_top": -10,
+   "peak": 2,
+   "start": "open",
+   "end": "closed",
+   "openings": [
+    [
+     93,
+     -32.5,
+     87.5,
+     96.5,
+     -24,
+     94.5
+    ]
+   ],
+   "bulge": 0.3,
+   "rib": 6.0,
+   "grid": 0.8,
+   "comb": 0.3,
+   "cover": [
+    [
+     93.5,
+     -33,
+     49,
+     95.5,
+     -9,
+     101
+    ],
+    [
+     159.5,
+     -33,
+     13,
+     161.5,
+     -9,
+     101
+    ]
+   ]
+  },
+  {
+   "name": "shell_gallery",
+   "area": "TapestryGallery",
+   "axis": "x",
+   "a": [
+    60,
+    95
+   ],
+   "c": [
+    81.5,
+    100
+   ],
+   "floor": -31,
+   "drops": [],
+   "wall_top": -22,
+   "peak": -13,
+   "start": "closed",
+   "end": "closed",
+   "openings": [
+    [
+     59,
+     -31.5,
+     95.5,
+     61,
+     -25,
+     100.5
+    ],
+    [
+     93.5,
+     -31.5,
+     87.5,
+     96,
+     -24,
+     94.5
+    ]
+   ],
+   "bulge": 0.12,
+   "rib": 6.0,
+   "grid": 0.5,
+   "comb": 0.18,
+   "cover": [
+    [
+     59,
+     -32,
+     80,
+     96,
+     -21,
+     81.6
+    ],
+    [
+     59,
+     -32,
+     99.9,
+     96,
+     -21,
+     101.5
+    ],
+    [
+     59,
+     -32,
+     80,
+     61,
+     -21,
+     96.5
+    ]
+   ]
+  },
+  {
+   "name": "shell_arena",
+   "area": "GeneralArena",
+   "axis": "z",
+   "a": [
+    -28,
+    108
+   ],
+   "c": [
+    12,
+    58
+   ],
+   "floor": -60,
+   "drops": [],
+   "wall_top": -24,
+   "peak": -6,
+   "start": "closed",
+   "end": "closed",
+   "openings": [
+    [
+     53,
+     -32.5,
+     95,
+     62,
+     -24,
+     105
+    ],
+    [
+     53,
+     -43.5,
+     -14.5,
+     59,
+     -37,
+     -9.5
+    ]
+   ],
+   "bulge": 0.3,
+   "rib": 8.0,
+   "grid": 1.0,
+   "comb": 0.3,
+   "cover": []
+  }
+ ],
+ "throat": {
+  "name": "shell_shaft",
+  "area": "HiveShaft",
+  "x": [
+   80,
+   150
+  ],
+  "z": [
+   -30,
+   14
+  ],
+  "floor": -70,
+  "corner": 1.2,
+  "tops": {
+   "west": -4,
+   "south": -4,
+   "north": -28,
+   "east": 20
+  },
+  "lip": 1.5,
+  "openings": [
+   [
+    78.5,
+    -70.5,
+    -14,
+    81.5,
+    -66,
+    -10
+   ]
+  ],
+  "bulge": 0.3,
+  "spiral_ribs": 10,
+  "turn_drop": 60,
+  "grid": 0.9,
+  "comb": 0.25,
+  "cover": [
+   [
+    79,
+    -71,
+    -31,
+    81,
+    -3,
+    15
+   ],
+   [
+    149.5,
+    -71,
+    -41,
+    151.5,
+    21,
+    41
+   ],
+   [
+    79,
+    -71,
+    -31.5,
+    151,
+    -3,
+    -29.5
+   ],
+   [
+    79,
+    -71,
+    13.5,
+    96,
+    -27,
+    15.5
+   ]
+  ]
+ },
+ "platforms": [
+  {
+   "name": "plat_perch",
+   "rect": [
+    74,
+    79,
+    -10,
+    -2
+   ],
+   "top": 0,
+   "base": -3,
+   "kind": "stump",
+   "round": 1.5
+  },
+  {
+   "name": "plat_balcony",
+   "rect": [
+    115,
+    130,
+    -8,
+    8
+   ],
+   "top": -7,
+   "base": -10,
+   "kind": "bracket",
+   "round": 1.5
+  },
+  {
+   "name": "plat_heist1",
+   "rect": [
+    82,
+    96,
+    -28,
+    -16
+   ],
+   "top": -35,
+   "base": -37.5,
+   "kind": "shelf",
+   "round": 1.5
+  },
+  {
+   "name": "plat_heist2",
+   "rect": [
+    109,
+    124,
+    -28,
+    -16
+   ],
+   "top": -38,
+   "base": -41,
+   "kind": "bracket",
+   "round": 1.5
+  },
+  {
+   "name": "plat_rim",
+   "rect": [
+    105,
+    130,
+    -40,
+    -30
+   ],
+   "top": -3,
+   "base": -5,
+   "kind": "shelf"
+  },
+  {
+   "name": "plat_island1",
+   "rect": [
+    28,
+    52,
+    68,
+    83
+   ],
+   "top": -34,
+   "base": -44,
+   "kind": "stump"
+  },
+  {
+   "name": "plat_island2",
+   "rect": [
+    28,
+    52,
+    30,
+    46
+   ],
+   "top": -38,
+   "base": -44,
+   "kind": "cocoon"
+  },
+  {
+   "name": "plat_island3",
+   "rect": [
+    25,
+    55,
+    -20,
+    -5
+   ],
+   "top": -42,
+   "base": -50,
+   "kind": "bracket"
+  },
+  {
+   "name": "plat_ledge",
+   "rect": [
+    30,
+    50,
+    96,
+    106
+   ],
+   "top": -31,
+   "base": -34,
+   "kind": "shelf"
+  },
+  {
+   "name": "plat_corridor",
+   "rect": [
+    50,
+    60,
+    96,
+    104
+   ],
+   "top": -31,
+   "base": -33,
+   "kind": "shelf"
+  }
+ ],
+ "partitions": [
+  {
+   "name": "part_guild",
+   "cover": [
+    [
+     94.5,
+     -31.5,
+     79.5,
+     160.5,
+     -9.5,
+     81.5
+    ]
+   ]
+  },
+  {
+   "name": "part_vault",
+   "cover": [
+    [
+     94.5,
+     -31.5,
+     63,
+     105.5,
+     -25,
+     74.5
+    ]
+   ]
+  }
+ ],
+ "masses": [
+  {
+   "area": "HiveShaft",
+   "c": [
+    80,
+    14
+   ],
+   "r": 4,
+   "y": [
+    -70,
+    -28
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    150,
+    14
+   ],
+   "r": 4,
+   "y": [
+    -70,
+    -28
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    150,
+    -30
+   ],
+   "r": 4,
+   "y": [
+    -70,
+    -4
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    80,
+    -30
+   ],
+   "r": 3,
+   "y": [
+    -70,
+    -4
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    78.5,
+    4
+   ],
+   "r": 3.5,
+   "y": [
+    -70,
+    -20
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    103,
+    -31.5
+   ],
+   "r": 3.5,
+   "y": [
+    -70,
+    -4
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    138,
+    -31.5
+   ],
+   "r": 3.5,
+   "y": [
+    -70,
+    -4
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    151.5,
+    -8
+   ],
+   "r": 3.5,
+   "y": [
+    -70,
+    20
+   ]
+  },
+  {
+   "area": "HiveShaft",
+   "c": [
+    112,
+    15.5
+   ],
+   "r": 3.5,
+   "y": [
+    -70,
+    -28
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    12,
+    -28
+   ],
+   "r": 3,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    58,
+    -28
+   ],
+   "r": 3,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    12,
+    108
+   ],
+   "r": 3,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    58,
+    108
+   ],
+   "r": 3,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    59.5,
+    20
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    59.5,
+    50
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    59.5,
+    70
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    10.5,
+    0
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    10.5,
+    35
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    10.5,
+    62
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "GeneralArena",
+   "c": [
+    10.5,
+    90
+   ],
+   "r": 3.5,
+   "y": [
+    -60,
+    -24
+   ]
+  },
+  {
+   "area": "Foundry",
+   "c": [
+    95,
+    100
+   ],
+   "r": 3,
+   "y": [
+    -31,
+    -10
+   ]
+  },
+  {
+   "area": "Foundry",
+   "c": [
+    160,
+    100
+   ],
+   "r": 3,
+   "y": [
+    -31,
+    -10
+   ]
+  },
+  {
+   "area": "Foundry",
+   "c": [
+    161.5,
+    30
+   ],
+   "r": 3.5,
+   "y": [
+    -28,
+    -10
+   ]
+  },
+  {
+   "area": "Foundry",
+   "c": [
+    161.5,
+    90
+   ],
+   "r": 3.5,
+   "y": [
+    -31,
+    -10
+   ]
+  },
+  {
+   "area": "Foundry",
+   "c": [
+    93.5,
+    30
+   ],
+   "r": 3.5,
+   "y": [
+    -28,
+    -10
+   ]
+  },
+  {
+   "area": "SilkDistricts",
+   "c": [
+    35,
+    15.5
+   ],
+   "r": 3,
+   "y": [
+    -3,
+    6
+   ]
+  },
+  {
+   "area": "SilkDistricts",
+   "c": [
+    62,
+    15.5
+   ],
+   "r": 3,
+   "y": [
+    -3,
+    6
+   ]
+  },
+  {
+   "area": "SilkDistricts",
+   "c": [
+    46,
+    -15.5
+   ],
+   "r": 3,
+   "y": [
+    -12,
+    6
+   ]
+  },
+  {
+   "area": "SilkDistricts",
+   "c": [
+    70,
+    -15.5
+   ],
+   "r": 3,
+   "y": [
+    -3,
+    6
+   ]
+  },
+  {
+   "area": "OuterGate",
+   "c": [
+    -26,
+    10
+   ],
+   "r": 3,
+   "y": [
+    0,
+    6
+   ]
+  },
+  {
+   "area": "OuterGate",
+   "c": [
+    -26,
+    -10
+   ],
+   "r": 3,
+   "y": [
+    0,
+    6
+   ]
+  },
+  {
+   "area": "OuterGate",
+   "c": [
+    6,
+    11.5
+   ],
+   "r": 3,
+   "y": [
+    -14,
+    6
+   ]
+  },
+  {
+   "area": "OuterGate",
+   "c": [
+    6,
+    -11.5
+   ],
+   "r": 3,
+   "y": [
+    -14,
+    6
+   ]
+  },
+  {
+   "area": "OuterGate",
+   "c": [
+    -19,
+    11.5
+   ],
+   "r": 3,
+   "y": [
+    0,
+    6
+   ]
+  }
+ ]
+}

@@ -571,56 +571,50 @@ def B_pin():
 
 # --- dais slab -----------------------------------------------------------------------------------
 
+def _dais_sd(x, y, h, r):
+    """Signed distance to a square of half-width h with corners rounded by r: positive outside."""
+    qx, qy = abs(x) - (h - r), abs(y) - (h - r)
+    return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
+
+
 def B_dais():
-    """Hall dais: wax hex tiles in a scalloped carapace rim, a ring of twelve amber studs."""
-    R, s3 = 0.74, math.sqrt(3)
-    tiles = Mesh()
-    for i in range(-10, 11):
-        x = i * 1.5 * R
-        if abs(x) > 5.3:
-            continue
-        off = s3 * R / 2 if i % 2 else 0.0
-        for j in range(-10, 11):
-            y = j * s3 * R + off
-            if abs(y) > 5.3:
-                continue
-            hex_cell(tiles, R, 0.0, lambda a, b, l, x=x, y=y: Vector((x + a, y + b, 0.12 if l == 0 else 0.15)))
-    tiles.done("dais_tiles", "wax")
+    """Carapace dais, centred on the origin and 0.3 m thick (top +0.15, bottom -0.15, the source convention).
+    Collision is a 12 m square with corners rounded 2.5 m. The outline lies inside it with eight soft lobes;
+    the field is dished under a raised rim lip, two plate seams cross it, and the edge rolls down to the floor."""
+    HB, RB = 5.9, 2.8        # base square; corners 2.8 m less up to 0.3 m of lobe inset leave 2.5 m corners
+    N = 224
+    prof = [(-1.2, 0.12), (-0.6, 0.14), (-0.32, 0.15), (-0.14, 0.13), (-0.04, 0.09),
+            (0.03, 0.0), (0.08, -0.08), (0.1, -0.15)]   # (offset along outward normal, height): lip, roll, floor
 
-    L = 5.7
-    corners = [(-L, -L), (L, -L), (L, L), (-L, L)]
-    pts = []
-    for k in range(4):
-        a, b = Vector(corners[k]), Vector(corners[(k + 1) % 4])
-        pts += [a + (b - a) * (s / 40.0) for s in range(40)]
-    n = len(pts)
-    sacc = [0.0]
-    for k in range(n):
-        sacc.append(sacc[-1] + (pts[(k + 1) % n] - pts[k]).length)
-    rings = []
-    for k in range(n):
-        p = pts[k]
-        t2 = (pts[(k + 1) % n] - pts[k - 1]).normalized()
-        nrm = Vector((t2.y, -t2.x))
-        ph = (sacc[k] % 0.9) / 0.9
-        hw = 0.25 + 0.04 * abs(math.sin(math.pi * ph))  # scallops along the edge
-        ring = []
-        for q in range(8):
-            ang = TAU * q / 8
-            e = p + nrm * (_sp(math.cos(ang), 0.8) * hw)
-            ring.append(Vector((e.x, e.y, _sp(math.sin(ang), 0.8) * 0.15)))
-        rings.append(ring)
-    rim = Mesh()
-    loft(rim, rings, caps=False, wrap=True)
-    rim.done("dais_rim", "carapace")
+    outl = []
+    for i in range(N):
+        th = TAU * i / N
+        dx, dy = math.cos(th), math.sin(th)
+        lo, hi = 0.0, 2.0 * HB
+        for _ in range(60):                       # bisect the ray to the base rounded square
+            mid = 0.5 * (lo + hi)
+            if _dais_sd(dx * mid, dy * mid, HB, RB) < 0.0:
+                lo = mid
+            else:
+                hi = mid
+        bx, by = dx * lo, dy * lo
+        e = 1e-4
+        gx = _dais_sd(bx + e, by, HB, RB) - _dais_sd(bx - e, by, HB, RB)
+        gy = _dais_sd(bx, by + e, HB, RB) - _dais_sd(bx, by - e, HB, RB)
+        gl = math.hypot(gx, gy)
+        nx, ny = gx / gl, gy / gl
+        inset = 0.04 + 0.13 * (1.0 + math.cos(8.0 * th))   # eight soft lobes, 0.04..0.30 m inside the base
+        outl.append((bx - nx * inset, by - ny * inset, nx, ny))
 
-    _parts.append(kit.box("dais_base", size=(12.0, 12.0, 0.27), loc=(0, 0, -0.015), mat="carapace_dull"))
+    rings = [[Vector((x + nx * o, y + ny * o, h)) for (x, y, nx, ny) in outl] for o, h in prof]
+    plate = Mesh()
+    loft(plate, rings, caps=True)                  # cap at the lip-side ring is the dished field
+    plate.done("dais_plate", "carapace")
 
-    st = Mesh()
-    for k in range(12):
-        a = TAU * k / 12
-        superq(st, (4.9 * math.cos(a), 4.9 * math.sin(a), 0.12), (0.16, 0.16, 0.05), nu=12, nv=6)
-    st.done("dais_studs", "amber")
+    for o, h in ((-1.9, 0.12), (-0.85, 0.13)):    # plate seams: thin rings on the field, under the 0.15 top
+        loop = [Vector((x + nx * o, y + ny * o, h)) for (x, y, nx, ny) in outl]
+        loop.append(loop[0])
+        _parts.append(kit.tube("dais_seam", loop, 0.012, sides=4, mat="carapace_dull"))
     finish("dais")
 
 
