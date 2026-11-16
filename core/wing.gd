@@ -35,7 +35,9 @@ extends Node3D
 ##    (or a glTF extra "surface"); register new sets with `Audio.register_footsteps()`.
 ##
 ## 7. CHECKPOINTS. Add `Checkpoint` (Marker3D) nodes; `spawn_checkpoint` names the first one.
-##    Falling below `void_height` (along up) respawns at the last checkpoint. Save custom puzzle
+##    Falling below `void_height` (along up) respawns at the last checkpoint, and so does leaving
+##    `bounds` in any direction (empty = the wing's solid geometry, padded; see `play_bounds()`);
+##    override `on_out_of_bounds()` for a wing's own fall. Save custom puzzle
 ##    state by overriding `save_state()` / `load_state()` — called on every checkpoint/exit/resume.
 ##
 ## 8. PHYSICS & TIME. `gravity` (vector incl. strength) applies to the player; change it at runtime
@@ -85,6 +87,11 @@ extends Node3D
 @export var player_time_scale: float = 1.0
 ## Respawn when the player's height along `up` drops below this.
 @export var void_height: float = -40.0
+## The playable volume; outside it (above, sideways, below) the player respawns. Empty: computed
+## once on entry from every solid collider in the wing, padded by BOUNDS_PAD.
+@export var bounds: AABB = AABB()
+
+const BOUNDS_PAD := 15.0
 
 
 # --- overridables -------------------------------------------------------------------
@@ -121,7 +128,31 @@ func load_state(_state: Dictionary) -> void:
 	pass
 
 
+## Called (every physics tick, until it ends) while the player is below `void_height` or outside
+## `play_bounds()`. Default: the shared fade-and-respawn at the last checkpoint.
+func on_out_of_bounds() -> void:
+	Game.respawn()
+
+
 # --- helpers ---------------------------------------------------------------------------
+
+## `bounds`, or (when empty) the merged box of every solid body's shapes, padded on every side.
+func play_bounds() -> AABB:
+	if bounds.has_volume():
+		return bounds
+	var box := AABB()
+	var first := true
+	for b: Node in find_children("*", "PhysicsBody3D", true, false):
+		if not ((b as CollisionObject3D).collision_layer & 1):
+			continue
+		for cs: Node in b.get_children():
+			if not (cs is CollisionShape3D and (cs as CollisionShape3D).shape):
+				continue
+			var a := (cs as CollisionShape3D).global_transform * (cs as CollisionShape3D).shape.get_debug_mesh().get_aabb()
+			box = a if first else box.merge(a)
+			first = false
+	return box.grow(BOUNDS_PAD) if not first else AABB()
+
 
 ## The HUD's verb prompt (MovementMode.prompt format). Defaults to the active movement mode's;
 ## override for a verb that lives in the wing itself.

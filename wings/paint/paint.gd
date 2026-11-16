@@ -485,6 +485,12 @@ func _physics_process(delta: float) -> void:
 	_tick(delta)
 
 
+## Out of the wing's bounds (or under the void): the same quick fall as into the bare weave.
+func on_out_of_bounds() -> void:
+	if not _respawning:
+		_fall()
+
+
 func _kill_y(pos: Vector3) -> float:
 	var w: Dictionary = canvas.water_at(pos)
 	if not w.is_empty() and pos.y < float(w["level"]) - 0.4:

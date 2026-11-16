@@ -249,10 +249,23 @@ func respawn() -> void:
 	_respawning = false
 
 
+var _bounds_of: int = 0  # instance id: a freed wing's address can be reused by the next one
+var _bounds: AABB
+var _was_out: bool = false
+
 func _physics_process(_delta: float) -> void:
 	if state == State.PLAYING and wing and player and not Transitions.busy:
-		if player.global_position.dot(-wing.gravity.normalized()) < wing.void_height:
-			respawn()
+		if _bounds_of != wing.get_instance_id():
+			_bounds_of = wing.get_instance_id()
+			_bounds = wing.play_bounds()
+			print("[game] %s play bounds %s" % [wing.wing_id, _bounds])
+		var pos := player.global_position
+		var out := pos.dot(-wing.gravity.normalized()) < wing.void_height or (_bounds.has_volume() and not _bounds.has_point(pos))
+		if out and not _was_out:
+			print("[game] out of bounds at %s" % pos)
+		_was_out = out
+		if out:
+			wing.on_out_of_bounds()
 	if state == State.PLAYING:
 		Save.data["play_seconds"] = float(Save.data["play_seconds"]) + _delta
 
