@@ -616,7 +616,7 @@ func _build_heist(area: Node3D) -> void:
 	_round(_ledge(geo, Vector3(109, -39, -28), Vector3(124, -38, -16), walk), 1.5)
 	_ledge(geo, Vector3(105, -4, -40), Vector3(130, -3, -30), walk)
 	_ledge(geo, Vector3(104, -4, -41), Vector3(131, 4, -40), _mat["wall"])
-	_ledge(geo, Vector3(104, -3, -31.6), Vector3(131, 1.1, -29.9), _mat["wall"])  # the parapet over the shaft (part_rim_north)
+	_ledge(geo, Vector3(104, -3, -31.6), Vector3(131, 0.2, -29.45), _mat["wall"])  # the parapet over the shaft (part_rim_north)
 	_lifts.append(_lift(area, [Vector3(100, -58, -22), Vector3(100, -20, -22), Vector3(89, -20, -22), Vector3(89, -24, -22)], 4.0))
 	_lifts.append(_lift(area, [Vector3(118, -27, -22), Vector3(118, 10, -22), Vector3(118, 10, -35), Vector3(118, 7.5, -35)], 4.0))
 	_cut_anchor = _anchor(area, Vector3(102, -25, -22), false)

@@ -481,8 +481,9 @@ RN_SHAFT = -29.9           # shaft-side face (toward +z), over the shell lip at 
 RN_R = 0.5                 # round end radius (half the wall depth)
 RN_BOT = -3.2              # 0.2 m into the balcony floor
 RN_FLOOR = -3.0            # balcony floor top: the fillet foot
-RN_TOP = 0.2               # wall top between the tines
-RN_TINES = ((107.0, 1.8, 0.6), (115.0, 2.0, 1.0), (123.0, 2.0, 0.9), (129.0, 1.5, 0.6))  # (x, half width, height)
+RN_TOP = 0.0               # wall top between the tines
+RN_CREST_MAX = 0.18        # highest vertex (Godot y): the gameplay collider tops out at y 0.2 and the rope passes above it
+RN_TINES = ((107.0, 1.8, 0.108), (115.0, 2.0, 0.18), (123.0, 2.0, 0.162), (129.0, 1.5, 0.108))  # (x, half width, height)
 RN_RIBS = (107.0, 115.0, 123.0)   # carapace_dull ribs, each climbs into a tine
 RN_CURL = 0.6              # tine tips curl this far toward +z, over the shaft
 RN_BALC_CAP = 0.095        # bulge toward the balcony (keeps z >= -31.6)
@@ -606,15 +607,15 @@ def _build_rim_north_model():
     ys = [g[1] for g in allg]
     assert min(zs) >= -31.6 - TOL_RN, "part_rim_north: balcony face beyond z -31.6 (%.3f)" % min(zs)
     assert min(xs) >= RN_X[0] - TOL_RN and max(xs) <= RN_X[1] + TOL_RN, "part_rim_north: x out of 104..131"
-    assert min(ys) >= RN_BOT - TOL_RN and max(ys) <= RN_TOP + RN_CURL * 0 + 1.0 + TOL_RN, "part_rim_north: crest height"
+    assert min(ys) >= RN_BOT - TOL_RN and max(ys) <= RN_CREST_MAX + TOL_RN, "part_rim_north: crest above y %.2f (%.3f)" % (RN_CREST_MAX, max(ys))
     crest = [g[1] for g in tops]
-    assert max(crest) >= RN_TOP + 0.5, "part_rim_north: no tine reaches 0.5 m above y=%.1f" % RN_TOP
+    assert max(crest) >= RN_TOP + 0.1, "part_rim_north: no tine rises above y=%.2f" % RN_TOP
     print("SELFCHECK part_rim_north: balcony face min z %.3f (limit -31.00), shaft face max z %.3f, "
           "x %.2f..%.2f, y %.2f..%.2f" % (min(zs), max(zs), min(xs), max(xs), min(ys), max(ys)))
 
     # comb patches on the shaft face (never on the balcony face)
     def radius(g):
-        return max(0.0, min(comb_patch.MAX_R, g[1] + 2.2, RN_TOP + 1.0 - g[1],
+        return max(0.0, min(comb_patch.MAX_R, g[1] + 2.2, RN_CREST_MAX - g[1],
                             g[0] - (RN_X[0] + 0.9), (RN_X[1] - 0.9) - g[0]))
 
     def dn(g):
@@ -636,6 +637,7 @@ def _build_rim_north_model():
         g = comb_patch.to_g(v.co)
         assert RN_X[0] < g[0] < RN_X[1] and -1.5 <= g[1] <= RN_TOP + 1.5, "part_rim_north: comb at %s" % (g,)
         assert g[2] >= RN_SHAFT - 0.06, "part_rim_north: comb on the balcony side at %s" % (g,)
+        assert g[1] <= RN_CREST_MAX + TOL_RN, "part_rim_north: comb above y %.2f at %s" % (RN_CREST_MAX, g)
     print("TRIS part_rim_north membrane %d, comb %d" % (_tris(bm), pst["tris"]))
     membrane = _finish("part_rim_north", bm, ["carapace", "carapace_dull"])
     if not pbm.faces:
