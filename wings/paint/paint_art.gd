@@ -82,6 +82,39 @@ static func slab_mesh(size: Vector3, at: Vector3, radius: float = 0.45, side_amp
 	return m
 
 
+## A painted field seen from afar: a rounded island whose top (y 0 at the origin) is gently
+## hummocked and whose banks roll down to `drop` below it, with a ragged outline. Visual only.
+static func mound_mesh(sx: float, sz: float, drop: float, at: Vector3) -> ArrayMesh:
+	var nz := noise()
+	var nx := clampi(int(sx / 1.4), 8, 44)
+	var nzc := clampi(int(sz / 1.4), 8, 44)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for iz in nzc + 1:
+		for ix in nx + 1:
+			var u := float(ix) / nx * 2.0 - 1.0
+			var w := float(iz) / nzc * 2.0 - 1.0
+			var wx := at.x + u * sx * 0.5
+			var wz := at.z + w * sz * 0.5
+			var e := pow(pow(absf(u), 4.0) + pow(absf(w), 4.0), 0.25) * (1.0 + 0.12 * nz.get_noise_2d(wx * 0.3, wz * 0.3))
+			var inner := 1.0 - smoothstep(0.8, 1.0, e)
+			var y := -drop * (1.0 - sqrt(inner)) + inner * 0.35 * nz.get_noise_2d(wx * 0.15, wz * 0.15)
+			st.set_uv(Vector2(u, w) * 0.5 + Vector2(0.5, 0.5))
+			st.add_vertex(Vector3(u * sx * 0.5, y, w * sz * 0.5))
+	for iz in nzc:
+		for ix in nx:
+			var a := iz * (nx + 1) + ix
+			var b := a + nx + 1
+			st.add_index(a)
+			st.add_index(a + 1)
+			st.add_index(b)
+			st.add_index(a + 1)
+			st.add_index(b + 1)
+			st.add_index(b)
+	st.generate_normals()
+	return st.commit()
+
+
 ## A daub: a domed puddle of wet paint with a ragged outline (where strokes bleed into each other).
 static func daub_mesh(radius: float, height: float, seed: float) -> ArrayMesh:
 	var st := SurfaceTool.new()

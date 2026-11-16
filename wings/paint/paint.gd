@@ -818,6 +818,17 @@ func _build_corrections() -> void:
 	_stroke(A, "hedge", [Vector3(-12, 0, -306), Vector3(-12, 0, -314)], "blue", 1.0, {"up": true, "t": 0.5, "k": "fixed", "grow": 7.0})
 	_well(A, "corr_yellow", Vector3(-24, 0, -300), Vector3(-24, 0, -304), "yellow")
 	_block(A, "View", Vector3(-19, 5.6, -305), Vector3(-13.2, 6.6, -315))
+	_model(A, "view_scaffold", Vector3.ZERO)   # stretcher-bar legs under the View (built in world position)
+	var legs := StaticBody3D.new()   # the legs are solid; the braces sit above head height
+	legs.name = "ViewLegs"
+	for p: Vector2 in [Vector2(-18.7, -305.4), Vector2(-18.7, -314.6), Vector2(-14.6, -305.4), Vector2(-14.6, -314.6)]:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(0.3, 5.6, 0.3)
+		cs.shape = bs
+		cs.position = Vector3(p.x, 2.8, p.y)
+		legs.add_child(cs)
+	_area(A).add_child(legs)
 	# the way on is barred in fixed blue; red into it makes violet, and violet sinks
 	_ground(A, "Causeway", -4, -330, 4, -352)
 	_well(A, "corr_red", Vector3(8, 0, -322), Vector3(12, 0, -322), "red")
@@ -1450,10 +1461,10 @@ func _dress() -> void:
 	field.set_shader_parameter(&"mix_amount", 0.75)
 	for i in ISLANDS.size():
 		var d: Array = ISLANDS[i]
-		var c := Vector3(d[0], d[1] - 2.0, d[2])
+		var c := Vector3(d[0], d[1], d[2])
 		var mi := MeshInstance3D.new()
 		mi.name = "Field_%d" % i
-		mi.mesh = Art.slab_mesh(Vector3(d[3], 4.0, d[4]), c, 1.6, 0.8, 0.25)
+		mi.mesh = Art.mound_mesh(d[3], d[4], 6.0, c)
 		mi.material_override = field
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.position = c
