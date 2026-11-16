@@ -216,7 +216,7 @@ def B_burrow():
     SKY = (1.55, 0.0)
     outer = S.lathe("burrow", [(0.0, 3.9), (1.4, 3.75), (2.6, 3.0), (3.3, 1.7), (3.55, 0.5), (3.7, -0.3), (0.0, -0.3)], "moss", sd,
                     segments=48, lump=0.14, scale=0.8)
-    inner = S.lathe("inner", [(r, z) for z, r in INNER][:1] + [(r, z) for z, r in INNER], "clay", sd + 1, segments=40, lump=0.07, scale=1.4)
+    inner = S.lathe("inner", [(r, z) for z, r in INNER][:1] + [(r, z) for z, r in INNER], "earth", sd + 1, segments=40, lump=0.07, scale=1.4)
     S.boolean(outer, inner)
     door = S.lathe("door", [(0.0, 0.0), (1.28, 0.0), (1.28, 3.0), (0.0, 3.0)], "clay", sd, segments=28, lump=0.0)
     door.rotation_euler = (0, math.pi / 2, 0)
