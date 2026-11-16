@@ -1,8 +1,11 @@
 """Partition membranes for the Chitin Court Foundry: visual-only models that hide the room's interior box walls.
 
 Build: tools/blender_build.sh wings/chitin/models/src/partitions.py wings/chitin/models/<part>.glb <part>
-  <part> is part_guild or part_vault. Both are visual only (no collision suffixes): the collision boxes
-  stay as they are and these meshes sit on the outside of them.
+  <part> is part_guild, part_vault or part_rim. All are visual only (no collision suffixes): the collision
+  boxes stay as they are and these meshes sit on the outside of them.
+part_rim: grown carapace wall over the heist exit slab (z -41..-40, x 104..131, top y 4): a shingle-plate face
+  toward +z (0.3 m proud below y=0, 0.8 m above), a tine crest 0.5..3 m above y=4 curling back, round ends,
+  4 carapace_dull ribs, a floor fillet at y=-3 and comb patches (comb_patch.build_flows) on the face.
 
 part_guild: two-sided carapace membrane on the faces z=80 and z=81 of the guild partition (x95..126 and
 x134..160, y-31..-10), a door opening x126..134 below y=-26 that stays clear, door jamb beads, the membrane
@@ -295,10 +298,187 @@ def _build_vault():
     return [wall_ob, roof_ob]
 
 
+# --- part_rim --------------------------------------------------------------------------------------
+
+RIM_BOX = ((104.0, -4.0, -41.0), (131.0, 4.0, -40.0))  # collision slab behind the balcony (Godot)
+RIM_FRONT = -40.0          # slab face toward the balcony (+z)
+RIM_BACK = -41.2           # closing back surface
+RIM_X = (103.8, 131.2)     # plan x extent: slab x 104..131 plus 0.3
+RIM_R = 0.6                # round end return radius (half the wall depth)
+RIM_FLOOR = -3.0           # rim walkway top: the wall foot
+RIM_TOP = 4.0              # slab top: the crest rises from here
+RIM_CROWN_MAX = 7.0        # highest tine tip
+RIM_NY = 40                # rows per column, floor to crest
+RIM_STEP = 0.3             # plan spacing along the face and back (m)
+RIM_RIBS = (111.0, 116.2, 121.5, 126.0)   # carapace_dull ribs, each climbs into a tine
+RIM_TINES = ((106.5, 1.2, 0.9), (111.0, 1.4, 2.6), (116.2, 1.5, 1.4),   # (centre x, half width, height above 4)
+             (121.5, 1.4, 2.9), (126.0, 1.3, 1.8), (129.5, 1.0, 0.8))
+RIM_COMB_BUDGET = 4000     # comb triangles
+
+
+def _rim_tine(x):
+    """Crest height above y = RIM_TOP (>= 0): pointed tines, valleys sit flush with the slab top."""
+    t = 0.0
+    for cx, hw, h in RIM_TINES:
+        u = abs(x - cx) / hw
+        if u < 1.0:
+            t = max(t, h * (1.0 - u) ** 1.5)
+    return t
+
+
+def _rim_disp(x, y):
+    """Outward offset (m) of the face toward +z at (x, y): shingle plates, rib bumps, a floor fillet at the
+    foot and a lean above y=0. Capped at 0.3 m below y=0, 0.8 m above."""
+    h = y - RIM_FLOOR
+    plate = rooms._plate(x - RIM_X[0], h, 0.9, 0.7, 0.45)
+    rib = 0.0
+    for xr in RIM_RIBS:
+        rib = max(rib, 0.2 * math.exp(-((x - xr) / 0.28) ** 2))
+    rib *= _smooth01((h - 0.4) / 0.8)
+    fil = (0.3 * math.sqrt(max(0.0, 1.0 - (h / 0.6) ** 2))
+           * _smooth01((x - 104.4) / 0.6) * _smooth01((130.6 - x) / 0.6))   # fades off the walkway ends
+    lean = 0.4 * _smooth01(y / 3.0) if y > 0.0 else 0.0
+    cap = 0.3 + 0.5 * _smooth01(y / 1.0)
+    return min(cap, plate + rib + fil + lean)
+
+
+def _rim_plan():
+    """Closed plan loop (x, z, nx, nz): front face z=-40, back z=-41.2, half-round ends of radius RIM_R."""
+    cl, cr = RIM_X[0] + RIM_R, RIM_X[1] - RIM_R
+    zc = (RIM_FRONT + RIM_BACK) / 2.0
+    nf = int(math.ceil((cr - cl) / RIM_STEP))
+    P = [(cl + (cr - cl) * i / nf, RIM_FRONT, 0.0, 1.0) for i in range(nf + 1)]
+    for k in range(1, 9):                                         # right return, front to back
+        th = math.pi / 2 - math.pi * k / 9
+        P.append((cr + RIM_R * math.cos(th), zc + RIM_R * math.sin(th), math.cos(th), math.sin(th)))
+    P += [(cr - (cr - cl) * i / nf, RIM_BACK, 0.0, -1.0) for i in range(nf + 1)]   # back, right to left
+    for k in range(1, 9):                                         # left return, back to front
+        th = -math.pi / 2 - math.pi * k / 9
+        P.append((cl + RIM_R * math.cos(th), zc + RIM_R * math.sin(th), math.cos(th), math.sin(th)))
+    return P
+
+
+def _rim_vertex(p, y):
+    """Plan point p at height y -> Godot (x, y, z). Front points take the face offset; crest tips above the
+    slab top curl back toward -z."""
+    x, z, nx, nz = p
+    wf = max(0.0, nz)
+    d = _rim_disp(x, y) * wf
+    T = _rim_tine(x)
+    curl = 0.0
+    if y > RIM_TOP and T > 1e-6:
+        curl = 0.5 * min(1.0, T / 3.0) * ((y - RIM_TOP) / T) ** 2 * wf
+    return (x + nx * d, y, z + nz * d - curl)
+
+
+def _rim_dn(g):
+    """Signed distance of g from the rim face, positive toward the balcony (the room side)."""
+    return g[2] - (RIM_FRONT + _rim_disp(g[0], g[1]))
+
+
+def _rim_radius(g):
+    x, y = g[0], g[1]
+    return max(0.0, min(comb_patch.MAX_R, y + 1.0, 3.0 - y, x - 104.6, 130.4 - x))
+
+
+def _rim_flows():
+    flows = []
+    for y, x0, x1, n in ((0.4, 105.0, 130.0, 14), (1.9, 106.5, 129.0, 10)):
+        flow = []
+        for i in range(n + 1):
+            x = x0 + (x1 - x0) * i / n
+            origin = rooms._blender((x, y, RIM_FRONT + 2.0))      # start in the balcony air
+            direction = rooms._blender((0.0, 0.0, -1.0))          # ray runs into the face
+            flow.append((origin, direction, math.sin(math.pi * i / n)))
+        flows.append(flow)
+    return flows
+
+
+def _build_rim():
+    P = _rim_plan()
+    K = len(P)
+    bm = bmesh.new()
+    V = []
+    tops, front_pts = [], []
+    for p in P:
+        top = RIM_TOP + _rim_tine(p[0])
+        col = []
+        for j in range(RIM_NY):
+            y = RIM_FLOOR + (top - RIM_FLOOR) * j / (RIM_NY - 1)
+            g = _rim_vertex(p, y)
+            col.append(bm.verts.new(rooms._blender(g)))
+            if j == RIM_NY - 1:
+                tops.append(g)
+            if p[3] == 1.0 and y < 0.0:
+                front_pts.append(g)
+        V.append(col)
+    for k in range(K):
+        k2 = (k + 1) % K
+        for j in range(RIM_NY - 1):
+            try:
+                bm.faces.new((V[k][j], V[k2][j], V[k2][j + 1], V[k][j + 1]))
+            except ValueError:
+                pass
+    for ring in ([V[k][0] for k in range(K)], [V[k][-1] for k in range(K)]):   # floor and crest caps
+        bmesh.ops.triangulate(bm, faces=[bm.faces.new(ring)])
+    # outward normals: flip everything if the loop came out inside-out
+    cen = rooms._blender((117.5, 0.5, -40.6))
+    score = sum(f.normal.dot(f.calc_center_median() - cen) for f in bm.faces)
+    if score < 0.0:
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    for f in bm.faces:
+        g = comb_patch.to_g(f.calc_center_median())
+        rib = (f.normal.z < 0.5 and g[2] > RIM_FRONT - 0.5 and -2.5 < g[1] < RIM_TOP
+               and any(abs(g[0] - xr) < 0.3 for xr in RIM_RIBS))
+        f.material_index = 1 if rib else 0
+        f.smooth = True
+    print("MEMBRANE part_rim tris %d (%d plan points, %d rows)" % (_tris(bm), K, RIM_NY))
+    return bm, tops, front_pts
+
+
+def _build_rim_model():
+    bm, tops, front_pts = _build_rim()
+
+    # self-check on final positions (Godot coordinates)
+    worst = 0.0
+    for p in (comb_patch.to_g(v.co) for v in bm.verts):
+        if p[1] < 0.0:
+            d = _box_dist(p, RIM_BOX[0], RIM_BOX[1])
+            worst = max(worst, d)
+            assert d <= BAND + TOL, "part_rim: vertex %s is %.3f from collision below y=0" % (p, d)
+    for g in front_pts:
+        off = g[2] - RIM_FRONT
+        assert -TOL <= off <= BAND + TOL, "part_rim: face offset %.3f at %s below y=0 (limit %.2f)" % (off, g, BAND)
+    crest = [g[1] for g in tops]
+    assert min(crest) >= RIM_TOP - TOL, "part_rim: crest dips below y=%.1f (%.3f)" % (RIM_TOP, min(crest))
+    assert max(crest) <= RIM_CROWN_MAX + TOL, "part_rim: crest rises above %.1f (%.3f)" % (RIM_CROWN_MAX, max(crest))
+    assert max(crest) >= RIM_TOP + 0.5, "part_rim: no tine reaches 0.5 m above y=%.1f" % RIM_TOP
+    max_off = max(g[2] - RIM_FRONT for g in front_pts)
+    print("SELFCHECK part_rim: band worst distance below y=0 is %.3f (limit %.2f), face offset max %.3f, "
+          "crest %.2f..%.2f above y=%.1f" % (worst, BAND, max_off, min(crest) - RIM_TOP,
+                                             max(crest) - RIM_TOP, RIM_TOP))
+
+    # comb patches on the face, between y -1 and 3
+    bm.normal_update()
+    pbm, pst = comb_patch.build_flows(bm, "part_rim_comb", _rim_flows(), _rim_radius, _rim_dn,
+                                      3.5, 0.3, RIM_COMB_BUDGET)
+    for v in pbm.verts:
+        g = comb_patch.to_g(v.co)
+        assert -1.5 <= g[1] <= 3.6 and RIM_BOX[0][0] < g[0] < RIM_BOX[1][0], "part_rim: comb patch at %s" % (g,)
+    print("TRIS part_rim membrane %d, comb %d" % (_tris(bm), pst["tris"]))
+    membrane = _finish("part_rim", bm, ["carapace", "carapace_dull"])
+    if not pbm.faces:   # ponytail: comb places nothing on this rim (mound tops overshoot the 0.3 band); skipped
+        return [membrane]
+    patches = comb_patch.make_object("part_rim_comb", pbm)
+    return [membrane, patches]
+
+
 def build(args):
     name = args[0] if args else "part_guild"
     if name == "part_guild":
         return _build_guild()
     if name == "part_vault":
         return _build_vault()
-    raise SystemExit("partitions.py: unknown part %r (part_guild or part_vault)" % name)
+    if name == "part_rim":
+        return _build_rim_model()
+    raise SystemExit("partitions.py: unknown part %r (part_guild, part_vault or part_rim)" % name)
