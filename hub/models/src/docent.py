@@ -45,8 +45,8 @@ BOARD_ROT = Matrix.Rotation(math.radians(-38), 4, "X")
 BOARD_M = Matrix.Translation(BOARD_C) @ BOARD_ROT
 W_R = Vector((-0.27, -0.33, 1.30))  # right wrist (holds the pencil)
 W_L = Vector((0.27, -0.33, 1.30))  # left wrist (holds the board edge)
-SHEET_TIP = BOARD_M @ Vector((-0.10, -0.0115, -0.04))  # pencil tip on the sheet
-PENCIL_U = (W_R - SHEET_TIP).normalized()
+SHEET_TIP = BOARD_M @ Vector((-0.10, -0.02, -0.04))  # pencil lies on the sheet (axis 7.5 mm in front of it)
+PENCIL_U = (BOARD_ROT @ Vector((-0.9, 0.0, 0.434))).normalized()  # in the sheet plane, toward the right wrist
 PENCIL_G = SHEET_TIP + PENCIL_U * 0.12  # grip point
 
 
@@ -380,7 +380,7 @@ def arm(s, name):
     sleeve = bell(name + "_sleeve", [
         S, S.lerp(E, 0.5), E, E.lerp(W, 0.5), W - f * 0.03,
         W + V(0, 0, -0.06), W + V(0, 0, -0.11), W + V(0, 0, -0.16), W + V(0, 0, -0.22)],
-        [0.095, 0.10, 0.078, 0.07, 0.066, 0.070, 0.086, 0.105, 0.12], 16, ROBE_M, fold=0.07, nfold=9)
+        [0.095, 0.10, 0.078, 0.07, 0.04, 0.04, 0.07, 0.09, 0.11], 16, ROBE_M, fold=0.07, nfold=9)  # narrow cuff: hands show
     parts = [sleeve]
     for k, ang in enumerate((-0.45, 0.0, 0.45)):  # 3 drape folds hanging under the forearm
         dn = Matrix.Rotation(ang, 3, f) @ V(0, 0, -1)
@@ -389,7 +389,7 @@ def arm(s, name):
     cz = W.z - 0.22  # gilt cuff: short open cylinder on the outer rim, 3 cm tall, 4 mm thick
     parts.append(bake(kit.lathe(name + "_cuff", [(0.12, cz), (0.124, cz), (0.124, cz + 0.03), (0.12, cz + 0.03)],
                                 40, mat="gilt", smooth_angle=60.0, cap=False), Matrix.Translation((W.x, W.y, 0))))
-    G = W_L.lerp(V(0.22, -0.37, 1.27), 0.6) if s > 0 else PENCIL_G
+    G = BOARD_M @ V(s * 0.22, 0.0, 0.02 if s > 0 else 0.06)  # grip on the board's side edge, mid-plate
     parts += hand(s, W, G)
     ob = kit.join(name, parts)
     subsurf(ob, 1)
@@ -397,23 +397,33 @@ def arm(s, name):
 
 
 def hand(s, W, G):
+    """Grip on the board's side edge at G (board-local x = s*0.22). Built in board-local coords and placed
+    with BOARD_M. Palm wraps the edge; four tapered fingers lie behind the back face (+Y); the thumb wraps
+    the edge and lies flat on the front face (-Y), about 4 mm off the sheet, pointing at the board centre."""
     K = 1.3  # hands ~30% larger so the grip on the board reads at 3 m
-    f = (G - W).normalized()
-    up = V(0, 0, 1)
-    lat = f.cross(up).normalized()
-    thumb = V(-s, 0, 0)
-    parts = [sweep("palm", [W - f * 0.01 * K, W + f * 0.05 * K, W + f * 0.085 * K], [0.034 * K, 0.04 * K, 0.034 * K],
-                   10, GLOVE_M, flat=0.5)]
+    inv = BOARD_M.inverted()
+    wl, gl = inv @ W, inv @ G
+    zw, zg = wl.z, gl.z
+    N = BOARD_ROT @ V(0, 1, 0)  # board normal: flat sweeps lie in the board plane
+
+    def B(x, y, z):
+        return BOARD_M @ V(x, y, z)
+
+    # palm: flattened, from the wrist to the edge (its end cap just clears the board edge at x = 0.22)
+    parts = [sweep("palm", [B(wl.x, 0.004, zw), B(s * 0.245, 0.0, (zw + zg) / 2), B(s * 0.2225, 0.0, zg)],
+                   [0.03 * K, 0.034 * K, 0.036 * K], 10, GLOVE_M, flat=0.5, up=N)]
+    # fingers: behind the back face (y = +0.010), centre 26 mm off it, stacked along the edge
     for i in range(4):
-        o = lat * (-0.024 + 0.016 * i) * K
-        b = W + f * 0.075 * K + o
-        pts = [b, b + f * 0.035 * K - up * 0.008 * K, b + f * 0.05 * K - up * 0.03 * K + (G - b) * 0.3,
-               G + o * 0.35 - up * 0.006]
-        parts.append(sweep("finger%d" % i, pts, [r * K for r in (0.0105, 0.0095, 0.0085, 0.0075)], 8, GLOVE_M))
-    t0 = W + f * 0.03 * K + thumb * 0.028 * K + up * 0.01 * K
-    parts.append(sweep("thumb", [t0, t0 + f * 0.035 * K + thumb * 0.008 * K + up * 0.02 * K,
-                                 G + thumb * 0.012 + up * 0.012],
-                       [r * K for r in (0.0125, 0.011, 0.009)], 8, GLOVE_M))
+        z = zg + (i - 1.5) * 0.026
+        pts = [B(s * 0.236, 0.026, z), B(s * 0.20, 0.026, z), B(s * 0.165, 0.026, z), B(s * 0.135, 0.026, z)]
+        parts.append(sweep("finger%d" % i, pts, [r * K for r in (0.0105, 0.0098, 0.0088, 0.0055)], 8, GLOVE_M,
+                           flat=0.8, up=N))
+    # thumb: round the edge, then flat on the front; centre 23 mm in front of the board plate (-0.0231),
+    # half-thickness ~6.8 mm at the base, so the inner face sits ~4 mm off the sheet (front at -0.0125)
+    thumb = [B(s * 0.24, -0.004, zg), B(s * 0.23, -0.018, zg), B(s * 0.20, -0.0231, zg),
+             B(s * 0.165, -0.0231, zg), B(s * 0.158, -0.0231, zg)]
+    parts.append(sweep("thumb", thumb, [r * K for r in (0.0095, 0.0092, 0.0085, 0.0070, 0.0040)], 8, GLOVE_M,
+                       flat=0.55, up=N))
     return parts
 
 

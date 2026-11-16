@@ -436,6 +436,19 @@ func _model_mat(name: String) -> ShaderMaterial:
 	return load("res://wings/glass/materials/%s.tres" % name)
 
 
+## Transforms for parapet.glb modules (1.3 m along local X) laid end to end from a to b (level).
+func _parapet_run(a: Vector3, b: Vector3) -> Array:
+	var d := b - a
+	var n := maxi(1, roundi(d.length() / 1.3))
+	var step := d.length() / n
+	var x := d.normalized()
+	var basis := Basis(x * (step / 1.3), Vector3.UP, x.cross(Vector3.UP))
+	var out: Array = []
+	for i in n:
+		out.append(Transform3D(basis, a + x * step * (i + 0.5)))
+	return out
+
+
 func _model(name: String) -> Node3D:
 	var path := MODELS + name + ".glb"
 	if not ResourceLoader.exists(path):
@@ -668,9 +681,10 @@ func _build_cloister() -> void:
 	_block(Vector3(-17.5, -1, 5), Vector3(-11, 0, 11), "glass_floor")
 	_block(Vector3(-17.5, -1, -11), Vector3(-11, 0, -5), "glass_floor")
 	# rubble of the collapsed west walk, hanging over nothing
-	for i in 5:
-		var z := -4.0 + i * 2.0
-		_block(Vector3(-16.5 + i * 0.6, -2.5 - i * 0.7, z), Vector3(-14.5 + i * 0.5, -1.8 - i * 0.7, z + 1.1), "glass_red", false)
+	# (walk_rubble.glb: five shattered floor slabs falling away, chunk 0 centred here; not solid)
+	var rubble := _model("walk_rubble")
+	rubble.position = Vector3(-15.5, -2.15, -3.45)
+	geo.add_child(rubble)
 	# outer walls (the north wall is the nave's west front, with its door)
 	_block(Vector3(-18.5, 0, 17.5), Vector3(18.5, 9, 18.5), "glazed_cloister")
 	_block(Vector3(17.5, 0, -17.5), Vector3(18.5, 9, 17.5), "glazed_cloister")
@@ -1090,9 +1104,15 @@ func _build_passage_and_tower() -> void:
 func _build_roof() -> void:
 	_block(Vector3(-21.5, 15.6, -100), Vector3(-16.5, 16, -30.5), "glass_floor")
 	# parapet with gaps at the buttress ramp (z -60) and the bridge (z -95)
+	# colliders stay the code slabs; what you see is a lead-and-glass arcaded parapet (parapet.glb, 1.3 m
+	# modules stretched a little to fill each run)
+	var rails: Array = []
 	for seg: Vector2 in [Vector2(-58.8, -30.5), Vector2(-93.5, -61.2), Vector2(-100, -96.5)]:
-		_block(Vector3(-21.8, 16, seg.x), Vector3(-21.5, 16.9, seg.y), "lead")
-	_block(Vector3(-21.8, 16, -100.3), Vector3(-16.5, 16.9, -100), "lead")
+		_block(Vector3(-21.8, 16, seg.x), Vector3(-21.5, 16.9, seg.y), "lead").visible = false
+		rails.append_array(_parapet_run(Vector3(-21.65, 16, seg.x), Vector3(-21.65, 16, seg.y)))
+	_block(Vector3(-21.8, 16, -100.3), Vector3(-16.5, 16.9, -100), "lead").visible = false
+	rails.append_array(_parapet_run(Vector3(-21.8, 16, -100.15), Vector3(-16.5, 16, -100.15)))
+	_mm("parapet", rails)
 	# flying buttresses: outer pinnacles and arches leaning on the clerestory
 	var tips: Array = []
 	var butt: Array = []

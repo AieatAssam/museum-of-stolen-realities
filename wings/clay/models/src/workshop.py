@@ -39,7 +39,19 @@ def B_sign():
             v.co.y = 0.0
     bm.to_mesh(board.data)
     bm.free()
+    # only the front face is ink: the edges and back are planked wood, so the board reads from behind
+    board.data.materials.append(kit.material("wood"))
+    for p in board.data.polygons:
+        if p.normal.y > -0.7:
+            p.material_index = 1
     parts.append(board)
+    # the back: three thumbed planks and two battens, as if the board was nailed up from offcuts
+    for k, z in enumerate((0.9, 1.1, 1.3)):
+        parts.append(S.slab("plank%d" % k, (0.9, 0.03, 0.18), (0.02 * (k - 1), 0.112, z), "wood", sd + 20 + k,
+                            lump=0.006, bevel=0.012, cuts=4))
+    for s in (-1, 1):
+        parts.append(S.snake("batten%d" % s, [(s * 0.3, 0.135, 0.8), (s * 0.31, 0.135, 1.1), (s * 0.3, 0.135, 1.4)], 0.022,
+                             "bark", sd + 30 + s, sides=6, wobble=0.02, steps=2))
     # the wooden frame: four rolled snakes, corners overlapping, centred on y = 0, just outside the text
     fr = 0.035
     parts.append(S.snake("fr_top", [(-0.54, 0, 1.45), (0, 0, 1.452), (0.54, 0, 1.45)], fr, "wood", sd, sides=8, wobble=0.04, steps=3))

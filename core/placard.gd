@@ -39,6 +39,7 @@ var _built: bool = false
 
 static var _plate_mat: StandardMaterial3D
 static var _bezel_mat: StandardMaterial3D
+static var _back_mat: StandardMaterial3D
 
 const PX_TITLE := 64
 const PX_META := 40
@@ -182,6 +183,10 @@ const BEZEL_PROFILE: Array[Vector2] = [Vector2(-0.002, 0.0095), Vector2(0.004, 0
 static var _bezels: Dictionary = {}
 
 
+## Two surfaces: 0 the moulding, swept on both faces (the back a shallower copy, so a free-standing
+## placard has a framed back), 1 the recessed back panel with four domed screw heads. On a wall the
+## back half sits inside the wall and is never seen.
+const BACK_DEPTH := 0.7  # back moulding height as a fraction of the front's
 static func _bezel_mesh(plate: Vector2) -> ArrayMesh:
 	if _bezels.has(plate):
 		return _bezels[plate]
@@ -189,21 +194,38 @@ static func _bezel_mesh(plate: Vector2) -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var h := plate * 0.5
 	var corners: Array[Vector2] = [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
-	for c in 4:
-		var s0 := corners[c]
-		var s1 := corners[(c + 1) % 4]
-		for j in BEZEL_PROFILE.size() - 1:
-			var a := BEZEL_PROFILE[j]
-			var b := BEZEL_PROFILE[j + 1]
-			var p := [Vector3(s0.x * (h.x + a.x), s0.y * (h.y + a.x), a.y), Vector3(s1.x * (h.x + a.x), s1.y * (h.y + a.x), a.y),
-				Vector3(s1.x * (h.x + b.x), s1.y * (h.y + b.x), b.y), Vector3(s0.x * (h.x + b.x), s0.y * (h.y + b.x), b.y)]
-			for i: int in [0, 2, 1, 0, 3, 2]:
-				st.add_vertex(p[i])
-	var o := h + Vector2.ONE * BEZEL_PROFILE[-1].x
-	for v: Vector3 in [Vector3(-o.x, -o.y, 0), Vector3(o.x, o.y, 0), Vector3(o.x, -o.y, 0), Vector3(-o.x, -o.y, 0), Vector3(-o.x, o.y, 0), Vector3(o.x, o.y, 0)]:
-		st.add_vertex(v)  # back: closes the moulding against the wall
+	for face: float in [1.0, -BACK_DEPTH]:
+		var order: Array = [0, 2, 1, 0, 3, 2] if face > 0.0 else [0, 1, 2, 0, 2, 3]
+		for c in 4:
+			var s0 := corners[c]
+			var s1 := corners[(c + 1) % 4]
+			for j in BEZEL_PROFILE.size() - 1:
+				var a := BEZEL_PROFILE[j]
+				var b := BEZEL_PROFILE[j + 1]
+				var p := [Vector3(s0.x * (h.x + a.x), s0.y * (h.y + a.x), a.y * face), Vector3(s1.x * (h.x + a.x), s1.y * (h.y + a.x), a.y * face),
+					Vector3(s1.x * (h.x + b.x), s1.y * (h.y + b.x), b.y * face), Vector3(s0.x * (h.x + b.x), s0.y * (h.y + b.x), b.y * face)]
+				for i: int in order:
+					st.add_vertex(p[i])
 	st.generate_normals()
 	var m := st.commit()
+	# the back panel, recessed inside the back moulding, and its screws
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var o := h + Vector2.ONE * BEZEL_PROFILE[0].x
+	var z := -BEZEL_PROFILE[0].y * BACK_DEPTH + 0.002
+	for v: Vector3 in [Vector3(-o.x, -o.y, z), Vector3(o.x, o.y, z), Vector3(o.x, -o.y, z), Vector3(-o.x, -o.y, z), Vector3(-o.x, o.y, z), Vector3(o.x, o.y, z)]:
+		st.add_vertex(v)
+	for c in corners:
+		var at := Vector3(c.x * (h.x - 0.045), c.y * (h.y - 0.045), z)
+		var ring: Array[Vector3] = []
+		for k in 8:
+			var ang := TAU * k / 8.0
+			ring.append(at + Vector3(cos(ang) * 0.011, sin(ang) * 0.011, -0.002))
+		var tip := at + Vector3(0, 0, -0.0055)
+		for k in 8:
+			for v: Vector3 in [tip, ring[(k + 1) % 8], ring[k]]:
+				st.add_vertex(v)
+	st.generate_normals()
+	st.commit(m)
 	_bezels[plate] = m
 	return m
 
@@ -222,9 +244,14 @@ func _build() -> void:
 		_bezel_mat.albedo_color = Color(1.0, 0.86, 0.6)
 		_bezel_mat.uv1_triplanar = true  # the swept moulding has no UVs
 		_bezel_mat.uv1_scale = Vector3(6, 6, 6)
+		_back_mat = _bezel_mat.duplicate() as StandardMaterial3D  # the same brass, darkened: aged bronze
+		_back_mat.albedo_color = Color(0.36, 0.27, 0.17)
+		_back_mat.metallic = 0.75
+		_back_mat.roughness = 0.6
 	var bezel := MeshInstance3D.new()
 	bezel.mesh = _bezel_mesh(size)
-	bezel.material_override = _bezel_mat
+	bezel.set_surface_override_material(0, _bezel_mat)
+	bezel.set_surface_override_material(1, _back_mat)
 	add_child(bezel)
 	var plate := MeshInstance3D.new()
 	var pm := QuadMesh.new()

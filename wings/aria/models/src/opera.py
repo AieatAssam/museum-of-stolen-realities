@@ -915,6 +915,23 @@ def chandelier():
     kit.join("chandelier_flames", flames)
 
 
+def _stair_panel(x, sx, ya, yb, zb, ta, tb):
+    """Raised marble panel on a string face at x (sx = outward side): a quad in (y, z) with bottom zb,
+    top ta at ya and tb at yb, standing 0.035 proud along sx. Outward edges bevelled."""
+    bm = bmesh.new()
+    yz = ((ya, zb), (yb, zb), (yb, tb), (ya, ta))
+    outer = [bm.verts.new((x + sx * 0.035, y, z)) for y, z in yz]
+    inner = [bm.verts.new((x - sx * 0.01, y, z)) for y, z in yz]
+    bm.faces.new(outer)
+    bm.faces.new(inner[::-1])
+    for k in range(4):
+        bm.faces.new((outer[k], inner[k], inner[(k + 1) % 4], outer[(k + 1) % 4]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    edges = [bm.edges.get((outer[k], outer[(k + 1) % 4])) for k in range(4)]
+    bmesh.ops.bevel(bm, geom=edges, offset=0.012, segments=2, affect="EDGES")
+    return kit._obj("panel", bm, "marble_ivory", 40.0)
+
+
 def stair(width=12.0, rise=2.8, run=7.0, steps=8):
     """A grand stair visual laid over the wing's ramp collider: bullnosed marble treads with a velvet
     runner, string walls with gilt rails. Rises toward -Y (Godot +Z is turned by the wing)."""
@@ -946,9 +963,23 @@ def stair(width=12.0, rise=2.8, run=7.0, steps=8):
         P.append(ob)
         rail = [(x, 0.3 - (0.3 + run) * t, top0 + (top1 - top0) * t) for t in (0.0, 0.5, 1.0)]
         P.append(kit.tube("cap_rail", rail, 0.13, 10, "gilt"))
-        for off in (0.18, 0.55):  # two gilt mouldings along the string's face: a sunk panel outline
-            line = [(x + sx * 0.21, 0.1 - (run - 0.2) * t, off * (1 - t) + (top1 - (top0 - off)) * t) for t in (0.0, 1.0)]
-            P.append(kit.tube("string_moulding", line, 0.035, 6, "gilt"))
+        # carved panelled face on the outer side of the string
+        xf = x + sx * 0.2
+        n = max(2, round(run / 1.7))
+        pl = (run - 0.14 * (n - 1)) / n
+        top = lambda y: top0 + rise * (0.3 - y) / (run + 0.3)
+        for i in range(n):
+            ya = 0.15 - i * (pl + 0.14)
+            yb = ya - pl
+            ta, tb = top(ya) - 0.18, top(yb) - 0.18
+            P.append(_stair_panel(xf, sx, ya, yb, 0.32, ta, tb))
+            g = 0.03  # gilt bead lies 0.03 outside each panel edge
+            loop = [(xf + sx * 0.01, ya + g, 0.32 - g), (xf + sx * 0.01, yb - g, 0.32 - g),
+                    (xf + sx * 0.01, yb - g, tb + g), (xf + sx * 0.01, ya + g, ta + g)]
+            P.append(kit.tube("panel_bead", loop + loop[:1], 0.014, 6, "gilt"))
+        # marble plinth along the foot of the string, with a gilt half-round bead on top
+        P.append(kit.box("plinth", (0.08, run + 0.3, 0.24), (xf + sx * 0.02, (0.3 - run) / 2, 0.12), mat="marble_ivory", bevel=0.01))
+        P.append(kit.tube("plinth_bead", [(xf + sx * 0.06, 0.3, 0.245), (xf + sx * 0.06, -run, 0.245)], 0.02, 6, "gilt"))
     kit.join("stair", P)
 
 

@@ -1032,6 +1032,14 @@ func _build_shot_marks() -> void:
 	var ta := float(THIEF_BAY) * TAU / 12.0
 	add.call("30_thief", Vector3(sin(ta + 0.2), 0, cos(ta + 0.2)) * 10.0 + Vector3(0, 1.7, 0), Vector3(sin(ta), 0, cos(ta)) * 14.5 + Vector3(0, 1.5, 0))
 	add.call("31_docent", Vector3(-12.5, 1.6, 2.0), Vector3(-16.0, 1.8, 0.0))
+	# close-ups: the cast hands, and the nearest docent face-on (hands, board, mask)
+	var tc := _thief.global_position + Vector3(0, 1.6, 0)
+	var to_c := Vector3(-tc.x, 0, -tc.z).normalized()  # the thief faces the sphere
+	add.call("32_thief_close", tc + to_c * 1.8 + Vector3(0, 0.3, 0), tc)
+	var dr: Node3D = _docents[0]["root"]
+	var dc := dr.global_position + Vector3(0, 1.45, 0)
+	var df := Vector3(dr.global_basis.z.x, 0, dr.global_basis.z.z).normalized()  # the docent faces local +Z
+	add.call("33_docent_close", dc + df * 2.2 + Vector3(0, 0.25, 0), dc)
 
 
 # --- per frame --------------------------------------------------------------------------------

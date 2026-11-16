@@ -3,7 +3,8 @@
                   (3.1,0,2.3), a shortened rib and lead struts under it, both ends broken, glass chunks at the foot.
   pinnacle_niche  a broken pinnacle on a buttress stump, with a canopied niche on top. Origin at the top centre of
                   the platform; the stump runs down to z -18.3. The relic sits under the canopy at about z 0.5.
-  ledger          a memorial floor slab, 2.0 x 1.0 m, with a brass-inlaid recumbent figure. Origin at its centre."""
+  ledger          a memorial floor slab, 2.0 x 1.0 m, with a brass-inlaid recumbent figure. Origin at its centre.
+  parapet         a lead parapet module, 1.30 x 0.90 m, with a pointed arch and half-posts at each end. Origin at bottom centre."""
 import math
 import os
 import random
@@ -309,5 +310,103 @@ def ledger():
     return _done("ledger", p)
 
 
+# ---------------------------------------------------------------- parapet
+
+def _slab(name, poly, y0, y1, mat):
+    """Extrude a simple (x, z) polygon between y0 and y1."""
+    bm = bmesh.new()
+    a = [bm.verts.new((x, y0, z)) for x, z in poly]
+    b = [bm.verts.new((x, y1, z)) for x, z in poly]
+    n = len(poly)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((a[i], a[j], b[j], b[i]))
+    bm.faces.new(a)
+    bm.faces.new(b)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return kit._obj(name, bm, mat, 30.0)
+
+
+def _coping_prism():
+    """Gabled coping along X (-0.65..0.65): sides at z 0.90, ridge at y=0 rising to z 0.93."""
+    sec = [(-0.18, 0.78), (0.18, 0.78), (0.18, 0.90), (0.0, 0.93), (-0.18, 0.90)]
+    bm = bmesh.new()
+    rings = [[bm.verts.new((x, y, z)) for y, z in sec] for x in (-0.65, 0.65)]
+    n = len(sec)
+    for j in range(n):
+        k = (j + 1) % n
+        bm.faces.new((rings[0][j], rings[1][j], rings[1][k], rings[0][k]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return kit._obj("coping", bm, "lead", 30.0)
+
+
+def _boss(x, y):
+    """Brass boss on a face at an arch apex: a UV sphere r 0.03, flattened to half depth in y."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=12, v_segments=8, radius=0.03)
+    bmesh.ops.scale(bm, vec=(1, 0.5, 1), verts=bm.verts)
+    bmesh.ops.translate(bm, vec=(x, y, 0.70), verts=bm.verts)
+    return kit._obj("boss", bm, "brass", 30.0)
+
+
+def parapet():
+    p = []
+    # base: plinth with a bevelled top, and a thinner step on it
+    p.append(kit.box("plinth", (1.30, 0.32, 0.12), loc=(0, 0, 0.06), mat="lead", bevel=0.025))
+    p.append(kit.box("step", (1.30, 0.26, 0.05), loc=(0, 0, 0.145), mat="lead", bevel=0.015))
+
+    # coping, with drip rolls under its long edges and brass trim on its upper edges (ends kept inside 0.64)
+    p.append(_coping_prism())
+    for y in (-0.165, 0.165):
+        p.append(kit.tube("drip", [(-0.64, y, 0.775), (0.64, y, 0.775)], 0.018, 8, mat="lead"))
+    for y in (-0.175, 0.175):
+        p.append(kit.tube("trim", [(-0.64, y, 0.905), (0.64, y, 0.905)], 0.010, 8, mat="brass"))
+
+    # half-posts at each end, pairing with the neighbour's
+    for sx in (-1, 1):
+        p.append(kit.box("post", (0.05, 0.20, 0.61), loc=(sx * 0.625, 0, 0.475), mat="lead", bevel=0.01))
+
+    # central lead mullion between the two lancets
+    p.append(kit.box("mullion", (0.08, 0.18, 0.61), loc=(0, 0, 0.475), mat="lead", bevel=0.01))
+
+    # two lancets, springing z 0.40, span 0.56, rise 0.30, centred at x +-0.32; lead section 0.05 x 0.18
+    sec = [(-0.025, -0.09), (0.025, -0.09), (0.025, 0.09), (-0.025, 0.09)]
+    path = pointed(0.56, 0.30, 20)                     # (h, y), springer -> apex -> springer
+    for cx in (-0.32, 0.32):
+        p.append(sweep("arch", sec, path, "lead", lambda h, y, v, cx=cx: (h + cx, v, y + 0.40)))
+
+    # spandrels (lead, 0.12 deep): lower edges follow the arch centre-lines up to z 0.78, no gaps
+    A = [(-0.32 + h, 0.40 + y) for h, y in path]       # left lancet
+    B = [(0.32 + h, 0.40 + y) for h, y in path]        # right lancet
+    spandrels = [
+        A[:21] + [(-0.32, 0.78), (-0.6, 0.78)],                  # left of the left arch
+        A[20:] + B[:21] + [(0.32, 0.78), (-0.32, 0.78)],         # between the arches, over the mullion
+        B[20:] + [(0.6, 0.78), (0.32, 0.78)],                    # right of the right arch
+    ]
+    for poly in spandrels:
+        p.append(_slab("spandrel", poly, -0.06, 0.06, "lead"))
+
+    # glazed pane in each arch head: intrados inset 0.035 from the centre-line, from springing up
+    inset = 0.035
+    for cx in (-0.32, 0.32):
+        pane = []
+        for i, (h, y) in enumerate(path):
+            hp, yp = path[max(i - 1, 0)]
+            hn, yn = path[min(i + 1, len(path) - 1)]
+            d = Vector((hn - hp, yn - yp)).normalized()
+            o = Vector((d.y, -d.x))
+            pane.append((cx + h + o.x * inset, 0.40 + y + o.y * inset))
+        p.append(_slab("pane", pane[1:-1], -0.0075, 0.0075, GOLD))
+
+    # brass bosses on both faces at each arch apex (4 total)
+    for cx in (-0.32, 0.32):
+        for y in (-0.09, 0.09):
+            p.append(_boss(cx, y))
+    return _done("parapet", p)
+
+
 def build(args):
-    {"fallen_flyer": fallen_flyer, "pinnacle_niche": pinnacle_niche, "ledger": ledger}[args[0]]()
+    {"fallen_flyer": fallen_flyer, "pinnacle_niche": pinnacle_niche, "ledger": ledger,
+     "parapet": parapet}[args[0]]()
