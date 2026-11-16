@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Cinematics autoload. `await Cinematics.play(steps)` runs a list of steps in order:
 ##   {"card": "Text", "sub": "a caption under it", "t": 5.0, "style": "light"|"display"|"body"}  timed text card
 ##   {"cam": [Transform3D, ...], "t": 8.0, "fov": 60.0, "async": true}  camera path (Catmull-Rom); async = don't wait
+##       "fov_to": 90.0 eases the field of view along the path (a handover into the player's eye)
 ##   {"wait": 2.0}
 ##   {"fade": 1.0, "t": 1.5}            3D view to ink (1) or back (0) — via Post
 ##   {"call": Callable, "always": true} always = still runs when skipped (state setup)
@@ -266,6 +267,9 @@ func _camera(s: Dictionary) -> void:
 	_cam_tween = create_tween()
 	_cam_tween.tween_method(func(u: float) -> void: cam.global_transform = _sample(path, u),
 		0.0, 1.0, float(s["t"])).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if s.has("fov_to"):
+		_cam_tween.parallel().tween_property(cam, "fov", float(s["fov_to"]), float(s["t"])) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 static func _sample(path: Array, u: float) -> Transform3D:

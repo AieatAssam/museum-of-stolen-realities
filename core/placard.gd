@@ -111,18 +111,38 @@ func set_text(new_heading: String, new_title: String, new_catalog: String, new_b
 
 
 func _refresh() -> void:
-	var w := _l_body.width
 	_l_title.text = title
 	_l_meta.text = "\n".join(meta_lines(get_label()))
 	_l_body.text = body
+	# fit: the largest text size (up to 2x the old fixed size) at which the three blocks fill the
+	# plate's height, re-wrapping to the plate width at each size
+	var cap := 0.0011 * size.x / 0.9
+	var ps := cap
+	for i in 4:
+		var h := _stack_px(int(size.x * 0.86 / ps)) + 0.034 / ps
+		ps = minf(cap, (size.y - 0.1) / h)
+	var w := int(size.x * 0.86 / ps)
+	for l: Label3D in [_l_title, _l_meta, _l_body]:
+		l.pixel_size = ps
+		l.width = w
 	# stack the three blocks from the top edge
 	var y := size.y * 0.5 - 0.05
 	_l_title.position.y = y
-	y -= Style.DISPLAY.get_multiline_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, w, PX_TITLE).y * _l_title.pixel_size + 0.012
+	y -= Style.DISPLAY.get_multiline_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, w, PX_TITLE).y * ps + 0.012
 	_l_meta.position.y = y
 	if _l_meta.text != "":
-		y -= Style.TEXT.get_multiline_string_size(_l_meta.text, HORIZONTAL_ALIGNMENT_LEFT, w, PX_META).y * _l_meta.pixel_size + 0.022
+		y -= Style.TEXT.get_multiline_string_size(_l_meta.text, HORIZONTAL_ALIGNMENT_LEFT, w, PX_META).y * ps + 0.022
 	_l_body.position.y = y
+
+
+## Height in label pixels of title + meta + body wrapped at `w` pixels.
+func _stack_px(w: int) -> float:
+	var h := Style.DISPLAY.get_multiline_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, w, PX_TITLE).y
+	if _l_meta.text != "":
+		h += Style.TEXT.get_multiline_string_size(_l_meta.text, HORIZONTAL_ALIGNMENT_LEFT, w, PX_META).y
+	if body != "":
+		h += Style.TEXT.get_multiline_string_size(body, HORIZONTAL_ALIGNMENT_LEFT, w, PX_BODY).y
+	return h
 
 
 func _mk_label(font: Font, px: int, color: Color, width_px: int) -> Label3D:

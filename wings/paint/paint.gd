@@ -219,6 +219,15 @@ func _mat(key: String) -> Material:
 	return Art.mat("g_" + ("goal" if key == "interact" else key))
 
 
+## Blocks that would read as boxes in the open, and the painted form each one wears instead.
+const FORMS := {
+	"Shade": "torn_mass", "CaveRoof": "torn_mass", "CaveWallN": "torn_mass", "CaveWallS": "torn_mass",
+	"CaveWallS2": "torn_mass", "NicheBack": "torn_mass", "NicheN": "torn_mass", "NicheS": "torn_mass",
+	"NicheRoof": "torn_mass", "LookoutEast": "stretcher_deck", "LookoutWest": "stretcher_deck",
+	"LookoutNorth": "stretcher_deck", "View": "stretcher_deck",
+}
+
+
 ## A named block: <name>/Visual (mesh) + <name>/Collision (static body), corners a and b.
 func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "primed", solid: bool = true) -> Node3D:
 	var root := Node3D.new()
@@ -227,11 +236,23 @@ func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "p
 	var hi := a.max(b)
 	root.position = (lo + hi) * 0.5
 	var size := hi - lo
-	var mi := MeshInstance3D.new()
-	mi.name = "Visual"
-	mi.mesh = Art.slab_mesh(size, root.position)
-	mi.material_override = _mat(mat)
-	root.add_child(mi)
+	if FORMS.has(name):   # a painted form stretched over the box: torn canvas, or a stretcher deck
+		var fm := Art.model(FORMS[name])
+		fm.name = "Visual"
+		fm.scale = size
+		if FORMS[name] == "torn_mass":
+			for g: MeshInstance3D in fm.find_children("*", "MeshInstance3D", true, false):
+				g.material_override = _mat(mat)
+		root.add_child(fm)
+	else:
+		var mi := MeshInstance3D.new()
+		mi.name = "Visual"
+		if mat == "weave":   # unpainted canvas: a torn, irregular outline, never a box
+			mi.mesh = Art.slab_mesh(size, root.position, 3.0, clampf(maxf(size.x, size.z) * 0.03, 0.16, 1.8), 0.5)
+		else:
+			mi.mesh = Art.slab_mesh(size, root.position)
+		mi.material_override = _mat(mat)
+		root.add_child(mi)
 	if solid:
 		var sb := StaticBody3D.new()
 		sb.name = "Collision"
@@ -248,7 +269,10 @@ func _block(area: String, name: String, a: Vector3, b: Vector3, mat: String = "p
 
 ## Ground slab whose TOP is at y (thickness 1 m).
 func _ground(area: String, name: String, x0: float, z0: float, x1: float, z1: float, y: float = 0.0, mat: String = "primed") -> Node3D:
-	return _block(area, name, Vector3(x0, y - 1.0, z0), Vector3(x1, y, z1), mat)
+	var g := _block(area, name, Vector3(x0, y - 1.0, z0), Vector3(x1, y, z1), mat)
+	# a ground slab's only shadow would fall 30 m down on the bare weave, as a hard box
+	(g.get_node("Visual") as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return g
 
 
 func _stroke(area: String, id: String, p: Array, c: String, w: float = 2.0, extra: Dictionary = {}) -> Node3D:
@@ -276,7 +300,13 @@ func _mark(name: String, pos: Vector3, look: Vector3) -> void:
 func _placard(area: String, pos: Vector3, facing: Vector3, title: String, date: String, medium: String, acq: String, body: String) -> Placard:
 	var p := Placard.new()
 	p.name = "Placard_" + acq.replace(".", "_")
+	p.size = Vector2(1.5, 1.05)
 	_area(area).add_child(p)
+	# this wing's labels are painted: umber lettering on a primed panel in a dark stretcher frame
+	for mi: MeshInstance3D in p.find_children("*", "MeshInstance3D", false, false):
+		mi.material_override = Art.mat("p_canvas" if mi.mesh is QuadMesh else "p_wood_dark")
+	for l: Label3D in p.find_children("*", "Label3D", false, false):
+		l.modulate = Color(0.2, 0.11, 0.06, l.modulate.a)
 	p.global_transform = Transform3D(Basis.looking_at(-facing.normalized(), Vector3.UP), pos)
 	p.set_label(Placard.fields(title, date, medium, "Acq. no. " + acq, body), false)
 	return p
@@ -543,13 +573,13 @@ func _build_world() -> void:
 	_build_marks()
 	_dress()
 	# the bare weave: the void, far below, never solid
-	_block("BareWeave", "Weave", Vector3(-420, -32, 80), Vector3(320, -31, -460), "weave", false)
+	_block("BareWeave", "Weave", Vector3(-259, -32, 80), Vector3(320, -31, -460), "weave", false)
 	canvas.seal_scraped.connect(_on_seal)
 
 
 func _post(area: String, pos: Vector3, facing: Vector3, title: String, date: String, medium: String, acq: String, body: String) -> void:
 	_model(area, "post", pos, atan2(facing.x, facing.z)).name = "Post_" + acq.replace(".", "_")
-	_placard(area, pos + Vector3(0, 1.25, 0), facing, title, date, medium, acq, body)
+	_placard(area, pos + Vector3(0, 1.45, 0), facing, title, date, medium, acq, body)
 
 
 ## A well: a puddle of paint that refills when scraped (so no dead end is permanent).
@@ -712,6 +742,11 @@ func _build_river() -> void:
 	_block(A, "CaveWallN", Vector3(82, 0, -204), Vector3(142, 6, -206), "weave")
 	_block(A, "CaveWallS", Vector3(82, 0, -250), Vector3(130, 6, -252), "weave")
 	_block(A, "CaveWallS2", Vector3(134, 0, -250), Vector3(142, 6, -252), "weave")   # the outflow's mouth
+	# painted rock heaped along the cave's river face and brow, so it reads as an outcrop (visual only)
+	for i in 8:
+		var x := 86.0 + i * 7.5
+		_model(A, "rock_a" if i % 2 == 0 else "rock_b", Vector3(x, 2.5 + 1.0 * float(i % 3), -204.0 + 0.8 * float(i % 2)),
+			float(i) * 1.7, 9.0 + 2.5 * float((i * 5) % 3), 260.0)
 	_stroke(A, "cave_pencil", [Vector3(100, 0, -228), Vector3(125, 0, -228)], "pencil", 2.0, {"k": "pencil"})
 	_ground(A, "Source", 125, -214, 140, -242, 0.0, "goal")
 	_zone(A, Vector3(125, -1, -214), Vector3(140, 4, -242), _reach_source)
@@ -793,10 +828,23 @@ func _build_pentimento() -> void:
 		(g.get_node("Visual") as MeshInstance3D).material_override = arena_mat
 	figure = _block(A, "Figure", C + Vector3(-4, -40, 4), C + Vector3(4, 22, -4), "figure")
 	figure.get_node("Visual").queue_free()
-	var fm := Art.model("figure")
+	# the revelation: an earlier portrait, modelled in relief and half scraped back, standing in the
+	# crack; around it, scraped patches of the compositions before it. All sink with the layers.
+	var fm := MeshInstance3D.new()
 	fm.name = "Visual"
-	fm.position = Vector3(0, -31, 0)   # her feet at the bottom of the block, 62 m tall
+	fm.mesh = load("res://wings/paint/models/portrait_relief.obj")
+	fm.material_override = _real_mat("res://wings/paint/textures/paint_portrait.jpg", 0.55)
+	fm.position = Vector3(0, 1.0, 0.5)   # world y -8 .. 22 at rest
 	figure.add_child(fm)
+	for e: Array in [["harbour", Vector3(-19, 16, -5.0), 24.0, 17.0, 0.35, 0.06], ["house", Vector3(18, 13, -5.0), 21.0, 16.0, -0.3, -0.05],
+			["still", Vector3(3, 29, -6.0), 22.0, 15.0, 0.05, 0.1]]:
+		var pn := MeshInstance3D.new()
+		pn.name = "Earlier_" + e[0]
+		pn.mesh = _rag_panel(e[2], e[3], e[2] + e[3])
+		pn.material_override = _real_mat("res://wings/paint/textures/paint_earlier_%s.jpg" % e[0], 0.7, 0.25)
+		pn.position = e[1]
+		pn.rotation = Vector3(0, e[4], e[5])
+		figure.add_child(pn)
 	# six hills, pivoting at the rim, heaving; the seals of the earlier layers ride on them
 	for k in 6:
 		var a := hill_angle(k)
@@ -817,6 +865,42 @@ func _build_pentimento() -> void:
 			row.append(sd)
 		seals.append(row)
 	pts["rim"] = Vector3(0, 0, -349)
+
+
+## An unpainted-world material: a texture as it is, lit plainly (the pictures inside the picture).
+func _real_mat(tex: String, rough: float, glow: float = 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(tex)
+	m.roughness = rough
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if glow > 0.0:
+		m.emission_enabled = true
+		m.emission_texture = m.albedo_texture
+		m.emission_energy_multiplier = glow
+	return m
+
+
+## A scraped patch of an earlier painting: a w x h sheet facing +Z whose outline is torn by the knife.
+func _rag_panel(w: float, h: float, seed: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nz := Art.noise()
+	const SEGS := 72
+	st.set_normal(Vector3.BACK)
+	st.set_uv(Vector2(0.5, 0.5))
+	st.add_vertex(Vector3.ZERO)
+	for i in SEGS:
+		var a := TAU * i / SEGS
+		var d := Vector2(cos(a), sin(a))
+		var q := d / maxf(absf(d.x), absf(d.y))   # on the unit square
+		q *= 1.0 - 0.22 * absf(nz.get_noise_2d(cos(a) * 2.5 + seed, sin(a) * 2.5)) - 0.1 * absf(nz.get_noise_2d(a * 9.0, seed))
+		st.set_uv(Vector2(0.5 + q.x * 0.5, 0.5 - q.y * 0.5))
+		st.add_vertex(Vector3(q.x * w * 0.5, q.y * h * 0.5, 0))
+	for i in SEGS:
+		st.add_index(0); st.add_index(1 + i); st.add_index(1 + (i + 1) % SEGS)
+	st.generate_normals()
+	return st.commit()
 
 
 ## Hills sit between the spokes, so the causeway (angle 0) meets the rim between two of them.
@@ -952,18 +1036,20 @@ func _build_edge() -> void:
 	_block(M, "WallSouth", Vector3(-262, -94, -180), Vector3(-264, 80, -400), "museum_wall")
 	_block(M, "WallBelow", Vector3(-262, -94, -177.4), Vector3(-264, 21.6, -180), "museum_wall")
 	_block(M, "WallAbove", Vector3(-262, 24.2, -177.4), Vector3(-264, 80, -180), "museum_wall")
+	# from inside the picture the wall is painted out: it carries the sky, so the edge reads only as
+	# the gilt frame (collision unchanged)
+	for w in ["WallNorth", "WallSouth", "WallBelow", "WallAbove"]:
+		(_area(M).get_node(w + "/Visual") as MeshInstance3D).material_override = look.backdrop
 	# from inside the picture the museum wall is the back of its own gilt frame: one moulding around
 	# the whole wall (visual only, on its face, nowhere near the passage)
 	var gf := _model(M, "frame", Vector3(-261.6, -7, -200), PI * 0.5)
 	gf.name = "GreatFrame"
 	gf.scale = Vector3(400.0 / 13.0, 174.0 / 13.0, 6.0)
-	_ground(M, "Ledge", -264, -170, -271, -187, 21.6, "museum")
-	_block(M, "Floor", Vector3(-264, -96, 0), Vector3(-430, -94, -400), "museum", false)
-	_block(M, "FarWall", Vector3(-350, -94, 0), Vector3(-352, 80, -400), "gallery", false)
+	_ground(M, "Ledge", -264, -170, -271, -187, 21.6, "frame")
+	_build_gallery(M)
 	_zone(M, Vector3(-264, 20, -170), Vector3(-271, 26, -187), _reveal_hall)
 	_post(M, Vector3(-266, 21.6, -172), Vector3(-1, 0, 0), "Gallery wall, east", "Permanent collection", "Plaster, gilt, thirty storeys", "001.14",
 		"Every acquisition hangs here. One frame is reserved. Its label was printed before the work was acquired, which is standard practice, and before the artist was born, which is not.")
-	_build_frames(M)
 	# the fragment: the first stroke, lifted from where the painter began
 	var root := Node3D.new()
 	root.name = "FragmentSpot"
@@ -994,46 +1080,92 @@ func _build_edge() -> void:
 	pts["fragment"] = root.position
 
 
-## Every wing hangs on the far wall as a frame; one more frame is empty, and its label is hers.
+## Out here gilt is gilt, not paint.
+func _gild(n: Node3D) -> void:
+	for mi: MeshInstance3D in n.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = Art.mat("r_gilt")
+
+
+## The gallery outside the picture, seen from its frame: real (unpainted) materials at a scale where
+## one of the visitor's metres is ~30 of hers. The picture's own gilt frame is the ledge she stands on.
+const GS := 30.0
+const FAR_X := -430.0
+
+
+func _build_gallery(area: String) -> void:
+	var gf := _model(area, "frame", Vector3(-265.2, -20.4, -180), -PI * 0.5)
+	gf.name = "GalleryFrame"
+	_gild(gf)
+	gf.scale = Vector3(170.0 / 13.3, 83.5 / 13.3, 10.0)   # top bar flush under the ledge (21.6)
+	var floor := _block(area, "Floor", Vector3(-264, -96, 20), Vector3(FAR_X, -94, -420), "museum", false)
+	(floor.get_node("Visual") as MeshInstance3D).material_override = Art.mat("r_parquet")
+	for w: Array in [["FarWall", Vector3(FAR_X, -94, 20), Vector3(FAR_X - 2, 90, -420)],
+			["SideWallN", Vector3(-264, -94, 20), Vector3(FAR_X, 90, 22)], ["SideWallS", Vector3(-264, -94, -420), Vector3(FAR_X, 90, -422)]]:
+		var b := _block(area, w[0], w[1], w[2], "gallery", false)
+		(b.get_node("Visual") as MeshInstance3D).material_override = Art.mat("r_wall")
+	# skirting, dado rail and cornice along the far wall (each model is 10 m of moulding along +X)
+	for z in [-420.0, -120.0]:
+		for m: Array in [["skirting", -94.0], ["dado", -94.0 + 0.9 * GS], ["cornice", 90.0]]:
+			_model(area, m[0], Vector3(FAR_X, m[1], z), -PI * 0.5, GS)
+	# a bench for the visitors, and the rope that keeps them off the pictures
+	_model(area, "bench", Vector3(-345, -94, -150), PI * 0.5, GS)
+	_model(area, "bench", Vector3(-345, -94, -250), PI * 0.5, GS)
+	for i in 6:
+		var z := -10.0 - i * 2.4 * GS
+		_model(area, "stanchion", Vector3(FAR_X + 30, -94, z), 0.0, GS)
+		if i < 5:
+			_model(area, "rope", Vector3(FAR_X + 30, -94 + 0.9 * GS, z), PI * 0.5, GS)
+	# her own picture's lamp, at a visitor's scale, reaching out over the frame beside her: the gag
+	_model(area, "picture_light", Vector3(-264.5, 23.5, -102), PI * 0.5, GS).name = "OwnPictureLamp"
+	var ceil := _block(area, "Ceiling", Vector3(-262, 90, 22), Vector3(FAR_X, 92, -422), "gallery", false)
+	(ceil.get_node("Visual") as MeshInstance3D).material_override = Art.mat("r_plaster")
+	_build_frames(area)
+
+
+## Every wing hangs on the far wall as itself; one more frame is empty, and its label is hers.
 func _build_frames(area: String) -> void:
 	var ex: Array[WingInfo] = Game.registry.exhibits()
 	var n := ex.size() + 1
 	for i in n:
-		var z := -178.0 + (float(i) - (n - 1) * 0.5) * 18.0
-		var c := Vector3(-349.5, 18.0, z)
+		var z := -180.0 + (float(i) - (n - 1) * 0.5) * 62.0
+		var c := Vector3(FAR_X + 0.5, -94.0 + 1.55 * GS, z)
 		var mine := i == ex.size()
 		var fr := _model(area, "frame", c, PI * 0.5)
 		fr.name = "Frame_%d" % i
-		var lamp := SpotLight3D.new()   # a picture light for each exhibit
+		fr.scale = Vector3(3.6, 2.1, 3.0)
+		_gild(fr)
+		_model(area, "picture_light", Vector3(FAR_X, c.y + 17.0, z), -PI * 0.5, GS).name = "PictureLamp_%d" % i
+		var lamp := SpotLight3D.new()
 		lamp.name = "PictureLight_%d" % i
 		lamp.light_color = Color(1.0, 0.86, 0.66)
-		lamp.light_energy = 24.0
-		lamp.spot_range = 24.0
-		lamp.spot_angle = 26.0
-		lamp.position = c + Vector3(8, 10, 0)
+		lamp.light_energy = 220.0   # a pool on the wall round each picture, falling off before the next
+		lamp.spot_range = 80.0
+		lamp.spot_angle = 36.0
+		lamp.spot_angle_attenuation = 2.2
+		lamp.shadow_enabled = false
+		lamp.position = Vector3(FAR_X + 22.0, c.y + 24.0, z)
 		_area(area).add_child(lamp)
-		lamp.look_at(c, Vector3.UP)
+		lamp.look_at(c + Vector3(0, 2, 0), Vector3.UP)
+		var pic := "res://wings/paint/textures/gallery_%s.jpg" % ("" if mine else String(ex[i].id))
 		var pane := MeshInstance3D.new()
 		pane.name = "Canvas_%d" % i
-		pane.mesh = Art.slab_mesh(Vector3(0.3, 11, 11), c, 0.1, 0.05, 0.02)
-		pane.position = c + Vector3(0.1, 0, 0)
+		var q := QuadMesh.new()
+		q.size = Vector2(41, 23)
+		pane.mesh = q
+		pane.position = c + Vector3(0.6, 0, 0)
+		pane.rotation.y = PI * 0.5
+		pane.visible = not mine and ResourceLoader.exists(pic)
+		if pane.visible:
+			pane.material_override = _real_mat(pic, 0.6, 0.12)
 		_area(area).add_child(pane)
-		var pm := (Art.mat("g_wall") as ShaderMaterial).duplicate()
-		if not mine and ex[i].palette.size() > 0:
-			pm.set_shader_parameter(&"colour", ex[i].palette[0])
-			pm.set_shader_parameter(&"colour2", ex[i].palette[mini(1, ex[i].palette.size() - 1)])
-			pm.set_shader_parameter(&"mix_amount", 0.8)
-			pm.set_shader_parameter(&"tex_value", 0.3)
-			pm.set_shader_parameter(&"emission_gain", 0.3)   # each wing's picture holds its own light
-		pane.material_override = pm
 		var pl: Placard
+		var at := Vector3(FAR_X + 0.6, -94.0 + 1.0 * GS, z + 14.0)
 		if mine:
-			pane.visible = false
-			pl = _placard(area, c + Vector3(0.7, -8, 0), Vector3(1, 0, 0), "Vesper", "Not yet", "Mixed media", "Reserved",
+			pl = _placard(area, at, Vector3(1, 0, 0), "Vesper", "Not yet", "Mixed media", "Reserved",
 				"Frame reserved. Work in progress. The museum is confident.")
 		else:
-			pl = _placard(area, c + Vector3(0.7, -8, 0), Vector3(1, 0, 0), ex[i].title, "", "", ex[i].acquisition_no, "")
-		pl.scale = Vector3.ONE * 4.0
+			pl = _placard(area, at, Vector3(1, 0, 0), ex[i].title, "", "", ex[i].acquisition_no, "")
+		pl.scale = Vector3.ONE * 5.0
 
 
 func _reveal_hall() -> void:
@@ -1155,7 +1287,7 @@ const TREES := [   # area, x, y, z, variant, scale
 	["PrimedShore", -11.0, 0.0, 22.0, "a", 1.0], ["PrimedShore", 10.5, 0.0, 24.0, "b", 1.1], ["PrimedShore", -12.0, 0.0, -5.0, "c", 0.9],
 	["PrimedShore", 12.0, 0.0, 7.0, "a", 0.85],
 	["Orchard", -12.0, 0.0, -40.0, "b", 1.0], ["Orchard", 12.5, 0.0, -44.0, "c", 1.1], ["Orchard", -13.0, 0.0, -55.0, "a", 1.2],
-	["Orchard", 13.0, 0.0, -58.0, "b", 0.95], ["Orchard", -6.5, 0.0, -59.5, "c", 0.8],
+	["Orchard", 14.0, 0.0, -57.0, "a", 0.9], ["Orchard", -6.5, 0.0, -59.5, "c", 0.8],
 	["Windfall", 20.5, 0.5, -161.0, "a", 1.0], ["Windfall", 22.0, 0.5, -172.0, "c", 0.9],
 	["River", -27.0, 0.0, -215.0, "b", 1.0], ["River", 22.0, 0.0, -249.0, "a", 1.1], ["River", -10.0, 0.0, -250.5, "c", 0.9],
 	["River", 97.0, 0.0, -246.0, "b", 0.8],
@@ -1167,6 +1299,61 @@ const ISLANDS := [   # centre x, top y, centre z, size x, size z, trees
 	[60.0, -12.0, -170.0, 30.0, 40.0, 3], [-110.0, -18.0, -110.0, 70.0, 50.0, 6], [-160.0, -20.0, -230.0, 80.0, 60.0, 6],
 	[-90.0, -16.0, -300.0, 60.0, 60.0, 5], [80.0, -16.0, -310.0, 60.0, 50.0, 4], [-40.0, -14.0, 30.0, 40.0, 40.0, 3],
 	[45.0, -14.0, 20.0, 40.0, 50.0, 3], [-180.0, -22.0, -60.0, 70.0, 60.0, 5],
+	# orchard banks either side of the chain, low enough that the canopies stand round her at eye level
+	[-21.0, -8.0, -76.0, 16.0, 22.0, 0], [21.0, -8.0, -86.0, 16.0, 26.0, 0], [-22.0, -9.0, -120.0, 18.0, 26.0, 0],
+	[22.0, -9.0, -130.0, 16.0, 22.0, 0],
+	# beside the shore, and a strip of country in front of the dark of the source
+	[-24.0, -5.0, -6.0, 14.0, 30.0, 0], [25.0, -5.0, -26.0, 14.0, 44.0, 0], [112.0, -1.0, -197.0, 64.0, 10.0, 0],
+]
+# the orchard proper (stroke-built canopies): area, x, y, z, variant, scale
+const ORCHARD := [
+	["PrimedShore", -10.0, 0.0, 14.0, "a", 1.1], ["PrimedShore", 11.0, 0.0, 15.0, "b", 1.0], ["PrimedShore", -10.5, 0.0, -13.0, "b", 1.2],
+	["PrimedShore", 10.0, 0.0, -3.0, "a", 0.9],
+	["Orchard", -11.0, 0.0, -38.0, "a", 1.3], ["Orchard", 10.0, 0.0, -50.0, "a", 1.2], ["Orchard", -10.0, 0.0, -49.0, "b", 1.1],
+	["Orchard", 11.0, 0.0, -39.0, "b", 1.0],
+	["Scenery", -17.0, -8.0, -70.0, "a", 2.0], ["Scenery", -24.0, -8.0, -80.0, "b", 2.2], ["Scenery", -16.0, -8.0, -84.0, "b", 1.8],
+	["Scenery", 17.0, -8.0, -76.0, "b", 2.1], ["Scenery", 24.0, -8.0, -88.0, "a", 2.3], ["Scenery", 17.0, -8.0, -96.0, "a", 1.9],
+	["Scenery", -17.0, -9.0, -112.0, "a", 2.2], ["Scenery", -26.0, -9.0, -124.0, "b", 2.0], ["Scenery", -17.0, -9.0, -130.0, "b", 2.4],
+	["Scenery", 17.0, -9.0, -124.0, "a", 2.1], ["Scenery", 25.0, -9.0, -134.0, "b", 2.2],
+	["Scenery", -30.0, -7.0, -90.0, "a", 1.6], ["Scenery", -40.0, -7.0, -100.0, "b", 1.7], ["Scenery", 30.0, -8.0, -104.0, "b", 1.7],
+	["Scenery", 38.0, -8.0, -118.0, "a", 1.8],
+	["Scenery", -23.0, -5.0, 4.0, "a", 2.0], ["Scenery", -25.0, -5.0, -9.0, "b", 2.2], ["Scenery", -22.0, -5.0, -18.0, "a", 1.8],
+	["Scenery", 22.0, -5.0, -10.0, "b", 2.0], ["Scenery", 27.0, -5.0, -22.0, "a", 2.3], ["Scenery", 21.0, -5.0, -34.0, "b", 1.9],
+	["Scenery", 26.0, -5.0, -44.0, "a", 2.0],
+	["River", 71.0, 0.0, -209.0, "a", 1.3], ["River", 78.0, 0.0, -212.0, "b", 1.2],   # in front of the dark
+]
+# the far country: hills, a village on its hill, cypresses and hedgerows (x, y, z, model, scale, yaw)
+const COUNTRY := [
+	[300.0, -31.0, -80.0, "hill_a", 3.0, 1.3], [320.0, -31.0, -260.0, "hill_c", 3.2, 1.7], [190.0, -31.0, -470.0, "hill_b", 3.5, 2.6],
+	[-40.0, -31.0, -520.0, "hill_c", 3.8, 0.1], [-200.0, -31.0, -470.0, "hill_a", 2.8, -0.6], [-150.0, -31.0, 160.0, "hill_b", 3.2, 0.4],
+	[60.0, -31.0, 190.0, "hill_c", 3.0, -0.2], [230.0, -31.0, 110.0, "hill_a", 2.6, 0.9], 	[-110.0, -31.0, -330.0, "hill_a", 1.6, -0.3],
+	[-115.0, -18.0, -115.0, "church", 1.4, 0.4], [-100.0, -18.0, -100.0, "house_a", 1.4, 0.2], [-128.0, -18.0, -98.0, "house_b", 1.4, 1.1],
+	[-96.0, -18.0, -124.0, "house_c", 1.4, -0.5], [-132.0, -18.0, -124.0, "house_a", 1.3, 2.0], [-85.0, -18.0, -110.0, "house_b", 1.2, 1.4],
+	[60.0, -12.0, -168.0, "house_c", 1.3, 0.8], [66.0, -12.0, -180.0, "house_a", 1.2, -0.4], [52.0, -12.0, -158.0, "church", 1.0, 1.9],
+	[80.0, -16.0, -300.0, "house_b", 1.4, 0.2], [95.0, -16.0, -318.0, "house_a", 1.4, 2.4],
+	[-104.0, -18.0, -132.0, "cypress", 1.3, 0.0], [-122.0, -18.0, -90.0, "cypress", 1.5, 0.0], [-140.0, -18.0, -110.0, "cypress", 1.2, 0.0],
+	[46.0, -12.0, -175.0, "cypress", 1.2, 0.0], [72.0, -12.0, -160.0, "cypress", 1.4, 0.0], [-60.0, -14.0, -140.0, "cypress", 1.3, 0.0],
+	[-48.0, -14.0, -158.0, "cypress", 1.1, 0.0], [70.0, -16.0, -295.0, "cypress", 1.4, 0.0], [-85.0, -16.0, -290.0, "cypress", 1.3, 0.0],
+	[-110.0, -18.0, -86.0, "hedge", 2.0, 0.0], [-88.0, -18.0, -128.0, "hedge", 1.6, 1.57], [-70.0, -14.0, -148.0, "hedge", 1.6, 0.3],
+	[34.0, -8.0, -96.0, "hedge", 1.3, 1.57], [-36.0, -7.0, -84.0, "hedge", 1.2, 0.0], [60.0, -12.0, -188.0, "hedge", 1.6, 0.1],
+	[-160.0, -20.0, -210.0, "hedge", 2.4, 0.2], [-160.0, -20.0, -245.0, "hedge", 2.4, -0.1], [80.0, -16.0, -330.0, "hedge", 2.0, 0.0],
+	[-90.0, -16.0, -315.0, "hedge", 2.0, 1.3], [-180.0, -22.0, -40.0, "hedge", 2.2, 0.5],
+	[-14.0, 0.0, -42.0, "hedge", 0.8, 1.57], [14.5, 0.0, -56.0, "hedge", 0.8, 1.57],
+	# the river: painted banks, reeds in clumps, boats
+	[-31.0, 0.0, -188.0, "bank", 1.0, 0.0], [-12.5, 0.0, -188.0, "bank", 0.95, 0.0], [14.5, 0.0, -188.0, "bank", 1.0, 0.0],
+	[36.0, 0.0, -188.0, "bank", 1.1, 0.0], [54.0, 0.0, -188.0, "bank", 0.9, 0.0], [-31.0, -0.6, -204.0, "bank", 1.0, PI],
+	[-12.0, -0.6, -204.0, "bank", 0.9, PI], [14.0, -0.6, -204.0, "bank", 1.0, PI], [-40.0, 0.0, -196.0, "bank", 0.9, -1.57],
+	[66.0, 0.0, -218.0, "bank", 1.0, 1.57], [66.0, 0.0, -238.0, "bank", 1.0, 1.57], [38.0, 0.0, -250.0, "bank", 1.0, PI],
+	[57.0, 0.0, -250.0, "bank", 0.9, PI],
+	[88.0, -1.0, -198.0, "cypress", 1.2, 0.0], [96.0, -1.0, -196.0, "cypress", 1.4, 0.0], [104.0, -1.0, -199.0, "cypress", 1.1, 0.0],
+	[113.0, -1.0, -196.5, "cypress", 1.3, 0.0], [121.0, -1.0, -198.5, "cypress", 1.2, 0.0], [130.0, -1.0, -196.0, "cypress", 1.4, 0.0],
+	[138.0, -1.0, -198.0, "cypress", 1.1, 0.0], [110.0, -1.0, -194.0, "hedge", 2.0, 0.0], [66.0, 0.0, -207.5, "cypress", 1.1, 0.0],
+	[36.0, -0.35, -198.0, "boat", 1.0, 1.4], [47.0, -0.35, -193.0, "boat", 0.9, 1.75], [-34.0, -0.35, -200.0, "boat", 0.8, 1.2],
+]
+const REEDS := [   # clumps along both banks, off the walking line
+	[-37.0, -190.0], [-33.0, -191.0], [-28.0, -190.5], [-21.0, -191.0], [-17.5, -190.0], [-8.0, -190.5], [8.0, -190.5],
+	[12.0, -191.0], [19.0, -190.0], [26.0, -191.0], [31.0, -190.5], [41.0, -191.0], [49.0, -190.0], [56.0, -191.0],
+	[-38.0, -202.5], [-30.0, -203.0], [-24.0, -202.5], [-15.0, -203.0], [-9.0, -202.5], [9.0, -202.5], [16.0, -203.0], [22.0, -202.5],
 ]
 
 
@@ -1179,11 +1366,62 @@ func _tree(area: String, pos: Vector3, v: String, sc: float, yaw: float) -> void
 		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
+func _orchard_tree(area: String, pos: Vector3, v: String, sc: float, yaw: float) -> void:
+	_model(area, "orchard_tree_" + v, pos, yaw, sc, 60.0 * sqrt(sc))
+	var lod := _model(area, "orchard_tree_%s_lod" % v, pos, yaw, sc, 600.0)
+	for gi in lod.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).visibility_range_begin = 60.0 * sqrt(sc)
+		(gi as GeometryInstance3D).visibility_range_begin_margin = 6.0
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+var _hill_mats := {}
+var _far_shader := load("res://wings/paint/shaders/paint_far.gdshader") as Shader
+
+
+## Far hills: broad world-space strokes, fields and terraces, value swing, and their own aerial
+## colour instead of the scene fog (which flattened them to one beige).
+func _paint_hill(n: Node3D) -> void:
+	for mi: MeshInstance3D in n.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var src := mi.get_active_material(i) as ShaderMaterial
+			if src == null:
+				continue
+			if not _hill_mats.has(src):
+				var m := src.duplicate() as ShaderMaterial
+				m.shader = _far_shader
+				m.set_shader_parameter(&"object_space", false)
+				m.set_shader_parameter(&"tiles_per_m", 0.045)
+				m.set_shader_parameter(&"normal_strength", 1.6)
+				m.set_shader_parameter(&"tex_value", 1.0)
+				m.set_shader_parameter(&"mix_amount", 0.8)
+				m.set_shader_parameter(&"gloss", 0.0)
+				m.set_shader_parameter(&"simplify_near", 900.0)
+				m.set_shader_parameter(&"simplify_far", 2000.0)
+				m.set_shader_parameter(&"patch_amount", 0.45)
+				m.set_shader_parameter(&"terraces", 1.0)
+				m.set_shader_parameter(&"aerial", 1.0)
+				_hill_mats[src] = m
+			mi.set_surface_override_material(i, _hill_mats[src])
+
+
 func _dress() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1891
 	for t: Array in TREES:
 		_tree(t[0], Vector3(t[1], t[2], t[3]), t[4], t[5], rng.randf() * TAU)
+	for t: Array in ORCHARD:
+		_orchard_tree(t[0], Vector3(t[1], t[2], t[3]), t[4], t[5], rng.randf() * TAU)
+	for c: Array in COUNTRY:
+		var far: bool = c[3].begins_with("hill")
+		var n := _model("Scenery", c[3], Vector3(c[0], c[1], c[2]), c[5], c[4], 0.0 if far else 450.0)
+		if far:
+			_paint_hill(n)
+		if far or c[3] == "hedge":
+			for gi in n.find_children("*", "GeometryInstance3D", true, false):
+				(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for p: Array in REEDS:
+		_model("River", "reeds", Vector3(p[0], -0.35, p[1]), rng.randf() * TAU, rng.randf_range(0.9, 1.5), 140.0)
 	var field := (_mat("primed") as ShaderMaterial).duplicate()
 	field.set_shader_parameter(&"colour", Color(0.50, 0.66, 0.24))
 	field.set_shader_parameter(&"colour2", Color(0.96, 0.80, 0.36))
@@ -1196,6 +1434,7 @@ func _dress() -> void:
 		mi.name = "Field_%d" % i
 		mi.mesh = Art.slab_mesh(Vector3(d[3], 4.0, d[4]), c, 1.6, 0.8, 0.25)
 		mi.material_override = field
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.position = c
 		_area("Scenery").add_child(mi)
 		for j in int(d[5]):
@@ -1236,7 +1475,7 @@ func _dress() -> void:
 func _build_marks() -> void:
 	_mark("01_shore", Vector3(4, 2.2, 10), Vector3(0, 0.5, -30))
 	_mark("02_bough", Vector3(5, 3, -14), Vector3(0, 0, -40))
-	_mark("03_chain", Vector3(8, 4, -60), Vector3(0, -2, -125))
+	_mark("03_chain", Vector3(4, 4, -61), Vector3(0, -2, -125))
 	_mark("04_crown", Vector3(-8, 4, -128), Vector3(0, 0.5, -146))
 	_mark("05_unpainted", Vector3(-12, 3, -172), Vector3(-50, 0, -170))
 	_mark("06_river", Vector3(-10, 4, -184), Vector3(10, -0.3, -204))
@@ -1245,7 +1484,7 @@ func _build_marks() -> void:
 	_mark("09_corrections", Vector3(-25, 4, -276), Vector3(0, 2, -305))
 	_mark("10_pentimento", Vector3(0, 6, -347), PENT_C + Vector3(0, 8, 0))
 	_mark("11_horizon", Vector3(0, 27, -160), Vector3(-120, 22, -171.5))
-	_mark("12_museum_wall", Vector3(-268, 23.2, -176), Vector3(-350, 10, -178))
+	_mark("12_museum_wall", Vector3(-267, 26.5, -91), Vector3(-400, -40, -215))
 
 
 # --- per-tick, falls, progress ----------------------------------------------------------------------

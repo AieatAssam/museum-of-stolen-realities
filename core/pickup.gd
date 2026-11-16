@@ -39,5 +39,6 @@ func _on_interact(_player: Player) -> void:
 			Audio.ui(&"select")
 	picked.emit()
 	var t := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	t.tween_property(v, "scale", Vector3.ONE * 0.01, 0.45)
-	t.tween_callback(queue_free)
+	for n in Ceremony._scale_targets(v):  # never scale a physics body (Jolt)
+		t.parallel().tween_property(n, "scale", n.scale * 0.01, 0.45)
+	t.chain().tween_callback(queue_free)

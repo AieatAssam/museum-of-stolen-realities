@@ -23,3 +23,10 @@ Rows are appended by `tools/fetch_cc.sh`; CC-BY rows are also shown on the in-ga
 | assets/audio/cc/sting_cellos.ogg | Suspense Sting Cellos | Qvantor | https://freesound.org/people/Qvantor/sounds/879275/ | CC0-1.0 |
 | assets/audio/cc/sting_swell.ogg | Movie Swell 2 | jordivburgel | https://freesound.org/people/jordivburgel/sounds/218524/ | CC0-1.0 |
 | assets/audio/cc/bed_flute_chamber.ogg | Flute Chamber (beautiful winds deep reverb) | CVLTIV8R | https://freesound.org/people/CVLTIV8R/sounds/814710/ | CC0-1.0 |
+| assets/audio/hub_theme_0.ogg | Immersed (layer 0, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_1.ogg | Immersed (layer 1, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_2.ogg | Immersed (layer 2, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_3.ogg | Immersed (layer 3, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_4.ogg | Immersed (layer 4, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_5.ogg | Immersed (layer 5, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| assets/audio/hub_theme_6.ogg | Immersed (layer 6, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |

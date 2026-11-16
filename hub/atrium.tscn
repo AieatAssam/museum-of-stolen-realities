@@ -1,11 +1,15 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://hub/atrium.gd" id="1"]
 [ext_resource type="Script" path="res://core/checkpoint.gd" id="2"]
 [ext_resource type="Script" path="res://core/post/post_grade.gd" id="3"]
-[ext_resource type="AudioStream" path="res://assets/audio/cc/bed_desolate.ogg" id="4"]
-[ext_resource type="AudioStream" path="res://assets/audio/hub_bed_1.ogg" id="5"]
-[ext_resource type="AudioStream" path="res://assets/audio/cc/bed_flute_chamber.ogg" id="6"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_0.ogg" id="m0"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_1.ogg" id="m1"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_2.ogg" id="m2"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_3.ogg" id="m3"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_4.ogg" id="m4"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_5.ogg" id="m5"]
+[ext_resource type="AudioStream" path="res://assets/audio/hub_theme_6.ogg" id="m6"]
 [ext_resource type="AudioStream" path="res://assets/audio/cc/room_tone.ogg" id="7"]
 
 [sub_resource type="Resource" id="grade"]
@@ -24,11 +28,11 @@ background_mode = 1
 background_color = Color(0.012, 0.01, 0.008, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.42, 0.36, 0.28, 1)
-ambient_light_energy = 0.3
+ambient_light_energy = 0.6
 reflected_light_source = 1
 tonemap_mode = 4
 tonemap_white = 7.0
-tonemap_exposure = 1.05
+tonemap_exposure = 1.45
 fog_enabled = true
 fog_light_color = Color(0.075, 0.052, 0.03, 1)
 fog_density = 0.006
@@ -64,8 +68,8 @@ adjustment_saturation = 1.02
 script = ExtResource("1")
 wing_id = &"atrium"
 grade = SubResource("grade")
-music_layers = Array[AudioStream]([ExtResource("4"), ExtResource("5"), ExtResource("6")])
-music_intensity = 0.25
+music_layers = Array[AudioStream]([ExtResource("m0"), ExtResource("m1"), ExtResource("m2"), ExtResource("m3"), ExtResource("m4"), ExtResource("m5"), ExtResource("m6")])
+music_intensity = 0.0
 ambience = ExtResource("7")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]

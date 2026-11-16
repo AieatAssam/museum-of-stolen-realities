@@ -16,6 +16,12 @@ var _ambience: AudioStreamPlayer
 var _cache: Dictionary = {}
 var _footsteps: Dictionary = {}  # surface -> Array[AudioStream]
 var _last_step: Dictionary = {}
+## Set by Game.quit(): no new players start while the tree is shutting down (a footstep or a late
+## reveal stinger started after the stop pass is a playback still alive at exit, i.e. a leak).
+var closing: bool = false
+## Seconds per bar of the current bed (0 = unknown). When set, intensity changes wait for the next
+## bar line (DESIGN_RULES §6: musical changes land on bar boundaries). Reset by a new bed.
+var music_bar: float = 0.0
 
 
 func _ready() -> void:
@@ -54,6 +60,7 @@ func play_music(layers: Array[AudioStream], fade: float = 3.0, intensity: float 
 		t.tween_callback(p.queue_free)
 	_beds.clear()
 	_bed_streams = layers
+	music_bar = 0.0
 	_intensity = intensity
 	for i in layers.size():
 		if layers[i] == null:
@@ -76,8 +83,20 @@ func stop_music(fade: float = 3.0) -> void:
 ## 0 = only the base stem; 1 = all stems.
 func set_intensity(v: float, seconds: float = 2.5) -> void:
 	_intensity = clampf(v, 0.0, 1.0)
+	var wait := to_next_bar()
 	for i in _beds.size():
-		create_tween().tween_property(_beds[i], "volume_db", _layer_db(i), seconds)
+		var t := create_tween()
+		if wait > 0.0:
+			t.tween_interval(wait)
+		t.tween_property(_beds[i], "volume_db", _layer_db(i), seconds)
+
+
+## Seconds until the bed's next bar line (0 when no bar length is known or nothing plays).
+func to_next_bar() -> float:
+	if music_bar <= 0.0 or _beds.is_empty() or not _beds[0].playing:
+		return 0.0
+	var pos := _beds[0].get_playback_position() + AudioServer.get_time_since_last_mix()
+	return music_bar - fmod(pos, music_bar)
 
 
 func _layer_db(i: int) -> float:
@@ -122,6 +141,8 @@ func sfx(s: AudioStream, at: Variant = null, volume_db: float = 0.0, reverb: flo
 
 
 func _one_shot(s: AudioStream, at: Variant, db: float, bus: StringName, pitch: float) -> void:
+	if closing:
+		return
 	var p: Node
 	if at is Vector3 and get_tree().current_scene is Node3D:
 		var p3 := AudioStreamPlayer3D.new()
@@ -172,13 +193,15 @@ func footstep(surface: StringName, pos: Vector3, loudness: float = 1.0) -> void:
 func emitter(s: AudioStream, parent: Node3D, volume_db: float = 0.0, unit_size: float = 8.0) -> AudioStreamPlayer3D:
 	_set_loop(s)
 	var p := AudioStreamPlayer3D.new()
+	p.autoplay = false
 	p.stream = s
 	p.bus = &"Ambience"
 	p.volume_db = volume_db
 	p.unit_size = unit_size
 	p.max_distance = 120.0
 	parent.add_child(p)
-	p.play()
+	if not closing:
+		p.play()
 	return p
 
 
