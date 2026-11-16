@@ -18,6 +18,11 @@ const DIG_FLOOR := -2.2
 const MOUND := Vector3(6.0, 0.0, 22.0)
 const MOUND_DONE := 0.3
 const KNOLL := Vector3(-9.0, 0.0, 13.0)
+const KNOLL_HALF := Vector2(5.0, 3.0)  # the plateau's flat top (x, z half extents); 1.2 m high
+const KNOLL_TOP := 1.2
+const STEP_REACH := 3.5   # a pull aimed this close to the knoll builds the first step against it
+const STEP_SLOPE := 0.42  # m of fall per m out from the knoll edge: walkable (about 23 degrees)
+const AIM_AHEAD := 2.2    # looking roughly level, the verb works the ground this far ahead
 const HILL := Vector3(12.0, 0.0, -20.0)
 const TABLE := Vector3(0.0, 0.0, -41.0)
 const TABLE_TOP := 2.6
@@ -54,6 +59,7 @@ var _aim: Vector3 = Vector3.INF
 var _taught := false  # the ground's prompt shows until the first pull, press or scoop
 var _scooped: bool = false
 var _pulled: bool = false
+var _stepped: bool = false  # a pull at the knoll has formed the first step
 var _tool: bool = false
 var _choice: StringName = &""
 var _choice_shown: bool = false
@@ -219,6 +225,13 @@ func _physics_process(_delta: float) -> void:
 	q.exclude = [p.get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():
+		# a level view never meets flat ground within reach: the verb then works the ground a
+		# couple of metres ahead, so the prompt and the pull both find it without looking down
+		if p.pitch < deg_to_rad(-60.0) or p.pitch > deg_to_rad(30.0) or not p.is_on_floor():
+			return
+		var fwd := -p.head.global_basis.z
+		_aim = _ground_at(p.global_position + Vector3(fwd.x, 0.0, fwd.z).normalized() * AIM_AHEAD)
+		_aim_kind = &"terrain"
 		return
 	_aim = hit["position"]
 	var col: Object = hit["collider"]
@@ -288,7 +301,8 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	var pl := Placard.new()
 	pl.name = node_name
 	add_child(pl)
-	pl.position = _ground_at(at) + Vector3(0, 1.1, 0)
+	var k := pl.size.x / 0.9  # the sign was modelled for a 0.9 m label; it grows with the house plate
+	pl.position = _ground_at(at) + Vector3(0, 1.1 * k, 0)
 	pl.rotation.y = yaw
 	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)
 	for m: Node in pl.get_children():
@@ -297,6 +311,7 @@ func _placard(node_name: String, at: Vector3, yaw: float, heading: String, title
 	var sign := _model("sign.glb")
 	sign.position = _ground_at(at)
 	sign.rotation.y = yaw
+	sign.scale = Vector3.ONE * k
 	add_child(sign)
 
 
@@ -318,11 +333,7 @@ func _build_checkpoints() -> void:
 
 func _build_meadow() -> void:
 	_provenance(&"thumb", _model("thumb.glb"), Vector3(14, 0, 27))
-	# Ledge: stand on the knoll's plateau to finish the climb step.
-	var ledge := TriggerZone.make_box(Vector3(7.0, 2.6, 7.0))
-	ledge.position = _ground_at(KNOLL) + Vector3(0, 1.3, 0)
-	ledge.triggered.connect(func(_p: Player) -> void: complete_step(&"raise", &"ledge"))
-	add_child(ledge)
+	# Ledge: standing on the knoll's flat top finishes the climb step (_check_objectives, on the beat).
 	# Pit: aim at it and hold primary to scoop clay back into the pouch.
 	_placard("PitNote", Vector3(-12, 0, 27), PI, "I", "The Pit", "Acquisition No. 088\nSource material",
 		"The clay was dug from here, and it was dug again. It is the only part of the forest that is still empty.")
@@ -713,14 +724,32 @@ func _on_beat(_dt: float) -> void:
 
 func _pull(keep: Vector3) -> void:
 	var dh := PULL_RATE * STEP
-	var w := terrain.weight_sum(_aim, BRUSH_R, keep)
+	var at := _aim
+	var r := BRUSH_R
+	var ceiling := Callable()
+	# The first step: a pull at or near the knoll is centred just off its edge (towards her), wider,
+	# and never rises above a walkable ramp down from the plateau, so it always joins the ledge.
+	var kd := _knoll_dist(at.x, at.z)
+	if kd < STEP_REACH:
+		var edge := Vector2(clampf(keep.x, KNOLL.x - KNOLL_HALF.x, KNOLL.x + KNOLL_HALF.x), clampf(keep.z, KNOLL.z - KNOLL_HALF.y, KNOLL.z + KNOLL_HALF.y))
+		var aim2 := Vector2(clampf(at.x, KNOLL.x - KNOLL_HALF.x, KNOLL.x + KNOLL_HALF.x), clampf(at.z, KNOLL.z - KNOLL_HALF.y, KNOLL.z + KNOLL_HALF.y))
+		var out := Vector2(keep.x, keep.z) - edge
+		out = out.normalized() if out.length() > 0.1 else Vector2(0, 1)
+		var c := aim2 + out * 1.4
+		at = Vector3(c.x, 0.0, c.y)
+		r = 2.0
+		ceiling = func(x: float, z: float) -> float:
+			return base_height(KNOLL.x, KNOLL.z) - STEP_SLOPE * _knoll_dist(x, z)
+	var w := terrain.weight_sum(at, r, keep)
 	if w <= 0.0 or pouch <= 0.01:
 		return
 	if dh * w > pouch:
 		dh *= pouch / (dh * w)
-	var moved := terrain.brush(_aim, BRUSH_R, dh, keep)
+	var moved := terrain.brush(at, r, dh, keep, ClayTerrain.MIN_H, ceiling)
 	if moved > 0.0:
 		_pulled = true
+		if ceiling.is_valid() and terrain.height_at(at.x, at.z) - base_height(at.x, at.z) > 0.35:
+			_stepped = true
 		pouch = clampf(pouch - moved, 0.0, _pouch_cap())
 		Audio.sfx(_stream("pull"), _aim, -6.0, 0.0, randf_range(0.9, 1.1))
 
@@ -747,13 +776,26 @@ func _pouch_cap() -> float:
 	return POUCH_MAX + (TOOL_POUCH_BONUS if _tool else 0.0)
 
 
+## Horizontal distance from the knoll's flat top (0 on it).
+func _knoll_dist(x: float, z: float) -> float:
+	return Vector2(maxf(absf(x - KNOLL.x) - KNOLL_HALF.x, 0.0), maxf(absf(z - KNOLL.z) - KNOLL_HALF.y, 0.0)).length()
+
+
+## Standing on the knoll's flat top (not brushing its side from the foot).
+func _on_knoll(p: Player) -> bool:
+	var at := p.global_position
+	return p.is_on_floor() and _knoll_dist(at.x, at.z) < 0.01 and at.y > base_height(KNOLL.x, KNOLL.z) - 0.25
+
+
 func _in_pit(p: Vector3) -> bool:
 	return Vector2(p.x - DIG_CENTRE.x, p.z - DIG_CENTRE.z).length() < DIG_R
 
 
 func _check_objectives() -> void:
-	if not Quest.is_step_done(&"raise", &"pull_step") and _pulled:
+	if not Quest.is_step_done(&"raise", &"pull_step") and _stepped:
 		complete_step(&"raise", &"pull_step")
+	if not Quest.is_step_done(&"raise", &"ledge") and Game.player and _on_knoll(Game.player):
+		complete_step(&"raise", &"ledge")
 	if not Quest.is_step_done(&"raise", &"mound") and terrain.height_at(MOUND.x, MOUND.z) <= MOUND_DONE:
 		complete_step(&"raise", &"mound")
 	if not Quest.is_step_done(&"cross", &"carry") and _scooped:

@@ -193,7 +193,25 @@ func _run() -> void:
 	_tap(&"secondary")
 	await frames(6)
 	check(Quest.is_step_done(&"learn_dark", &"latch_wall"), "latching onto the dark wall completes latch_wall")
+	# walking up the wall stops at its top edge (y 6): the climb never leaves the dark face
+	var top := -INF
+	var far := INF
+	Input.action_press(&"move_forward")
+	for i in 300:
+		await get_tree().physics_frame
+		top = maxf(top, Game.player.global_position.y)
+		far = minf(far, Game.player.global_position.z)
+	Input.action_release(&"move_forward")
+	check(top < 6.6 and far > -21.6, "climbing the latched wall stops at its top (max y %.2f, min z %.2f)" % [top, far])
 	_tap(&"secondary")
+	await _until(func() -> bool: return Game.player.global_position.y < 0.5, 4.0)
+	check(Game.player.global_position.y < 0.5, "letting go of the wall drops the player back to the alley (y %.2f)" % Game.player.global_position.y)
+	# anything out of the wing's bounds (here: high above and far past the back wall) fades and respawns
+	var cp: Vector3 = w.find_checkpoint(Game.checkpoint_id).global_position
+	Game.debug_teleport(Vector3(0, 44, -216))
+	await _until(func() -> bool: return Game.player.global_position.distance_to(cp) < 1.0, 3.0)
+	check(Game.player.global_position.distance_to(cp) < 1.0, "out of bounds respawns at the last checkpoint within 3 s (at %s)" % Game.player.global_position)
+	await _until(func() -> bool: return Game.player.input_enabled, 3.0)
 	await frames(4)
 
 	print("[noir] pawn ticket")

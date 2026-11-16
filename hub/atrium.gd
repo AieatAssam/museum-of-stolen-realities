@@ -570,7 +570,8 @@ func _build_alcove() -> void:
 		low.position = Vector3(s * 2.7, 1.0, -3.6)
 		root.add_child(low)
 	var plq := Placard.new()
-	plq.position = Vector3(-4.7, 1.55, 0.8)
+	plq.position = Vector3(-4.6, 1.55, 0.8)
+	plq.size = Vector2(1.0, 0.69)  # the house plate, a touch smaller: the alcove is narrow
 	root.add_child(plq)
 	_plaques["alcove"] = plq
 

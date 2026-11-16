@@ -183,7 +183,18 @@ func _gate() -> void:
 	var at := Game.player.global_position
 	check(at.x < -0.5 and at.y > -0.3, "demo swing lands on the walkway (%s)" % at)
 	await walk_to(Vector3(-1.2, 0, 0), 20.0, 0.4)
+	# the gap swing's landing is eased: no hard impact, and never below the far floor (y -3)
+	var impacts: Array[float] = []
+	var on_land := func(v: float) -> void: impacts.append(v)
+	Game.player.landed.connect(on_land)
 	await swing_chain([_hook(Vector3(6, 10, 0))], Vector3.RIGHT, -3.0, "first swing")
+	var low := Game.player.global_position.y
+	for i in 30:
+		await frames(1)
+		low = minf(low, Game.player.global_position.y)
+	Game.player.landed.disconnect(on_land)
+	var hit: float = impacts.max() if not impacts.is_empty() else 0.0
+	check(hit < 8.0 and low > -3.05, "first swing lands softly (impact %.1f m/s, lowest y %.2f)" % [hit, low])
 	check(Quest.is_step_done(&"gate", &"swing"), "gate step done")
 
 

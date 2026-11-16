@@ -146,14 +146,23 @@ func _run() -> void:
 	# --- objective 1: raise ---------------------------------------------------------------------
 	var mx: float = _w.MOUND.x
 	var mz: float = _w.MOUND.z
-	await _stand(mx, mz + 3.2, Vector3(mx, _w.terrain.height_at(mx, mz), mz))
-	await _hold(&"primary", 2.0)
-	check(Quest.is_step_done(&"raise", &"pull_step"), "held primary pulls clay up (pull_step)")
 	var kx: float = _w.KNOLL.x
 	var kz: float = _w.KNOLL.z
-	Game.debug_teleport(Vector3(kx, _ground(kx, kz) + 1.0, kz))
-	await frames(12)
-	check(Quest.is_step_done(&"raise", &"ledge"), "standing on the knoll completes the ledge step")
+	# at the knoll's foot, looking level at it (not down): the prompt shows and the pull works
+	var foot_z: float = kz + _w.KNOLL_HALF.y + 2.0
+	await _stand(kx, foot_z, Vector3(kx, _ground(kx, foot_z) + 1.62, kz - 20.0))
+	await frames(6)
+	check(String(_w.verb_prompt().get("text", "")) == "pull the clay up", "looking level at the knoll from its foot shows the pull prompt (%s)" % _w.verb_prompt())
+	check(not Quest.is_step_done(&"raise", &"ledge"), "standing at the knoll's foot does not tick the ledge step")
+	await _hold(&"primary", 2.5)
+	check(Quest.is_step_done(&"raise", &"pull_step"), "held primary at the knoll pulls a step (pull_step)")
+	check(not Quest.is_step_done(&"raise", &"ledge"), "pulling the step does not tick the ledge step")
+	# walk (real input, no jump) up the pulled step onto the knoll
+	Input.action_press(&"move_forward")
+	await _until(func() -> bool: return Quest.is_step_done(&"raise", &"ledge"), 5.0)
+	Input.action_release(&"move_forward")
+	check(Quest.is_step_done(&"raise", &"ledge"), "walking up the pulled step onto the knoll completes the ledge step (at %s)" % Game.player.global_position)
+	check(not Quest.is_done(&"raise"), "the raise objective stays open until the mound is pressed")
 	await _stand(mx, mz + 3.2, Vector3(mx, _w.terrain.height_at(mx, mz), mz))
 	# The eye sits near 2.7 m and the peak is 3.2 m, so a ray at the peak only grazes it.
 	# Aim at lower points on the front face first; each press flattens clay under the aim.

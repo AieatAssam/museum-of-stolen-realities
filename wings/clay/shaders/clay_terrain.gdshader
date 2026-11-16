@@ -27,6 +27,55 @@ uniform vec4 bench_rect = vec4(-6.0, -46.0, 6.0, -36.0);  // x0, z0, x1, z1
 uniform float bench_top = 2.2;
 uniform float boil = 1.0;  // stop-motion boil of the detail, 0 with Reduced Motion
 
+// The heights live in `heightmap` (R = height, G = player mark) on the 1 m collision grid; the mesh
+// is a finer static grid that samples it with a Catmull-Rom patch, so pulled clay renders with
+// rounded shoulders and a base that eases into the moss instead of 1 m facets and a crease.
+uniform sampler2D heightmap : filter_nearest, repeat_disable;
+uniform float half_size = 40.0;
+
+float cr(float p0, float p1, float p2, float p3, float t) {
+	return 0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t);
+}
+
+float crd(float p0, float p1, float p2, float p3, float t) {
+	return 0.5 * ((p2 - p0) + 2.0 * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t + 3.0 * (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t);
+}
+
+// height, d/dx, d/dz and the bilinear mark at grid coordinate g
+vec4 sample_clay(vec2 g) {
+	ivec2 sz = textureSize(heightmap, 0);
+	vec2 c = clamp(g, vec2(0.0), vec2(sz - 1));
+	ivec2 i = ivec2(floor(c));
+	i = min(i, sz - 2);
+	vec2 t = c - vec2(i);
+	float rows[4];
+	float drows[4];
+	for (int r = 0; r < 4; r++) {
+		int z = clamp(i.y + r - 1, 0, sz.y - 1);
+		float p[4];
+		for (int k = 0; k < 4; k++) {
+			p[k] = texelFetch(heightmap, ivec2(clamp(i.x + k - 1, 0, sz.x - 1), z), 0).r;
+		}
+		rows[r] = cr(p[0], p[1], p[2], p[3], t.x);
+		drows[r] = crd(p[0], p[1], p[2], p[3], t.x);
+	}
+	float h = cr(rows[0], rows[1], rows[2], rows[3], t.y);
+	// no overshoot past the cell's own corners: no dip round the foot of a pulled column
+	float c00 = texelFetch(heightmap, i, 0).r;
+	float c10 = texelFetch(heightmap, i + ivec2(1, 0), 0).r;
+	float c01 = texelFetch(heightmap, i + ivec2(0, 1), 0).r;
+	float c11 = texelFetch(heightmap, i + ivec2(1, 1), 0).r;
+	h = clamp(h, min(min(c00, c10), min(c01, c11)), max(max(c00, c10), max(c01, c11)));
+	float dx = cr(drows[0], drows[1], drows[2], drows[3], t.y);
+	float dz = crd(rows[0], rows[1], rows[2], rows[3], t.y);
+	float m00 = texelFetch(heightmap, i, 0).g;
+	float m10 = texelFetch(heightmap, i + ivec2(1, 0), 0).g;
+	float m01 = texelFetch(heightmap, i + ivec2(0, 1), 0).g;
+	float m11 = texelFetch(heightmap, i + ivec2(1, 1), 0).g;
+	float m = mix(mix(m00, m10, t.x), mix(m01, m11, t.x), t.y);
+	return vec4(h, dx, dz, m);
+}
+
 varying float v_mark;
 varying vec3 v_world;
 varying vec3 v_wn;
@@ -57,7 +106,10 @@ float detail(vec3 t, float mean) {
 }
 
 void vertex() {
-	v_mark = COLOR.r;
+	vec4 c = sample_clay(VERTEX.xz + half_size);
+	VERTEX.y = c.x;
+	NORMAL = normalize(vec3(-c.y, 1.0, -c.z));
+	v_mark = c.w;
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
@@ -79,9 +131,9 @@ void fragment() {
 	vec3 clay = clay_col * dc * (0.9 + 0.2 * macro);
 
 	// raw clay: steep, or reshaped by the player; a ragged edge, as if the moss were torn
-	float steep = 1.0 - smoothstep(0.78, 0.95, n.y);
+	float steep = 1.0 - smoothstep(0.72, 0.97, n.y);
 	float raw = clamp(max(v_mark * 1.4, steep) + (macro - 0.5) * 0.5, 0.0, 1.0);
-	raw = smoothstep(0.35, 0.6, raw);
+	raw = smoothstep(0.2, 0.75, raw);
 
 	// the path: a wandering band down the middle of the set, the brightest line in view
 	float px = abs(v_world.x - 1.6 * sin(v_world.z * 0.14) - 0.6 * sin(v_world.z * 0.41));

@@ -100,6 +100,10 @@ func _run() -> void:
 		times.size(), total / times.size() * 1000.0, times[int(times.size() * 0.95)] * 1000.0,
 		worst * 1000.0, times.size() / total])
 
+	if "--pulls" in OS.get_cmdline_user_args():
+		await _pulls()
+		get_tree().quit(0)
+		return
 	var sx := 0.0
 	var sz := 34.0
 	await _shot("01_spawn_meadow", Vector3(sx, _ground(sx, sz) + 0.2, sz), Vector3(0.0, 0.5, 0.0))
@@ -116,4 +120,23 @@ func _run() -> void:
 	await _shot("12_chase_corridor", Vector3(3.0, _ground(3.0, -18.0) + 0.2, -18.0), Vector3(3.0, 1.0, -25.0))
 	await _shot("13_workbench_table", Vector3(0.0, _ground(0.0, -36.0) + 0.2, -36.0), Vector3(0.0, 2.6, -41.0))
 
+	await _pulls()
+
 	get_tree().quit(0)
+
+
+func _pulls() -> void:
+	# pulled clay: the first step at the knoll (looking level from its foot), and a free column
+	Game.debug_teleport(Vector3(-9.0, _ground(-9.0, 18.0) + 0.2, 18.0), Vector3(-9.0, 1.8, 0.0))
+	await frames(10)
+	Input.action_press(&"primary")
+	await get_tree().create_timer(2.5).timeout
+	Input.action_release(&"primary")
+	await _shot("14_first_step", Vector3(-7.0, _ground(-7.0, 23.0) + 0.2, 23.0), Vector3(-9.0, 0.4, 16.5))
+	Game.debug_teleport(Vector3(-1.0, _ground(-1.0, 21.5) + 0.2, 21.5), Vector3(-1.0, 0.0, 19.0))
+	await frames(10)
+	Input.action_press(&"primary")
+	await get_tree().create_timer(2.0).timeout
+	Input.action_release(&"primary")
+	await _shot("15_pulled_column", Vector3(3.5, _ground(3.5, 23.5) + 0.2, 23.5), Vector3(-1.0, 1.2, 19.0))
+

@@ -82,6 +82,17 @@ func physics(delta: float) -> void:
 	super.physics(delta)
 
 
+## The wing's verb, taught where it can be used: a wet stroke ahead, until she has ridden one.
+func prompt() -> Dictionary:
+	var p := player
+	if surf == null or surf.metres > 0.0 or not find_rail.is_valid() or not p.is_on_floor():
+		return {}
+	var fwd := (-p.head.global_basis.z).slide(p.up_direction).normalized()
+	if (find_rail.call(p.global_position + fwd * 4.0, 4.0) as Array).is_empty():
+		return {}
+	return {"action": &"move_forward", "text": "walk onto the wet paint to ride it"}
+
+
 func _may_board(hit: Array, on_floor: bool) -> bool:
 	var st: Node3D = hit[0]
 	if st == _ignore and (_ignore_ticks > 0 or _ignore_far):

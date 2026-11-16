@@ -10,6 +10,7 @@ signal ejected
 
 const LATCH_RANGE := 5.0
 const LATCH_GRAVITY := 15.0
+const EDGE := 0.6  # how far inside the latched face's edges the climb stops
 
 var last_dark: Vector3 = Vector3.ZERO
 var has_dark: bool = false
@@ -28,8 +29,18 @@ func exit(_to: MovementMode) -> void:
 
 
 func physics(delta: float) -> void:
-	super.physics(delta)
 	var p := player
+	# a respawn (or anything else) that restored the wing's gravity has ended the latch
+	if latched and p.gravity_vector != Vector3.ZERO and not p.gravity_vector.is_equal_approx(-(hit["normal"] as Vector3) * LATCH_GRAVITY):
+		latched = false
+		latched_changed.emit(false)
+	var before := p.global_position
+	var off_before := _off_face(before)
+	super.physics(delta)
+	# once on the face, a move that takes her further off it (past its top or a side edge) is undone
+	if off_before >= 0 and _off_face(p.global_position) > off_before:
+		p.global_position = before
+		p.velocity = Vector3.ZERO
 	if _lit_here():
 		if has_dark:
 			p.global_position = last_dark
@@ -95,6 +106,27 @@ func release() -> void:
 	latched = false
 	player.gravity_vector = Game.wing.gravity
 	latched_changed.emit(false)
+
+
+## While latched and standing on the face: how many of five probes (the body's centre and EDGE
+## round it, along the face) are not over the latched body along gravity; -1 when not applicable.
+## The climb may never raise it, so she stops short of the top and of the side edges, and lets go
+## into the alley rather than onto the wall's top. Zero gravity is a scripted traversal (the roof gap).
+func _off_face(pos: Vector3) -> int:
+	var p := player
+	if not latched or p.gravity_vector == Vector3.ZERO or not p.is_on_floor():
+		return -1
+	var down := p.gravity_vector.normalized()
+	var side := (p.global_basis.x - down * p.global_basis.x.dot(down)).normalized()
+	var along := side.cross(down)
+	var n := 0
+	for o: Vector3 in [Vector3.ZERO, side * EDGE, -side * EDGE, along * EDGE, -along * EDGE]:
+		var from := pos + o - down * 0.5
+		var q := PhysicsRayQueryParameters3D.create(from, from + down * 1.5, 1, [p.get_rid()] as Array[RID])
+		var res := p.get_world_3d().direct_space_state.intersect_ray(q)
+		if res.is_empty() or res["collider"] != hit.get("collider"):
+			n += 1
+	return n
 
 
 func _lit_here() -> bool:

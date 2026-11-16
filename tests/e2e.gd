@@ -24,6 +24,7 @@ func run() -> void:
 	check(Save.data["hub"]["seen_intro"] == true, "intro recorded")
 	await until(func() -> bool: return not Transitions.busy and Game.player.input_enabled, 10.0, "control handed to the player")
 	# a fresh player's first walk: straight down the entrance axis to the sphere's dais, nothing in the way
+	_check_placards(&"atrium")
 	var from := Game.player.global_position
 	check(await walk_to(Vector3(0, 0, 8.0), 8.0, 0.5), "a straight walk from the hub spawn (%s) reaches the sphere dais" % from)
 
@@ -38,6 +39,7 @@ func run() -> void:
 			continue
 		await skip_cinematics()
 		check(Quest.provenances.size() == 3, "%s declares 3 provenances" % id)
+		_check_placards(id)
 		Game.debug_complete_wing(id)
 		await Game.return_to_hub()
 		await until(func() -> bool: return _in_hub(), 30.0, "%s: back in the atrium" % id)
@@ -136,3 +138,28 @@ func _check_credits() -> void:
 			missing.append(r["path"])
 	var wing_rows := Credits.rows().filter(func(r: Dictionary) -> bool: return String(r["file"]).begins_with("res://wings/")).size()
 	check(missing.is_empty() and wing_rows > 0, "credits list all %d rows (%d from wings), missing %s" % [n, wing_rows, missing])
+
+
+## Every in-world placard's text, as Label3D lays it out, sits inside its plate, and no solid geometry
+## cuts through the plate's face (points 5 cm in front of its corners and edge midpoints).
+func _check_placards(id: StringName) -> void:
+	var bad: Array[String] = []
+	var clipped: Array[String] = []
+	var n := 0
+	var space := Game.wing.get_world_3d().direct_space_state
+	for pl: Placard in Game.wing.find_children("*", "Placard", true, false):
+		n += 1
+		if not pl.text_fits():
+			bad.append(pl.title)
+		for u: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1), Vector2(0, 1), Vector2(-1, 0), Vector2(1, 0)]:
+			var q := PhysicsPointQueryParameters3D.new()
+			q.position = pl.global_transform * Vector3(u.x * pl.size.x * 0.48, u.y * pl.size.y * 0.48, 0.05)
+			q.collision_mask = 1
+			var hits := space.intersect_point(q, 1)
+			if not hits.is_empty():
+				clipped.append("%s (%s at %s)" % [pl.title, (hits[0]["collider"] as Node).name, u])
+				break
+	check(bad.is_empty(), "%s: all %d placards' text fits the plate %s" % [id, n, bad])
+	# ponytail: a coarse probe (collision boxes are often thicker than their meshes), so it only warns
+	if not clipped.is_empty():
+		print("[e2e] WARN %s: geometry within 5 cm of a placard's face: %s" % [id, clipped])

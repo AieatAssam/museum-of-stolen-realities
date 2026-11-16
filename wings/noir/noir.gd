@@ -618,7 +618,8 @@ func _build_cinema() -> void:
 
 func _build_booth() -> void:
 	var b := _area("Booth")
-	_solid(b, Vector3(0, -0.5, -95), Vector3(8, 1, 8), "wet_floorboards", Color("111113"))
+	# the floor reaches back to the cinema's (which ends at z -90): no slot to fall through at the door
+	_solid(b, Vector3(0, -0.5, -94.5), Vector3(8, 1, 9), "wet_floorboards", Color("111113"))
 	_solid(b, Vector3(-4.5, 2, -95), Vector3(1, 4, 8), "brick_dark")
 	_solid(b, Vector3(4.5, 2, -95), Vector3(1, 4, 8), "brick_dark")
 	_solid(b, Vector3(0, 2, -99.5), Vector3(10, 4, 1), "brick_dark")

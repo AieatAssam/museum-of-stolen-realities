@@ -91,6 +91,38 @@ func _run() -> void:
 	await shot("10_journal")
 	Game.resume()
 
+	# a wing placard at standing distance, and a full journal: clay's objectives and 40-word placards
+	await Game.debug_goto(&"clay")
+	await _skip()
+	await seconds(1.5)
+	var sp: Vector3 = Game.wing.call(&"_ground_at", Vector3(-4, 0, 32.4))
+	Game.debug_teleport(sp, Vector3(-4, sp.y + 1.2, 30))
+	await seconds(1.0)
+	await shot("10a_plaque_clay")
+	for i in 3:
+		Placards.toast(Placard.fields("A note on the lamps %d" % (i + 1), "Undated", "Lamp oil on brass", "Acq. No. 000-T",
+			"Staff are reminded that the lamps in this studio are original to the collection and must be lit in order. Visitors who light them out of order will be thanked and asked, politely, to begin again from the very first."))
+	await seconds(0.5)
+	Game.open_menu(&"journal")
+	await seconds(0.6)
+	await shot("10b_journal_full")
+	Game.resume()
+
+	# paint on arrival: the ride prompt with a wet stroke ahead, then the view while riding it
+	await Game.debug_goto(&"paint")
+	await _skip()
+	await seconds(2.0)
+	Game.debug_teleport(Vector3(0, 0.05, -7.0), Vector3(0, 1.0, -20.0))
+	await seconds(1.0)
+	await shot("10c_paint_prompt")
+	Input.action_press(&"move_forward")
+	var t_end := Time.get_ticks_msec() + 8000
+	while Game.player.mode_name() != &"surf" and Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+	await seconds(0.8)
+	await shot("10d_paint_ride")
+	Input.action_release(&"move_forward")
+
 	await Game.return_to_hub()
 	await _skip()
 	Game.debug_teleport(Vector3(0, 0, 8.4), Vector3(0, 0.95, 6.3))

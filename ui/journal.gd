@@ -4,6 +4,7 @@ extends CanvasLayer
 ## Built by Game.open_menu(&"journal").
 
 var _scroll: ScrollContainer
+var _more: Label
 
 
 func _input(e: InputEvent) -> void:
@@ -49,11 +50,29 @@ func _ready() -> void:
 		row.add_child(Style.label(meta, Style.TEXT, Style.SIZE_META, Style.IVORY_DIM))
 		left.add_child(row)
 
-	# right: the present gallery (scrolls when a wing's objectives and placards outgrow the page)
+	# right: the present gallery. It scrolls inside the page when a wing's objectives and placards
+	# outgrow it, with a visible bar and a cue under it while there is more below.
+	var side := VBoxContainer.new()
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.add_theme_constant_override(&"separation", 8)
+	cols.add_child(side)
 	_scroll = ScrollContainer.new()
-	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	cols.add_child(_scroll)
+	var bar := _scroll.get_v_scroll_bar()
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(Style.IVORY, 0.12)
+	track.content_margin_left = 6
+	track.content_margin_right = 6
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Style.IVORY_DIM
+	bar.add_theme_stylebox_override(&"scroll", track)
+	for st: StringName in [&"grabber", &"grabber_highlight", &"grabber_pressed"]:
+		bar.add_theme_stylebox_override(st, grab)
+	side.add_child(_scroll)
+	_more = Style.label("More below: scroll, or press S", Style.TEXT, Style.SIZE_BODY, Style.IVORY_DIM)
+	_more.modulate.a = 0.0
+	side.add_child(_more)
 	var right := _col(_scroll)
 	var info := Game.registry.get_info(Quest.wing_id)
 	right.add_child(Style.label(info.title if info else "The Atrium", Style.DISPLAY, Style.SIZE_HEADING, Style.IVORY))
@@ -63,12 +82,12 @@ func _ready() -> void:
 		var oid := StringName(o["id"])
 		var done := Quest.is_done(oid)
 		var t := String(o["title"]) + (" (optional)" if o.get("optional", false) else "") + (" (done)" if done else "")
-		right.add_child(Style.label(t, Style.TEXT, Style.SIZE_BODY + 2, Style.IVORY_DIM if done else Style.IVORY))
+		right.add_child(_wrap(t, Style.IVORY_DIM if done else Style.IVORY, Style.SIZE_BODY + 2))
 		if done:
 			continue
 		for s: Dictionary in o.get("steps", []):
 			var sd := Quest.is_step_done(oid, StringName(s["id"]))
-			var l := Style.label(String(s["title"]) + (" (done)" if sd else ""), Style.TEXT, Style.SIZE_META, Style.IVORY_DIM if sd else Style.IVORY)
+			var l := _wrap(String(s["title"]) + (" (done)" if sd else ""), Style.IVORY_DIM if sd else Style.IVORY)
 			var indent := MarginContainer.new()
 			indent.add_theme_constant_override(&"margin_left", 24)
 			indent.add_child(l)
@@ -82,17 +101,24 @@ func _ready() -> void:
 		right.add_child(Style.label("Provenances", Style.DISPLAY, Style.SIZE_SUBHEADING, Style.IVORY))
 		for p: Dictionary in Quest.provenances:
 			var found := Quest.has_provenance(Quest.wing_id, StringName(p["id"]))
-			right.add_child(Style.label(String(p["name"]) if found else "Not yet found", Style.TEXT, Style.SIZE_META, Style.IVORY if found else Style.IVORY_DIM))
+			right.add_child(_wrap(String(p["name"]) if found else "Not yet found", Style.IVORY if found else Style.IVORY_DIM))
 	var hist := Placards.history.slice(maxi(Placards.history.size() - 3, 0))
 	if not hist.is_empty():
 		right.add_child(Style.label("Latest placards", Style.DISPLAY, Style.SIZE_SUBHEADING, Style.IVORY))
 		hist.reverse()
 		for h: String in hist:
 			right.add_child(_wrap(h, Style.IVORY_DIM))
-	var hint := Style.label("Tab to close", Style.TEXT, Style.SIZE_MIN, Style.IVORY_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
-	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	hint.position = Vector2(-260, -56)
+	var hint := Style.label("Tab to close", Style.TEXT, Style.SIZE_BODY, Style.IVORY_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
+	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	hint.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	hint.position += Vector2(-140, -30)
 	add_child(hint)
+
+
+func _process(_delta: float) -> void:
+	var bar := _scroll.get_v_scroll_bar()
+	_more.modulate.a = 1.0 if bar.max_value - bar.page > 1.0 and _scroll.scroll_vertical < bar.max_value - bar.page - 4.0 else 0.0
 
 
 func _col(parent: Control) -> VBoxContainer:
@@ -103,7 +129,8 @@ func _col(parent: Control) -> VBoxContainer:
 	return v
 
 
-func _wrap(text: String, color: Color) -> Label:
-	var l := Style.label(text, Style.TEXT, Style.SIZE_META, color)
+## Journal body text: wrapped to the column, at the body size (never under SIZE_MIN).
+func _wrap(text: String, color: Color, size: int = Style.SIZE_BODY) -> Label:
+	var l := Style.label(text, Style.TEXT, size, color)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return l

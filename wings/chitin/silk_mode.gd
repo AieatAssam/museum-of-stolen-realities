@@ -41,6 +41,8 @@ const FLICK_UP := 5.0
 const FLICK_FWD := 3.0
 const FLICK_SPEED := 3.5       # release slower than this ...
 const FLICK_MIN_DEG := 30.0    # ... and higher than this from vertical = top release
+const LAND_SPEED := 6.0        # the dragline eases a fall onto a near floor down to this (m/s) ...
+const LAND_BRAKE := 40.0       # ... at this rate (m/s^2), over the last 2.5 m
 const PLANE_DAMP := 3.0       # 1/s, sideways speed bled off while swinging
 const PLANE_PULL := 2.0       # 1/s², pull back to the plane through the anchor
 const HOP := 4.0               # a line fired from the ground lifts her off it
@@ -475,6 +477,7 @@ func _air(delta: float) -> void:
 	if wish.length() > 0.01 and p.velocity.dot(wish) < 5.0:
 		p.velocity += wish * AIR_STEER * delta
 	_magnet(delta)
+	_brake(delta)
 	p.move_and_slide()
 	if p.is_on_wall() and not p.is_on_floor() and _mantle():
 		return
@@ -508,6 +511,19 @@ func _mantle() -> bool:
 	p.velocity = h * 0.4
 	_touch_down()
 	return true
+
+
+## Dropping fast onto a floor close below: the dragline pays out and slows her, so a long release
+## settles onto the ledge instead of slamming into it (no hard dip or shake on the landing).
+func _brake(delta: float) -> void:
+	var p := player
+	var up := p.up_direction
+	var vy := p.velocity.dot(up)
+	if vy > -LAND_SPEED:
+		return
+	if _ray(p.global_position + up * 0.2, -up * (2.5 + 0.2)).is_empty():
+		return
+	p.velocity += up * (move_toward(vy, -LAND_SPEED, LAND_BRAKE * delta) - vy)
 
 
 ## Falling just short of a ledge ahead: lean her onto it.
