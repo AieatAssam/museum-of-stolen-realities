@@ -29,7 +29,7 @@ def build(args):
         p.append(kit.box("ry%d" % int(z * 10), (0.05, CASE[1] + 0.06, 0.05), (-hx, 0, z), mat="brass", bevel=0.006, segments=1))
         p.append(kit.box("ry2%d" % int(z * 10), (0.05, CASE[1] + 0.06, 0.05), (hx, 0, z), mat="brass", bevel=0.006, segments=1))
     p.append(kit.box("lid", (CASE[0] + 0.12, CASE[1] + 0.12, 0.08), (0, 0, TOP + h + 0.06), mat="ebony", bevel=0.01))
-    p.append(kit.lathe("finial", [(0.0, 0.0), (0.08, 0.0), (0.05, 0.08), (0.07, 0.16), (0.0, 0.26)], 16, mat="gilt"))
+    p.append(kit.lathe("finial", [(0.0, 0.0), (0.08, 0.0), (0.05, 0.08), (0.07, 0.16), (0.0, 0.26)], 32, mat="gilt", smooth_angle=40.0))
     p[-1].location = (0, 0, TOP + h + 0.1)
     # the stand inside: a brass display disc under the figure (no armature: it would show through her)
     p.append(kit.lathe("stand_base", [(0.28, 0.0), (0.28, 0.04), (0.06, 0.08), (0.0, 0.08)], 24, mat="brass"))
@@ -40,7 +40,7 @@ def build(args):
     kit.box("glass_l", (0.01, CASE[1], h - 0.05), (-hx, 0, TOP + h / 2), mat="glass")
     kit.box("glass_r", (0.01, CASE[1], h - 0.05), (hx, 0, TOP + h / 2), mat="glass")
     # lectern for the sketch and the plate
-    lec = [kit.lathe("lec", [(0.22, 0.0), (0.22, 0.03), (0.05, 0.06), (0.03, 0.1), (0.03, 1.02), (0.06, 1.06), (0.0, 1.07)], 16, mat="brass")]
+    lec = [kit.lathe("lec", [(0.22, 0.0), (0.22, 0.03), (0.05, 0.06), (0.03, 0.1), (0.03, 1.02), (0.06, 1.06), (0.0, 1.07)], 32, mat="brass", smooth_angle=40.0)]
     top = kit.box("lec_top", (0.5, 0.36, 0.03), (0, 0, 1.12), mat="ebony", bevel=0.006, segments=1)
     top.rotation_euler = (math.radians(14), 0, 0)
     lec.append(top)

@@ -73,7 +73,7 @@ def build(args):
         for k in range(3):
             p.append(orn.leaf("swag%d_%d" % (s, k), (s * (2.6 + k * 1.4), -0.75, 7.9), (s, 0, 0.15 - 0.2 * k), 1.2, 0.26, curl=0.6))
     p.extend(orn.shell("crest", (0, -0.6, cz + 1.05), 0.95, 11, depth=0.35))
-    fl = kit.lathe("flame", [(0.0, 0.0), (0.24, 0.0), (0.3, 0.16), (0.17, 0.38), (0.22, 0.55), (0.1, 0.82), (0.05, 1.08), (0.0, 1.25)], 16, mat="gilt")
+    fl = kit.lathe("flame", [(0.0, 0.0), (0.24, 0.0), (0.3, 0.16), (0.17, 0.38), (0.22, 0.55), (0.1, 0.82), (0.05, 1.08), (0.0, 1.25)], 32, mat="gilt", smooth_angle=40.0)
     kit.place(fl, (0, -0.45, cz + 1.9))
     p.append(fl)
     kit.join("surround", p)
