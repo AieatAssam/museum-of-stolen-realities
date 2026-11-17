@@ -40,10 +40,11 @@ HEAD_R = (0.071, 0.087, 0.106)
 L_SH = Vector((0.165, 0.0, 1.37))
 R_SH = Vector((-0.165, 0.0, 1.37))
 # arm centre lines, shoulder to wrist (the wrists are where the modelled hands begin)
-ARM_L = [L_SH, Vector((0.19, -0.03, 1.25)), Vector((0.195, -0.09, 1.115)), Vector((0.16, -0.135, 1.165)),
+# (index 2 is the elbow: both arms break there, out from the body, the forearms angled in and forward)
+ARM_L = [L_SH, Vector((0.205, -0.005, 1.25)), Vector((0.235, -0.04, 1.125)), Vector((0.185, -0.125, 1.17)),
          Vector((0.12, -0.16, 1.22))]
-ARM_R = [R_SH, Vector((-0.195, -0.04, 1.25)), Vector((-0.212, -0.13, 1.125)), Vector((-0.208, -0.25, 1.078)),
-         Vector((-0.2, -0.36, 1.04))]
+ARM_R = [R_SH, Vector((-0.205, -0.005, 1.25)), Vector((-0.235, -0.045, 1.125)), Vector((-0.215, -0.20, 1.075)),
+         Vector((-0.19, -0.34, 1.04))]
 WAIST = 1.04
 
 
@@ -305,27 +306,27 @@ def coat_pin(co):
     return 0.0
 
 
-# a stand collar under the hood's cowl, a yoke over the shoulders (held), a skirt falling over the sleeve tops
-CAPE_T = [(1.47, 0.085, 0.075), (1.43, 0.12, 0.10), (1.40, 0.17, 0.125), (1.36, 0.215, 0.145), (1.31, 0.25, 0.16),
-          (1.24, 0.28, 0.18)]
+# an Inverness cape: a stand collar under the hood's cowl, sloping off the shoulders and falling over the sleeves
+# to the elbows; short at the front (clear of the raised fist), longest at the back
+CAPE_COLLAR = [(1.47, 0.085, 0.075), (1.43, 0.12, 0.095), (1.40, 0.15, 0.11)]
 
 
-def cape():
-    NS = 112
-    rings = []
-    for k in range(int((1.47 - 1.24) / 0.012) + 1):
-        z = 1.47 - k * 0.012
-        rx, ry = _lerp_table(CAPE_T, z)
-        rings.append([(rx * math.cos(2 * math.pi * i / NS), ry * math.sin(2 * math.pi * i / NS), z) for i in range(NS)])
-    return drape.grid_tube("cape", rings)
+def cape_hem(u):
+    """Longest at the back, to the elbows at the sides, rising across the front clear of the raised fist."""
+    s = math.sin(u)
+    return 1.10 - 0.03 * max(0.0, s) + 0.22 * max(0.0, -s) ** 0.8 + 0.008 * math.sin(5 * u + 0.7)
+
+
+def cape(under):
+    return drape.envelope("cape", under, CAPE_COLLAR, cape_hem)
 
 
 def hood():
     """Rest shape: the head ellipsoid pushed out (deeper over the crown, gathered to a point at the back), open
     at the face, running down into a wide cowl round the neck that lies over the cape."""
-    NU = 72
+    NU = 96
     rows = []
-    for lat in [88 - 8 * i for i in range(15)]:  # 88 .. -24 deg
+    for lat in [88 - 4 * i for i in range(29)]:  # 88 .. -24 deg
         a = math.radians(lat)
         row = []
         for k in range(NU):
@@ -352,10 +353,23 @@ def hood():
         c = f.calc_center_median() - HEAD_C
         ang = abs(math.degrees(math.atan2(c.x, -c.y)))
         lat = math.degrees(math.atan2(c.z, Vector((c.x, c.y)).length))
-        if c.y < 0 and ang < 34 and -48 < lat < 36:
+        if c.y < 0 and (ang / 34) ** 2 + ((lat + 6) / 42) ** 2 < 1:  # an oval face opening
             kill.append(f)
     bmesh.ops.delete(bm, geom=kill, context="FACES")
-    top = [e for e in bm.edges if e.is_boundary and min(v.co.z for v in e.verts) > HEAD_C.z + 0.12]
+    for v in bm.verts:  # pull the stair-stepped opening onto the oval, over the hood's surface
+        c = v.co - HEAD_C
+        if c.y >= 0 or not v.is_boundary:
+            continue
+        rho = c.length
+        ang = math.degrees(math.atan2(c.x, -c.y))
+        lat = math.degrees(math.atan2(c.z, Vector((c.x, c.y)).length))
+        e = (ang / 34) ** 2 + ((lat + 6) / 42) ** 2
+        if e > 3.0:
+            continue
+        k = 1 / math.sqrt(e)
+        a, la = math.radians(ang * k), math.radians(-6 + (lat + 6) * k)
+        v.co = HEAD_C + Vector((math.cos(la) * math.sin(a), -math.cos(la) * math.cos(a), math.sin(la))) * rho
+    top =[e for e in bm.edges if e.is_boundary and min(v.co.z for v in e.verts) > HEAD_C.z + 0.12]
     bmesh.ops.triangle_fill(bm, edges=top, use_beauty=True)
     bm.to_mesh(ob.data)
     bm.free()
@@ -367,24 +381,145 @@ def hood_pin(co):
     return 1.0 if co.z < 1.437 or co.z > HEAD_C.z + 0.07 else 0.0
 
 
-def sleeve(name, path, r=0.062, cuff=0.05):
-    path = [path[0].lerp(path[1], 0.05)] + path[1:]  # the open top sits round the shoulder joint, under the cape
-    pts, _, _ = spline([(p, r, r) for p in path], per=6)
-    NS = 40
-    rings = []
+def sleeve(name, path, r0=0.074, r1=0.058, per=8, seed=0):
+    """A sculpted greatcoat sleeve along the arm path (path[2] = elbow): compression folds stacked on the inside
+    of the elbow, the outer elbow drawn tight, drag folds spiralling down the forearm, the cloth sagging under
+    the forearm and gathering at the cuff, which overhangs the glove."""
+    path = [path[0].lerp(path[1], 0.35)] + path[1:]  # the open top sits under the cape
+    pts, _, _ = spline([(p, 0, 0) for p in path], per)
+    pts.append(pts[-1] + (pts[-1] - pts[-2]).normalized() * 0.025)
+    ie = 2 * per
+    E = pts[ie]
+    b = ((pts[ie - per // 2] + pts[ie + per // 2]) * 0.5 - E).normalized()  # into the bend
+    L = [0.0]
+    for p, q in zip(pts, pts[1:]):
+        L.append(L[-1] + (q - p).length)
+    Lt = L[-1]
+    Z = Vector((0, 0, 1))
     n = len(pts)
+    d = (pts[1] - pts[0]).normalized()
+    s = d.cross(Z).normalized()
+    NS = 48
+    ph = random.Random(seed).uniform(0, 6.28)
+    rings = []
     for i in range(n):
         d = (pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]).normalized()
-        s = d.cross(Vector((0, 0, 1)))
-        if s.length < 1e-3:
-            s = d.cross(Vector((1, 0, 0)))
-        s.normalize()
-        up = s.cross(d).normalized()
-        t = i / (n - 1)
-        rr = r * (1.0 - 0.25 * t) if t < 0.9 else cuff
-        rings.append([tuple(pts[i] + (s * math.cos(a) + up * math.sin(a)) * rr)
-                      for a in (2 * math.pi * k / NS for k in range(NS))])
+        s = (s - d * s.dot(d)).normalized()  # parallel transport: no twist
+        u = d.cross(s).normalized()
+        de = L[i] - L[ie]
+        tf = min(max(de / (Lt - L[ie]), 0.0), 1.0)
+        r = r0 + (r1 - r0) * L[i] / Lt
+        c = pts[i] - Z * 0.012 * math.sin(math.pi * tf)
+        ring = []
+        for k in range(NS):
+            a = 2 * math.pi * k / NS
+            rd = s * math.cos(a) + u * math.sin(a)
+            inner = max(0.0, rd.dot(b)) ** 2
+            outer = max(0.0, -rd.dot(b))
+            fold = inner * math.exp(-(de / 0.07) ** 2) * (0.5 + 0.5 * math.sin(2 * math.pi * de / 0.03)) ** 2
+            down = max(0.0, -rd.z) ** 2 * math.sin(math.pi * tf)
+            drag = 0.045 * math.sin(3 * a + 2 * math.pi * L[i] / 0.11 + ph) * smooth((L[i] - 0.05) / 0.05)
+            cuff = 0.07 * math.sin(9 * a + ph) * gauss(Lt - L[i], 0.03, 0.025)
+            f = 1 + 0.24 * fold + 0.28 * down + drag + cuff - 0.07 * outer * math.exp(-(de / 0.05) ** 2)
+            ring.append(tuple(c + rd * r * f))
+        rings.append(ring)
+    # the cuff turns back on itself: a rolled edge, then a band lying over the sleeve end
+    last = [Vector(p) for p in rings[-1]]
+    cen = sum(last, Vector()) / len(last)
+    for out, back in ((0.006, 0.004), (0.011, 0.016), (0.012, 0.045)):
+        rings.append([tuple(p + (p - cen).normalized() * out - d * back) for p in last])
     return drape.grid_tube(name, rings), (pts[0], pts[-1])
+
+
+def turn_edge(ob, pred, steps):
+    """Roll the sheet's boundary where pred holds: extrude it in steps, each moving the new edge by
+    step(co) (out and back over the cloth), so the edge has a soft turned thickness instead of a cut."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    edges = [e for e in bm.edges if e.is_boundary and all(pred(v.co) for v in e.verts)]
+    for step in steps:
+        r = bmesh.ops.extrude_edge_only(bm, edges=edges)
+        nv = {g for g in r["geom"] if isinstance(g, bmesh.types.BMVert)}
+        for v in nv:
+            v.co += step(v.co)
+        edges = [g for g in r["geom"] if isinstance(g, bmesh.types.BMEdge) and all(v in nv for v in g.verts)]
+    bm.to_mesh(ob.data)
+    bm.free()
+
+
+def coat_shape(c):
+    """Folds breaking below the belt, an uneven hem, and the left front panel lapped over the right."""
+    rnd = random.Random(11)
+    ph = [rnd.uniform(0, 6.28) for _ in range(5)]
+    for v in c.data.vertices:
+        x, y, z = v.co
+        u = math.atan2(y, x)
+        h = Vector((x, y, 0))
+        nh = h.normalized() if h.length > 1e-6 else Vector((1, 0, 0))
+        free = smooth((WAIST - 0.04 - z) / 0.35)
+        fold = 0.017 * free * (0.55 * math.sin(7 * u + ph[0]) + 0.35 * math.sin(11 * u + ph[1]) +
+                               0.25 * math.sin(4 * u + ph[2]))
+        lap = 0.006 * smooth((x - LAP_X) / 0.012) * smooth((-y - 0.05) / 0.03) if y < 0 else 0.0
+        dz = (0.03 * math.sin(2 * u + ph[3]) + 0.014 * math.sin(5 * u + ph[4])) * smooth((0.55 - z) / 0.25)
+        v.co = (x + nh.x * (fold + lap), y + nh.y * (fold + lap), z + dz)
+
+
+LAP_X = -0.035  # the edge of the overlapping front panel
+
+
+def front_hits(c, x, zs):
+    """Where the coat's front surface crosses the vertical line at x, at heights zs."""
+    from mathutils.bvhtree import BVHTree
+    bm = bmesh.new()
+    bm.from_mesh(c.data)
+    tree = BVHTree.FromBMesh(bm)
+    out = []
+    for z in zs:
+        hit = tree.ray_cast(Vector((x, -1.0, z)), Vector((0, 1, 0)))
+        if hit[0] is not None:
+            out.append(hit[0])
+    bm.free()
+    return out
+
+
+def coat_front(c):
+    """The placket seam down the overlap and brass buttons above and below the belt."""
+    zs = [1.44 - 0.02 * k for k in range(60)]
+    seam = [p + Vector((0, -0.004, 0)) for p in front_hits(c, LAP_X + 0.002, zs)]
+    parts = [orn.taper("seam", seam, [0.0045] * len(seam), 8, MAT_CLOTH, 0.6)]
+    for p in front_hits(c, LAP_X + 0.03, [1.37, 1.28, 1.19, 1.11, 0.92, 0.80]):
+        btn = kit.lathe("button", [(0.0, 0.0), (0.012, 0.0), (0.013, 0.003), (0.009, 0.007), (0.0, 0.008)], 12,
+                        mat="brass")
+        parts.append(bake(btn, frame(p + Vector((0, -0.004, 0)), (0, -1, 0))))
+    return parts
+
+
+def trouser_leg(s):
+    """Trousers below the coat with a break where the hem rests on the boot: higher at the instep, lower at the
+    heel. s = -1 right (knee bent forward), +1 left."""
+    x = 0.10 * s
+    ky = -1.0 if s < 0 else 0.0
+    ph = random.Random(int(5 + s)).uniform(0, 6.28)
+    NS, NR = 36, 26
+
+    def hem(a):
+        return 0.075 + 0.05 * max(0.0, -math.sin(a))
+    rings = []
+    for j in range(NR + 1):
+        ring = []
+        for k in range(NS):
+            a = 2 * math.pi * k / NS
+            hz = hem(a)
+            z = 0.47 + (hz - 0.47) * j / NR
+            zz = z - hz
+            front = max(0.0, -math.sin(a))
+            cy = ky * (0.06 * smooth((z - 0.12) / 0.37))
+            r = 0.064 + 0.007 * smooth((0.25 - z) / 0.1)
+            r *= 1 + front * (0.15 * gauss(zz, 0.045, 0.02) - 0.05 * gauss(zz, 0.085, 0.015))
+            r *= 1 + 0.05 * math.sin(5 * a + ph) * smooth((0.24 - z) / 0.08)
+            ring.append((x + r * math.cos(a), cy + r * math.sin(a), z))
+        rings.append(ring)
+    return drape.grid_tube("trouser", rings)
 
 
 def finish_cloth(ob, thick, mat, levels=1):
@@ -430,8 +565,8 @@ def mask():
 def left_hand():
     Wr = ARM_L[-1]
     d = (Wr - ARM_L[-2]).normalized()
-    parts = [subsurf(loft("cuff_L", [Wr - d * 0.035, Wr - d * 0.012, Wr + d * 0.006], [0.04, 0.046, 0.04],
-                          [0.04, 0.046, 0.04], MAT_LEATHER, sides=16, sup=2.4), 1)]
+    parts = [subsurf(loft("cuff_L", [Wr - d * 0.035, Wr - d * 0.012, Wr + d * 0.006], [0.036, 0.04, 0.037],
+                          [0.036, 0.04, 0.037], MAT_LEATHER, sides=16, sup=2.2), 1)]
     C = V(0.075, -0.18, 1.25)
     parts.extend(fist(C))
     keys = [(C + V(-0.044, -0.016, 0.012), 0.0095, 0.0095), (C + V(-0.034, -0.048, 0.008), 0.0093, 0.0093),
@@ -444,8 +579,8 @@ def right_hand():
     W = ARM_R[-1]
     d_arm = (W - ARM_R[-2]).normalized()
     parts = [subsurf(loft("cuff_R", [W - d_arm * 0.045, W - d_arm * 0.02, W, W + d_arm * 0.012],
-                          [0.042, 0.048, 0.054, 0.046], [0.042, 0.048, 0.054, 0.046],
-                          MAT_LEATHER, sides=16, sup=2.4), 1)]
+                          [0.036, 0.039, 0.041, 0.038], [0.036, 0.039, 0.041, 0.038],
+                          MAT_LEATHER, sides=16, sup=2.2), 1)]
     d = Vector((0, -0.8, -0.25)).normalized()
     X, Z = V(1, 0, 0), V(0, 0, 1)
     palm_end = W + d * 0.09
@@ -469,23 +604,59 @@ def right_hand():
     return parts
 
 
+def _sole_bottom(y):
+    """Underside of the sole: on the ground at the ball, rising over the waist onto the heel block, the toe
+    sprung up a little."""
+    return 0.03 * smooth((y + 0.035) / 0.05) + 0.012 * smooth((-0.15 - y) / 0.05)
+
+
+def _outline(y, w):
+    """Half-width of the footprint at y (heel +0.07 .. toe -0.19), scaled by w."""
+    pts = [(0.075, 0.0), (0.065, 0.026), (0.04, 0.036), (0.0, 0.035), (-0.06, 0.042), (-0.11, 0.046),
+           (-0.15, 0.038), (-0.175, 0.025), (-0.192, 0.0)]
+    for (y0, a), (y1, b) in zip(pts, pts[1:]):
+        if y1 <= y <= y0:
+            return w * (a + (b - a) * (y0 - y) / (y0 - y1))
+    return 0.0
+
+
+def _slab(name, x, y0, y1, zb, zt, w, mat, n=28):
+    """A rounded footprint slab between y0 (back) and y1 (front): zb(y)/zt(y) bottom and top, edges eased."""
+    bm = bmesh.new()
+    ys = [y0 + (y1 - y0) * (0.5 - 0.5 * math.cos(math.pi * i / n)) for i in range(n + 1)]
+    outline = [(y, _outline(y, w)) for y in ys]
+    loop = [(x + hw, y) for y, hw in outline] + [(x - hw, y) for y, hw in reversed(outline[1:-1])]
+    ring_b = [bm.verts.new((px, py, zb(py))) for px, py in loop]
+    ring_m = [bm.verts.new((x + (px - x) * 1.04, py, 0.5 * (zb(py) + zt(py)))) for px, py in loop]
+    ring_t = [bm.verts.new((px, py, zt(py))) for px, py in loop]
+    m = len(loop)
+    for r0, r1 in ((ring_b, ring_m), (ring_m, ring_t)):
+        for k in range(m):
+            bm.faces.new((r0[k], r0[(k + 1) % m], r1[(k + 1) % m], r1[k]))
+    bm.faces.new(ring_b[::-1])
+    bm.faces.new(ring_t)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return kit._obj(name, bm, mat, 50.0)
+
+
 def boot(s):
-    """s = -1 right (knee bent forward), +1 left. Tall riding boot to just under the knee, flat sole and heel."""
-    k = -0.05 if s < 0 else 0.0
+    """s = -1 right, +1 left. An ankle boot: a shaft under the trouser hem, a rounded toe with a little spring,
+    the counter round the heel, a welted sole (proud of the upper) arching from the ball onto a stacked heel."""
     x = 0.10 * s
-    shaft = [(V(x, 0.85 * k, 0.50), 0.072, 0.074), (V(x, k * 0.8, 0.44), 0.068, 0.07),
-             (V(x, 0.4 * k, 0.33), 0.063, 0.065), (V(x, 0.2 * k, 0.20), 0.055, 0.058),
-             (V(x, 0.0, 0.11), 0.05, 0.056), (V(x, 0.0, 0.06), 0.05, 0.058)]
-    foot = [(V(x, 0.045, 0.058), 0.044, 0.046), (V(x, -0.02, 0.058), 0.047, 0.044),
-            (V(x, -0.10, 0.045), 0.046, 0.033), (V(x, -0.165, 0.038), 0.036, 0.026)]
-    bt = limb("boot", shaft, MAT_LEATHER, per=3, sides=16, sup=2.2)
-    ft = limb("foot", foot, MAT_LEATHER, per=3, sides=16, sup=2.4, hint=(0, 0, 1))
-    zmin = min(v.co.z for v in ft.data.vertices) - 0.012
-    for o in (bt, ft):
-        bake(o, Matrix.Translation((0, 0, -zmin)))
-    sole = kit.box("sole", (0.08, 0.235, 0.012), (x, -0.075, 0.006), mat=MAT_LEATHER, bevel=0.004)
-    heel = kit.box("heel", (0.06, 0.07, 0.03), (x, 0.0, 0.015), mat=MAT_LEATHER, bevel=0.006)
-    return [bt, ft, sole, heel]
+
+    def top(y):
+        return _sole_bottom(y) + 0.013
+    foot = []
+    for y, rx, ry in ((0.05, 0.040, 0.045), (0.0, 0.043, 0.05), (-0.06, 0.046, 0.042), (-0.11, 0.046, 0.032),
+                      (-0.155, 0.038, 0.024), (-0.182, 0.024, 0.016)):
+        foot.append((V(x, y, top(y) + ry - 0.003), rx, ry))
+    ft = limb("foot", foot, MAT_LEATHER, per=3, sides=18, sup=2.6)
+    shaft = [(V(x, 0.03, 0.07), 0.046, 0.05), (V(x, 0.012, 0.14), 0.047, 0.05), (V(x, 0.008, 0.22), 0.052, 0.054)]
+    sh = limb("boot", shaft, MAT_LEATHER, per=3, sides=18, sup=2.2)
+    sole = _slab("sole", x, 0.072, -0.192, _sole_bottom, top, 1.1, MAT_LEATHER)
+    heel = _slab("heel", x, 0.072, -0.005, lambda y: 0.0, lambda y: _sole_bottom(y) + 0.002, 0.98, MAT_LEATHER, 12)
+    return [ft, sh, sole, heel]
 
 
 # ---------------------------------------------------------------- build
@@ -510,35 +681,48 @@ def _near(*ends, r=0.07):
 
 def build(args):
     trousers = body()
-    arm_l = arm_collider("coll_arm_l", ARM_L)
-    arm_r = arm_collider("coll_arm_r", ARM_R)
     head = ellipsoid_mesh("coll_head", HEAD_C, tuple(r + 0.004 for r in HEAD_R), MAT_MASK, 24, 12)
-    # 1. greatcoat over the body
+    # 1. greatcoat over the body, then its folds, hem and front overlap
     c = drape.simulate(coat(), [trousers], coat_pin, frames=120, tension=14, bending=3.0)
-    # 2. loose sleeves over the arms, held at shoulder and cuff
-    sl, ends_l = sleeve("sleeve_L", ARM_L)
-    sr, ends_r = sleeve("sleeve_R", ARM_R)
-    # (the bent left sleeve only sags between its held ends: its rest tube crosses the collider in the bend)
-    drape.simulate(sl, [], _near(*ends_l), frames=30, tension=10, bending=0.2, self_collision=False)
-    drape.simulate(sr, [arm_r], _near(*ends_r), frames=50, tension=10, bending=0.2,
-                   self_collision=False)
-    # 3. short cape over the coat, its hem just over the sleeve tops
-    cp = drape.simulate(cape(), [trousers, c], lambda co: 1.0 if co.z > 1.375 else 0.0,
-                        frames=80, tension=15, bending=0.6)
+    coat_shape(c)
+    # 2. sculpted sleeves along the bent arms
+    sl, ends_l = sleeve("sleeve_L", ARM_L, seed=1)
+    sr, ends_r = sleeve("sleeve_R", ARM_R, seed=2)
+    # 3. the cape falls over the coat and the sleeve tops to the elbows
+    cp = cape([c, sl, sr])
     # 4. hood over the head and the cape
-    hd = drape.simulate(hood(), [head, cp], hood_pin, frames=60, tension=25, bending=2.0)
-    _remove(arm_l, arm_r, head)
-    # hidden under the cape and coat: the sleeve tops, and the legs and hips (the trunk stays: it fills the
-    # coat's armholes)
-    for ob in (sl, sr):
-        _cull(ob, lambda co: co.z > 1.27)
-    _cull(trousers, lambda co: 0.5 < co.z < 1.15)
-    for ob, t, lv in ((c, 0.007, 0), (sl, 0.005, 1), (sr, 0.005, 1), (cp, 0.007, 0), (hd, 0.006, 1)):
+    hd = drape.simulate(hood(), [head, cp], hood_pin, frames=60, tension=25, bending=6.0)
+    _remove(head)
+    _cull(trousers, lambda co: co.z < 1.15)  # the trunk stays: it fills the coat's armholes
+    legs = [trouser_leg(s) for s in (-1, 1)]
+    # turned edges on the single sheets before they are given thickness: hems turned up inside, the hood's face
+    # edge rolled back over its outside
+    Z = Vector((0, 0, 1))
+
+    def hem(cx, cy, a, b):
+        def out(co):
+            h = Vector((co.x - cx, co.y - cy, 0))
+            return h.normalized() if h.length > 1e-6 else Vector((1, 0, 0))
+        return [lambda co: out(co) * a - Z * 0.002, lambda co: -out(co) * (a + 0.004) + Z * b]
+    front = coat_front(c)
+    turn_edge(c, lambda co: co.z < 0.6, hem(0, 0, 0.006, 0.03))
+    turn_edge(cp, lambda co: co.z < 1.40, hem(0, 0, 0.005, 0.02))
+    for s, lg in zip((-1, 1), legs):
+        turn_edge(lg, lambda co: co.z < 0.2, hem(0.10 * s, 0.0, 0.004, 0.02))
+
+    def head_out(co):
+        return (co - HEAD_C).normalized()
+    turn_edge(hd, lambda co: co.z > 1.45 and co.y < HEAD_C.y + 0.02,
+              [lambda co: head_out(co) * 0.006 + Vector((0, 0.003, 0)),
+               lambda co: head_out(co) * 0.002 + Vector((0, 0.012, 0))])
+    for ob, t, lv in ((c, 0.007, 0), (sl, 0.006, 0), (sr, 0.006, 0), (cp, 0.007, 0), (hd, 0.010, 0)):
         finish_cloth(ob, t, MAT_CLOTH, lv)
+    for lg in legs:
+        finish_cloth(lg, 0.005, MAT_CLOTH, 0)
     rx, ry = _lerp_table(COAT_T, WAIST)
     belt = [Vector((rx * 1.06 * math.cos(2 * math.pi * k / 64), ry * 1.08 * math.sin(2 * math.pi * k / 64), WAIST))
             for k in range(64)]
-    parts = [trousers, c, sl, cp, loop_tube("belt", belt, 0.016, MAT_LEATHER, 10)]
+    parts = [trousers, c, sl, cp, loop_tube("belt", belt, 0.016, MAT_LEATHER, 10)] + legs + front
     buckle = kit.torus("buckle", 0.026, 0.006, 24, 8, mat="brass")
     parts.append(bake(buckle, frame((0, -ry * 1.08 - 0.012, WAIST), (0, -1, 0))))
     parts.extend(left_hand())
