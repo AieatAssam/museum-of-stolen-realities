@@ -392,6 +392,9 @@ func _pit() -> void:
 	_multi("loft_wall", frame)
 	_hide_mesh("Gantry")
 	_put("wind_chest", Vector3(-22, -4, -17))
+	# warm fills on the organ case's two pipe flats (west and front), so it reads as gilt and tin, not a block
+	_omni(Vector3(-28.5, -0.5, -17.0), Color("ffd6a6"), 2.2, 6.0)
+	_omni(Vector3(-20.5, -0.5, -12.0), Color("ffd6a6"), 1.6, 5.5)
 	_hide_mesh("PitRamp")
 	_swap(_put("stair_pit", Vector3(-21.5, -3.13, -10), 90.0), {"marble_ivory": "boards", "marble_teal": "ebony"})
 	# the band's chairs and stands, left as they stood; a cello down on its side
