@@ -250,15 +250,6 @@ def arm_path(s):
     return [S, S.lerp(E, 0.5), E, E.lerp(W, 0.5), W]
 
 
-def arm_collider(s):
-    P = arm_path(s)
-    pts = []
-    for a, b in zip(P, P[1:]):
-        pts += [a.lerp(b, t / 4) for t in range(4)]
-    pts.append(P[-1])
-    return sweep("coll_arm", pts, [0.06 - 0.02 * i / (len(pts) - 1) for i in range(len(pts))], 12, ROBE_M)
-
-
 def _lerp_table(T, z):
     for (z0, *a), (z1, *b) in zip(T, T[1:]):
         if z1 <= z <= z0:
@@ -283,9 +274,14 @@ def rings_from(T, z0, z1, step, ns, noise=None):
 
 ROBE_T = [(2.0, 0.065, 0.06), (1.96, 0.12, 0.09), (1.92, 0.21, 0.12), (1.86, 0.245, 0.135), (1.75, 0.235, 0.15),
           (1.62, 0.22, 0.155), (BELT, 0.19, 0.15), (1.30, 0.27, 0.22), (0.90, 0.35, 0.29), (0.02, 0.45, 0.39)]
-# a yoke fitted over the shoulders (held), then a skirt falling over the tops of the arms
-MANTLE_T = [(2.0, 0.075, 0.068), (1.97, 0.15, 0.11), (1.93, 0.25, 0.15), (1.89, 0.30, 0.17), (1.84, 0.32, 0.19),
-            (1.70, 0.34, 0.22), (1.56, 0.35, 0.24)]
+# the mantle's fitted collar; below it the cloth lies over the robe and sleeves (drape.envelope)
+MANTLE_COLLAR = [(2.0, 0.075, 0.068), (1.97, 0.14, 0.105), (1.95, 0.18, 0.125)]
+
+
+def mantle_hem(u):
+    """The mantle falls in a curve: short over the arms, dipping low at the breast and between the shoulder
+    blades."""
+    return 1.67 - 0.14 * abs(math.sin(u)) ** 1.5 + 0.006 * math.sin(7 * u + 1.1)
 
 
 def robe():
@@ -374,7 +370,6 @@ def finish_cloth(ob, thick, mat, levels=0):
 def build(args):
     bodyc = body()
     floor = kit.box("coll_floor", (3, 3, 0.02), (0, 0, -0.01))
-    arms_c = {s: arm_collider(s) for s in (1, -1)}
     head_c = mask()
     # 1. robe to the floor, held at the shoulders and the belt
     rb = drape.simulate(robe(), [bodyc, floor], lambda co: 1.0 if co.z > 1.84 or abs(co.z - BELT) < 0.02 else 0.0,
@@ -386,13 +381,12 @@ def build(args):
         sleeves[s] = drape.simulate(ob, [], pin, frames=60, tension=10, bending=0.5,
                                     self_collision=False)
     # 3. mantle over robe and sleeves
-    mt = drape.simulate(drape.grid_tube("mantle", rings_from(MANTLE_T, 2.0, 1.56, 0.014, 112)),
-                        [bodyc, rb, arms_c[1], arms_c[-1]],
-                        lambda co: 1.0 if co.z > 1.87 else 0.0, frames=80, tension=15, bending=0.8)
+    mt = drape.envelope("mantle", [rb, sleeves[1], sleeves[-1]], MANTLE_COLLAR, mantle_hem, gap=0.016, fold=0.018,
+                        hang=0.8, shoulder=0.1)
     # 4. veil over the head, settling on the mask and the mantle collar
     vl = drape.simulate(veil(), [head_c, mt, bodyc], lambda co: 1.0 if co.z > HEADC.z + 0.15 else 0.0,
                         frames=70, tension=20, bending=0.6)
-    for o in [bodyc, floor, head_c] + list(arms_c.values()):
+    for o in [bodyc, floor, head_c]:
         bpy.data.objects.remove(o, do_unlink=True)
     finish_cloth(rb, 0.008, ROBE_M)
     finish_cloth(mt, 0.008, MANTLE_M)
