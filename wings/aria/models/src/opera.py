@@ -1219,6 +1219,44 @@ def rigging():
     kit.join("rigging", P)
 
 
+def loft_wall():
+    """A 4 m bay of the fly tower's wall behind the rigging (origin on the wall face at loft floor level, front
+    -Y): oak framing over the ebony boarding, posts shared with the next bay at x = +-2, girts and a head plate,
+    a cross-braced middle panel, knee braces and strapped iron joints. Shallow (8-12 cm) so the lines hang
+    clear in front; the ropes (x -1.8..1.8) fall between the posts."""
+    W, H = 4.0, 11.2
+    P = []
+    for sx in (-1, 1):  # half posts: two bays make one 0.3 m post
+        P.append(kit.box("post", (0.15, 0.12, H), (sx * (W / 2 - 0.075), -0.06, H / 2), mat="boards", bevel=0.015))
+    for z in (0.0, 4.0, 8.0, H - 0.25):  # sill, girts, head plate
+        P.append(kit.box("girt", (W, 0.1, 0.24), (0, -0.05, z + 0.12), mat="boards", bevel=0.015))
+    # the middle panel (4..8 m) cross-braced; the lower and upper get knee braces at the posts
+    for a, b in (((-1.85, 4.24), (1.85, 8.0)), ((1.85, 4.24), (-1.85, 8.0))):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dz)
+        br = kit.box("brace", (L, 0.07, 0.16), (0, 0, 0), mat="boards", bevel=0.01)
+        br.rotation_euler = (0, -math.atan2(dz, dx), 0)
+        br.location = ((a[0] + b[0]) / 2, -0.045, (a[1] + b[1]) / 2)
+        P.append(br)
+    for sx in (-1, 1):
+        for z0, s in ((4.0, -1), (8.24, 1), (H - 0.25, -1)):
+            k = kit.box("knee", (0.85, 0.07, 0.12), (0, 0, 0), mat="boards", bevel=0.01)
+            k.rotation_euler = (0, -sx * s * math.pi / 4, 0)
+            k.location = (sx * (W / 2 - 0.45), -0.045, z0 + s * 0.3)
+            P.append(k)
+    # iron straps over every post / girt joint, with bolt heads
+    for sx in (-1, 1):
+        for z in (0.12, 4.12, 8.12, H - 0.13):
+            P.append(kit.box("strap", (0.34, 0.012, 0.3), (sx * (W / 2 - 0.15), -0.126, z), mat="iron", bevel=0.004))
+            for bx in (-0.09, 0.09):
+                for bz in (-0.09, 0.09):
+                    bolt = kit.lathe("bolt", [(0.0, 0.0), (0.022, 0.0), (0.022, 0.012), (0.0, 0.02)], segments=6, mat="iron")
+                    bolt.rotation_euler = (math.pi / 2, 0, 0)
+                    bolt.location = (sx * (W / 2 - 0.15) + bx, -0.13, z + bz)
+                    P.append(bolt)
+    kit.join("loft_wall", P)
+
+
 def catwalk():
     """4 m of fly-gallery catwalk rail: iron stanchions, a timber handrail, a toe-board."""
     P = [kit.box("toe", (4.0, 0.03, 0.15), (0, 0, 0.075), mat="boards", bevel=0.005),
@@ -1420,7 +1458,7 @@ def dome_shell():
 KINDS = {k: v for k, v in globals().items() if callable(v) and k in (
     "tier_bay", "panel_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
     "glass_bowls", "fork_statue", "chandelier", "stair", "stair_pit", "balustrade", "wind_chest", "royal_box",
-    "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "catwalk", "fragment",
+    "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "loft_wall", "catwalk", "fragment",
     "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain", "dome_shell", "page")}
 
 
