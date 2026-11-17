@@ -883,7 +883,7 @@ func _build_nave() -> void:
 	for x: float in [-9.0, 9.0]:
 		for y: float in [0.0, 12.0]:
 			tri.append(Transform3D(Basis(Vector3.UP, PI), Vector3(x, y, -19.2)))
-	for z: float in [-113.5]:  # north of the ruby vestry (x -10..-15, z -90..-106)
+	for z: float in [-98.0, -113.5]:  # inside the ruby vestry (x -10..-15, z -90..-106), and past it
 		tri.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-14.3, -8.0, z)))
 	for z: float in [-86.0, -97.0, -108.0]:
 		tri.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(14.3, -8.0, z)))
