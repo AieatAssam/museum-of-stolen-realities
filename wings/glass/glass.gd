@@ -700,6 +700,33 @@ func _build_cloister() -> void:
 	if front:
 		front.position = Vector3(0, 0, -17.5)
 		geo.add_child(front)
+	# the outer walls' bays and the walk roof (cloister_*.glb, visual only): an engaged shaft, plinth and
+	# cornice between each pair of the shader's lancets (centres on multiples of 3 m), a transverse rib from
+	# each arcade pier onto its wall shaft, and a moulded kerb over the walk slabs' garth faces
+	var cbay: Array = []
+	var crib: Array = []
+	for wall: Array in [[Vector3(0, 0, 17.5), Vector3.RIGHT, PI], [Vector3(17.5, 0, 0), Vector3.BACK, -PI / 2], [Vector3(-17.5, 0, 0), Vector3.BACK, PI / 2]]:
+		var b := Basis(Vector3.UP, wall[2])
+		for k in 12:
+			var u := -16.5 + k * 3.0
+			var at: Vector3 = wall[0] + wall[1] * u
+			cbay.append(Transform3D(b, at))
+			if absf(u) < 11.0 and (wall[1] == Vector3.RIGHT or absf(u) > 5.5):
+				crib.append(Transform3D(b, at))
+	_mm("cloister_bay", cbay)
+	_mm("cloister_rib", crib)
+	var ckerb: Array = []
+	for k in 22:  # south and north rims
+		ckerb.append(Transform3D(Basis(Vector3.UP, PI), Vector3(-10.5 + k, 0, 11)))
+		ckerb.append(Transform3D(Basis.IDENTITY, Vector3(-10.5 + k, 0, -11)))
+	for k in 6:  # east and west rims, and the broken ends of those walks at |z| 5
+		for s: float in [1.0, -1.0]:
+			ckerb.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(11, 0, s * (5.5 + k))))
+			ckerb.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-11, 0, s * (5.5 + k))))
+			var end := Basis(Vector3.UP, PI if s > 0 else 0.0)
+			ckerb.append(Transform3D(end, Vector3(11.5 + k * 1.083, 0, s * 5)))
+			ckerb.append(Transform3D(end, Vector3(-11.5 - k * 1.083, 0, s * 5)))
+	_mm("cloister_kerb", ckerb)
 	# arcade around the garth: lead-framed glass piers, a glazed roof over the walks
 	var cpier := {"pier_base": [], "pier_shaft": [], "pier_capital": []}
 	var carch: Array = []
