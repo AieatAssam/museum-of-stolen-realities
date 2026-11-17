@@ -1118,6 +1118,7 @@ func _build_passage_and_tower() -> void:
 	_block(Vector3(-28.5, -8, -30.5), Vector3(-19.4, -5, -30), "glazed_tower")
 	_block(Vector3(-28.5, 19, -30.5), Vector3(-15.5, 19.4, -17.5), "glass_quarry", false)
 	_block(Vector3(-28.5, 16, -30.5), Vector3(-21.5, 19, -30), "glass_wall")
+	_tower_masonry()
 	var y := -8.0
 	for leg in 10:
 		var west := leg % 2 == 0
@@ -1142,6 +1143,36 @@ func _build_passage_and_tower() -> void:
 	pts["tower_in"] = Vector3(-17.5, -8, -28.5)
 	pts["tower_top"] = Vector3(-17.5, 16, -26)
 	_lancet("tower_w", Vector3(-27.95, 8, -24), 2.0, Vector3(1, 0, 0), "story_8", 0.0, Vector3(-21, -2, -24), 6.0)
+
+
+## The tower shaft's masonry over the glazed walls, full height: a clustered pier between every pair of
+## lancets, a sill course under the lower tier, a deep band of blind lancets between the tiers and a
+## corbelled cornice under the roof. Visual only (the glazed boxes keep their colliders). Courses skip the
+## passage door (south wall, x > -19.4, below -5) and the roof exit (south wall, x > -21.5, above 16).
+func _tower_masonry() -> void:
+	var parts := {"tower_pier": [], "tower_sill": [], "tower_band": [], "tower_cornice": []}
+	# [face basis, point on the face at the shaft floor, course centres along the wall, pier centres]
+	var n := Basis(Vector3.UP, PI)
+	var s := Basis.IDENTITY
+	var w := Basis(Vector3.UP, PI / 2)
+	var e := Basis(Vector3.UP, -PI / 2)
+	for wall: Array in [[n, "x", -18.0, [-26.0, -22.0, -18.0], [-26.0, -22.0, -18.0]],
+			[s, "x", -30.0, [-26.0, -22.0, -18.0], [-26.0, -22.0]],
+			[w, "z", -28.0, [-28.0, -24.0, -20.0], [-26.0, -22.0]],
+			[e, "z", -16.0, [-28.0, -24.0, -20.0], [-26.0, -22.0]]]:
+		var at := func(c: float) -> Vector3:
+			return Vector3(c, -8.0, wall[2]) if wall[1] == "x" else Vector3(wall[2], -8.0, c)
+		for c: float in wall[3]:
+			var south: bool = wall[0] == s
+			if not (south and c > -20.0):
+				parts["tower_sill"].append(Transform3D(wall[0], at.call(c)))
+			parts["tower_band"].append(Transform3D(wall[0], at.call(c)))
+			if not (south and c > -24.0):
+				parts["tower_cornice"].append(Transform3D(wall[0], at.call(c)))
+		for c: float in wall[4]:
+			parts["tower_pier"].append(Transform3D(wall[0], at.call(c)))
+	for k: String in parts:
+		_mm(k, parts[k])
 
 
 # --- ROOF ---------------------------------------------------------------------------------------
