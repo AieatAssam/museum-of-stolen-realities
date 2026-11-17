@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../../.."
 SRC=wings/noir/models/src
 OUT=wings/noir/models
 ALL=(
-  city:facade_a city:facade_b city:facade_c city:facade_low city:back_door city:fire_escape city:diner_front city:diner_end city:neon_eat
+  city:facade_a city:facade_b city:facade_c city:facade_low city:back_door city:fire_escape city:diner_front city:diner_end city:alley_return city:neon_eat
   city:trash_can city:crate city:manhole city:hydrant city:bench city:shopfront city:curb city:lamp_bracket
   city:newsstand city:crate_stack
   el:el_bent el:el_span el:el_car el:water_tower el:chimney el:roof_vent el:roof_hatch el:parapet el:skyline_block

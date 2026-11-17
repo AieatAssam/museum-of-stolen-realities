@@ -279,6 +279,19 @@ func _stroke(area: String, id: String, p: Array, c: String, w: float = 2.0, extr
 	return canvas.add(Stroke.make(id, p, c, w, extra), _area(area))
 
 
+## Dresses a two-point upright stroke as a painted figure study (a 3.2 x 5 m model stretched over it).
+## The model hangs under the stroke's own visual, whose mesh it replaces, so scraping, the reveal's
+## rise and the collider all stay the stroke's.
+func _study(st: Node3D, model: String) -> void:
+	var a: Vector3 = st.pts[0]
+	var d: Vector3 = st.pts[1] - a
+	var x := d.normalized()
+	var fm := Art.model(model)
+	fm.transform = Transform3D(Basis(x * d.length() / 3.2, Vector3.UP * st.width / 5.0, x.cross(Vector3.UP)), a + d * 0.5)
+	st.visual.mesh = null
+	st.visual.add_child(fm)
+
+
 func _checkpoint(area: String, id: String, pos: Vector3, face: Vector3, radius: float = 3.0) -> Checkpoint:
 	var c := Checkpoint.new()
 	c.name = "Checkpoint_" + id
@@ -872,8 +885,8 @@ func _build_corrections() -> void:
 	# half-scraped figures: scrape one and the earlier pose comes back
 	for i in 3:
 		var x := -22.0 + i * 7.0
-		_stroke(A, "figure_%d" % i, [Vector3(x, 0, -296), Vector3(x + 2.5, 0, -298)], "umber", 5.0, {"up": true, "t": 0.5, "under": ["figure_%d_early" % i]})
-		_stroke(A, "figure_%d_early" % i, [Vector3(x - 1, 0, -299), Vector3(x + 1.5, 0, -296)], "white", 4.0, {"up": true, "t": 0.5, "hidden": true})
+		_study(_stroke(A, "figure_%d" % i, [Vector3(x, 0, -296), Vector3(x + 2.5, 0, -298)], "umber", 5.0, {"up": true, "t": 0.5, "under": ["figure_%d_early" % i]}), "study_%d" % i)
+		_study(_stroke(A, "figure_%d_early" % i, [Vector3(x - 1, 0, -299), Vector3(x + 1.5, 0, -296)], "white", 4.0, {"up": true, "t": 0.5, "hidden": true}), "study_e")
 	# the hand: its earlier pose is a ramp to a ledge (Provenance: the ferrule)
 	_stroke(A, "figure_hand", [Vector3(13, 0, -287), Vector3(19, 0, -287)], "umber", 6.0, {"up": true, "t": 0.6, "under": ["figure_hand_early"]})
 	_stroke(A, "figure_hand_early", [Vector3(12, 0.25, -290), Vector3(24, 3.25, -299)], "blue", 2.0, {"hidden": true})
@@ -1158,6 +1171,16 @@ func _build_edge() -> void:
 	var gf := _model(M, "frame", Vector3(-261.6, -7, -200), PI * 0.5)
 	gf.name = "GreatFrame"
 	gf.scale = Vector3(400.0 / 13.0, 174.0 / 13.0, 6.0)
+	# 300 m off across the country the scene fog washed the gilt to a pale colonnade: it carries a light,
+	# warm aerial haze of its own instead, so it still reads as a gold frame round the world
+	for mi: MeshInstance3D in gf.find_children("*", "MeshInstance3D", true, false):
+		var src := mi.get_active_material(0) as ShaderMaterial
+		if src:
+			var m := src.duplicate() as ShaderMaterial
+			m.shader = _far_shader
+			m.set_shader_parameter(&"aerial", 0.35)
+			m.set_shader_parameter(&"haze", Color(0.86, 0.72, 0.56))
+			mi.material_override = m
 	_ground(M, "Ledge", -264, -170, -271, -187, 21.6, "frame")
 	_build_gallery(M)
 	_zone(M, Vector3(-264, 20, -170), Vector3(-271, 26, -187), _reveal_hall)

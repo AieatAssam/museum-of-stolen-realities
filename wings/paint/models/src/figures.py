@@ -428,8 +428,100 @@ def B_fragment():
     return P.finish()
 
 
+# --- 8. study: a Corrections figure, 3.2 m along X by 5 m tall, 0.4 m deep, origin at the base --
+# A standing figure laid in thick paint, rows of knife strokes filling the silhouette. "study_N" is the
+# umber figure with diagonal knife scrapes through it down to the primed ground; "study_eN" is the pale
+# earlier pose, whole. Godot stretches it over the upright stroke's collider (visual only).
+
+def _study_hw(z):
+    """Half-width of the robed body at height z (robe flaring to the hem, waist, shoulders)."""
+    if z < 2.4:
+        return 1.5 - 0.72 * (z / 2.4) ** 0.8
+    if z < 3.75:
+        return 0.78 + 0.27 * (z - 2.4) / 1.35
+    return 1.05 - 1.6 * (z - 3.75)
+
+
+_STUDY_ARMS = (  # per pose: (shoulder, elbow, hand) for the left (-X) and right (+X) arm
+    (((-0.95, 3.7), (-1.3, 2.9), (-1.25, 2.15)), ((0.95, 3.7), (1.3, 2.9), (1.25, 2.15))),     # arms down
+    (((-0.95, 3.7), (-1.5, 3.0), (-0.75, 2.55)), ((0.95, 3.7), (1.35, 4.35), (1.05, 4.95))),   # hand raised
+    (((-0.95, 3.7), (-1.5, 3.55), (-1.55, 2.85)), ((0.95, 3.7), (1.5, 3.55), (1.55, 2.85))),   # arms open
+)
+
+
+def B_study(pose=0, early=False):
+    P = Paint("study_e" if early else "study")
+    body, light = ("p_plaster", "p_canvas") if early else ("p_bark", "p_hair")
+    D = -0.2  # front face of the paint (-Y)
+
+    def scraped(x, z):
+        if early or z < 0.5 or z > 3.6:
+            return False
+        q = (x * 0.62 + z * 0.9) / 0.95 + 0.37 * pose
+        return q - math.floor(q) < 0.24 + 0.1 * math.sin(3.1 * x + 1.7 * z + pose)
+
+    # body rows, broken where the knife has scraped through
+    z = 0.12
+    while z < 3.9:
+        hw = _study_hw(z) * (1.0 + 0.04 * math.sin(7.0 * z + pose))
+        xs = _ls(-hw, hw, max(4, int(2 * hw / 0.08)))
+        runs, cur = [], []
+        for x in xs:
+            if scraped(x, z):
+                if len(cur) > 2:
+                    runs.append(cur)
+                cur = []
+            else:
+                cur.append(x)
+        if len(cur) > 2:
+            runs.append(cur)
+        for k, r in enumerate(runs):
+            n = max(3, int((r[-1] - r[0]) / 0.25) + 2)
+            pts = [(x, D * 0.15 + 0.02 * math.sin(3 * x + z), z + 0.03 * math.sin(2.1 * x + 5 * z))
+                   for x in _ls(r[0], r[-1], n)]
+            mat = light if (int(z * 5) + k + pose) % 5 == 0 else body
+            P.ribbon(pts, mat, (0, -1, 0), taper(0.15, 0.15), taper(0.18, 0.25))
+        z += 0.19
+    if not early:  # the primed ground the scrapes lay bare, set back inside the silhouette
+        z = 0.5
+        while z < 3.7:
+            hw = _study_hw(z) * 0.94
+            P.ribbon(_lerp((-hw, 0.0, z), (hw, 0.0, z), max(3, int(2 * hw / 0.3) + 2)), "p_canvas", (0, -1, 0),
+                     taper(0.13, 0.12), taper(0.08, 0.2))
+            z += 0.22
+        for k in range(5):  # knife drags: pale streaks pulled diagonally down out of the scrapes
+            x0 = -1.0 + 0.5 * k + 0.13 * pose
+            P.ribbon(_lerp((x0, D * 0.6, 3.3 - 0.25 * k), (x0 - 0.75, D * 0.6, 1.1 - 0.15 * k), 7), "p_canvas",
+                     (0, -1, 0), taper(0.05, 0.3), taper(0.03, 0.3))
+
+    # neck and head (a lit face on the front, hair over the crown)
+    P.ribbon(_lerp((0.0, 0.0, 3.75), (0.0, 0.0, 4.15), 4), body, (0, -1, 0), taper(0.22, 0.2), taper(0.16, 0.2))
+    for j in range(5):
+        hz = 4.18 + 0.17 * j
+        hw = 0.44 * math.sqrt(max(0.05, 1 - ((hz - 4.52) / 0.42) ** 2))
+        P.ribbon(_lerp((-hw, 0.0, hz), (hw, 0.0, hz), 4), body, (0, -1, 0), taper(0.12, 0.2), taper(0.2, 0.3))
+    P.ribbon(_lerp((-0.03, D * 1.2, 4.7), (0.04, D * 1.2, 4.22), 5), "p_skin", (0, -1, 0),
+             taper(0.26, 0.5), taper(0.07, 0.5))
+    P.ribbon([(0.44 * math.cos(a), D * 0.4, 4.52 + 0.44 * math.sin(a)) for a in _ls(0.15, PI - 0.15, 7)],
+             light, (0, -1, 0), taper(0.12, 0.3), taper(0.14, 0.3))
+
+    # arms and hands
+    for arm in _STUDY_ARMS[pose % 3]:
+        pts = _poly([(arm[0][0], D * 0.3, arm[0][1]), (arm[1][0], D * 0.3, arm[1][1]),
+                     (arm[2][0], D * 0.3, arm[2][1])], 5)
+        P.ribbon(pts, body, (0, -1, 0), taper(0.17, 0.15), taper(0.15, 0.2))
+        hx, hz = arm[2]
+        P.ribbon(_lerp((hx, D * 0.5, hz + 0.12), (hx, D * 0.5, hz - 0.14), 4), "p_skin", (0, -1, 0),
+                 taper(0.11, 0.4), taper(0.08, 0.4))
+
+    P.settle("base")
+    return P.finish()
+
+
 BUILDERS = {"figure": B_figure, "hand": B_hand, "knife": B_knife, "swatch": B_swatch,
-            "stub": B_stub, "ferrule": B_ferrule, "fragment": B_fragment}
+            "stub": B_stub, "ferrule": B_ferrule, "fragment": B_fragment,
+            "study_0": lambda: B_study(0), "study_1": lambda: B_study(1), "study_2": lambda: B_study(2),
+            "study_e": lambda: B_study(1, True)}
 
 
 def build(args):

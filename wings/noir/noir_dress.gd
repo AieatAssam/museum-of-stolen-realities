@@ -509,6 +509,8 @@ func _street() -> void:
 	(glass.mesh as BoxMesh).size.z = 26.6
 	glass.position.z = -34.7
 	model(self, "diner_end", Vector3(4.0, 0, -21.2), -90.0)
+	# the metre between the alley's last bay (z -20) and the pier was open onto the fogged void: a brick return closes it
+	model(self, "alley_return", Vector3(4.02, 0, -20.5), -90.0)
 	mass(Vector3(4.9, 1.0, -48.5), Vector3(4.95, 3.6, -21.3), "diner_glow")
 	var sil: MeshInstance3D = wing.get("_silhouette")
 	sil.mesh = mesh_of("figure_b")

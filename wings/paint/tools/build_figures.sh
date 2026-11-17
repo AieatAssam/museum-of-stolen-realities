@@ -9,7 +9,7 @@ LOG=${TMPDIR:-/tmp}/paint_figures
 mkdir -p "$LOG"
 # out-name : builder args
 ALL=(
-  "figure:figure" "hand:hand" "knife:knife" "swatch:swatch" "stub:stub" "ferrule:ferrule" "fragment:fragment"
+  "figure:figure" "hand:hand" "knife:knife" "swatch:swatch" "stub:stub" "ferrule:ferrule" "fragment:fragment" "study_0:study_0" "study_1:study_1" "study_2:study_2" "study_e:study_e"
 )
 want=" $* "
 fail=0
