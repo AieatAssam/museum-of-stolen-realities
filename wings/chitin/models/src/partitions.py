@@ -846,9 +846,10 @@ def _build_backdrop():
         y_top = _bd_top(s) - 0.6
         off = _bd_front(s, y_top, L) + 0.05
         centre = (x + nx * off, y_top - dl / 2.0, z + nz * off)
-        bmesh.ops.create_cone(bd, cap_ends=True, cap_tris=False, segments=6, radius1=0.08, radius2=0.22,
+        bmesh.ops.create_cone(bd, cap_ends=True, cap_tris=False, segments=16, radius1=0.08, radius2=0.22,
                               depth=dl, matrix=Matrix.Translation(rooms._blender(centre)))
-
+    for f in bd.faces:
+        f.smooth = len(f.verts) == 4  # honey is round; the caps stay flat
     # self-check on final positions (Godot coordinates)
     allg = shell_g + cell_g
     for g in allg:

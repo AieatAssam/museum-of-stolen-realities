@@ -35,11 +35,11 @@ def build(args):
             r, z = prof(i / 16)
             r -= 0.25
             rib.append((math.cos(a) * r, math.sin(a) * r, z - 0.1))
-        parts.append(orn.taper("rib%d" % k, rib, [0.45 - 0.25 * i / 16 for i in range(17)], 6, "gilt", flat=0.6))
+        parts.append(orn.taper("rib%d" % k, rib, [0.45 - 0.25 * i / 16 for i in range(17)], 12, "gilt", flat=0.6))
     for j, t in enumerate((0.22, 0.45, 0.66, 0.84)):
         r, z = prof(t)
-        parts.append(kit.torus("ring%d" % j, r - 0.2, 0.16, 96, 6, mat="gilt", loc=(0, 0, z - 0.15)))
-    parts.append(kit.torus("oculus", RO, 0.45, 64, 10, mat="gilt", loc=(0, 0, ZT)))
+        parts.append(kit.torus("ring%d" % j, r - 0.2, 0.16, 96, 12, mat="gilt", loc=(0, 0, z - 0.15)))
+    parts.append(kit.torus("oculus", RO, 0.45, 96, 16, mat="gilt", loc=(0, 0, ZT)))
     kit.join("dome", parts)
     sky = kit.lathe("sky", [(0.0, ZT + 3.0), (RO + 1.0, ZT + 3.0)], 32, mat="oculus_sky", cap=False)
     bm = bmesh.new()

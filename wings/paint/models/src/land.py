@@ -710,6 +710,88 @@ def stretcher_deck(P):
 # --- dispatch -----------------------------------------------------------------------------------
 
 # key: (object name, Parts seed, builder, recalc normals)
+# --- painted land under the test course ------------------------------------------------------------
+
+def _land_h(x, y):
+    """Rolling painted ground: a shallow valley along Y under the course, swelling into low hills either side."""
+    v = abs(x) / 120.0
+    return (14.0 * v * v + 3.5 * math.sin(x * 0.045 + 1.3) * math.cos(y * 0.031)
+            + 1.4 * math.sin(y * 0.06 + x * 0.02))
+
+
+def course_land(P):
+    """The country seen from a stroke 30 m up: a rolling ground sheet laid over with fields of thick impasto
+    furrows (parallel knife-ridges, each field its own colour and direction), a winding blue stream down the
+    valley, hedgerow ridges between fields and dark daubs of bushes. 260 x 320 m, origin at the centre, top
+    of the ground near z = 0. Built through Blender MCP (tools/blender/live.py)."""
+    rng = P.rng
+    W, D = 260.0, 320.0
+    # ground sheet (no sky through the gaps), gently noised
+    nx, ny = 26, 32
+    cos, faces = [], []
+    for j in range(ny + 1):
+        for i in range(nx + 1):
+            x, y = -W / 2 + W * i / nx, -D / 2 + D * j / ny
+            cos.append(Vector((x, y, _land_h(x, y) - 0.6 + rng.uniform(-0.3, 0.3))))
+    for j in range(ny):
+        for i in range(nx):
+            a = j * (nx + 1) + i
+            faces.append((a, a + 1, a + nx + 2, a + nx + 1))
+    P.add("p_leaf", cos, faces)
+    # fields: a jittered grid of patches, each ploughed with parallel ridges in one direction
+    cols = ["p_leaf", "p_leaf_light", "p_yellow", "p_leaf_light", "p_yellow", "p_violet", "p_leaf"]
+    fw, fd = 32.0, 36.0
+    for gj in range(int(D / fd)):
+        for gi in range(8):  # four fields each side of the valley floor (|x| < 10 carries the stream)
+            side = -1 if gi < 4 else 1
+            cx = side * (10 + fw * (gi % 4 + 0.5)) + rng.uniform(-2, 2)
+            cy = -D / 2 + fd * (gj + 0.5) + rng.uniform(-3, 3)
+            mat = rng.choice(cols)
+            ang = rng.uniform(-0.25, 0.25) + (math.pi / 2 if rng.random() < 0.5 else 0.0)
+            d = Vector((math.cos(ang), math.sin(ang), 0))
+            n = Vector((-d.y, d.x, 0))
+            along_x = abs(d.x) > abs(d.y)
+            L = (fw if along_x else fd) * 1.05  # fields meet: the cell is filled edge to edge
+            span = (fd if along_x else fw) * 0.98
+            rows = rng.randint(4, 5)
+            bow = rng.uniform(-3.0, 3.0)
+            for r in range(rows):
+                off = -span / 2 + span * (r + 0.5) / rows
+                pts = []
+                for k in range(6):
+                    t = k / 5
+                    q = Vector((cx, cy, 0)) + d * (L * (t - 0.5)) + n * (off + bow * math.sin(math.pi * t))
+                    q.z = _land_h(q.x, q.y) + 0.5
+                    pts.append(q)
+                w = span / rows * rng.uniform(1.15, 1.35)
+                stroke(P, mat, pts, [w * f for f in (0.55, 0.95, 1.0, 1.0, 0.95, 0.6)], sides=6, thick=0.3, ref=Z,
+                       jit=0.35, jit_z=False)
+            # hedgerow ridge along one side of the field
+            if rng.random() < 0.6:
+                e = Vector((cx, cy, 0)) + n * (span / 2 + 1.5)
+                pts = []
+                for k in range(6):
+                    q = e + d * (L * (k / 5 - 0.5))
+                    q.z = _land_h(q.x, q.y) + 0.9
+                    pts.append(q)
+                stroke(P, "p_bark" if rng.random() < 0.3 else "p_leaf", pts, taper(3.2, 6), sides=6, thick=0.7, ref=Z,
+                       jit=0.4)
+    # the stream: a few overlapping blue strokes winding down the valley floor
+    for lane in (-1.2, 1.2):
+        pts = []
+        for k in range(16):
+            y = -D / 2 + D * k / 15
+            x = 7.0 * math.sin(y * 0.022 + 0.6) + lane
+            pts.append(Vector((x, y, _land_h(x, y) + 0.15)))
+        stroke(P, "p_blue", pts, [8.0] * 16, sides=6, thick=0.12, ref=Z, jit=0.4, jit_z=False)
+    # bushes: dark lumpy daubs along the valley sides and in field corners
+    for _ in range(36):
+        x = rng.choice((-1, 1)) * rng.uniform(16, W / 2 - 6)
+        y = rng.uniform(-D / 2 + 6, D / 2 - 6)
+        r = rng.uniform(2.0, 4.0)
+        blob(P, rng.choice(("p_leaf", "p_violet")), Vector((x, y, _land_h(x, y) + r * 0.4)), (r, r, r * 0.6), rng)
+
+
 MODELS = {
     "orchard_tree_a": ("orchard_tree_a", 131, lambda P: orchard(P, "a", False), True),
     "orchard_tree_a_lod": ("orchard_tree_a_lod", 131, lambda P: orchard(P, "a", True), True),
@@ -728,6 +810,7 @@ MODELS = {
     "bank": ("bank", 727, bank, False),
     "torn_mass": ("torn_mass", 811, torn_mass, True),
     "stretcher_deck": ("stretcher_deck", 821, stretcher_deck, True),
+    "course_land": ("course_land", 907, course_land, True),
 }
 
 

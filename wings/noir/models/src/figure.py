@@ -36,11 +36,11 @@ def _box(name, size, p, mat, rot=(0, 0, 0), bevel=0.0):
     return _put(kit.box(name, size, mat=mat, bevel=bevel), _M(p, rot))
 
 
-def _lathe(name, prof, mat, p=(0, 0, 0), s=(1, 1, 1), rot=(0, 0, 0), segs=16):
+def _lathe(name, prof, mat, p=(0, 0, 0), s=(1, 1, 1), rot=(0, 0, 0), segs=24):
     return _put(kit.lathe(name, prof, segs, mat=mat), _M(p, rot, s))
 
 
-def _lathe_w(name, prof, mat, p=(0, 0, 0), s=(1, 1, 1), segs=16, warp=None, vent=None):
+def _lathe_w(name, prof, mat, p=(0, 0, 0), s=(1, 1, 1), segs=24, warp=None, vent=None):
     """Lathe with optional per-vertex warp(q, angle) on local coords and a vent(world centre) face cut."""
     bm = bmesh.new()
     rings = []

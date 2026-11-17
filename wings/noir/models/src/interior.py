@@ -279,7 +279,7 @@ def pilaster():
         p.append(B("flute", (0.06, 0.04, 4.8), (-0.18 + k * 0.12, -0.01, 3.0), "plaster_dark" if False else "stone"))
     p.append(B("base", (0.8, 0.35, 0.4), (0, 0.1, 0.2), "plaster", bevel=0.03))
     p.append(B("capital", (0.85, 0.4, 0.5), (0, 0.08, 5.75), "gilt", bevel=0.04))
-    p.append(kit.lathe("sconce", [(0.0, 0.0), (0.12, 0.0), (0.22, 0.25), (0.0, 0.25)], 6, mat="window_lit"))
+    p.append(kit.lathe("sconce", [(0.0, 0.0), (0.12, 0.0), (0.22, 0.25), (0.0, 0.25)], 24, mat="window_lit"))
     p[-1].location = (0, -0.18, 3.6)
     kit.join("pilaster", p)
 
