@@ -85,8 +85,53 @@ def kerb():
     # path along X; section u points out over the garth (-Y), v is up
     k = sweep("kerb", sec, [(-0.5, 0.0), (0.5, 0.0)], "lead", place=lambda h, y, v: (h, y - 0.001, v),
               smooth=40.0)
-    kit.join("cloister_kerb", [k])
+    # under the slab: a brass bead, then a corbel table hanging over the garth (one ogee corbel per metre)
+    bead = sweep("bead", [(u, v) for u, v in roll(0.035, 8, 0.03, -1.02)], [(-0.5, 0.0), (0.5, 0.0)], "brass",
+                 place=lambda h, y, v: (h, y - 0.001, v), smooth=60.0)
+    ogee = [(0.0, -1.05), (0.15, -1.05), (0.15, -1.12)] + \
+           [(0.15 - 0.07 * (1 - math.cos(a)), -1.12 - 0.12 * math.sin(a)) for a in (math.pi / 2 * j / 6 for j in range(1, 7))] + \
+           [(0.08 - 0.08 * math.sin(a), -1.24 - 0.24 * (1 - math.cos(a))) for a in (math.pi / 2 * j / 6 for j in range(1, 7))] + \
+           [(0.0, -1.48)]
+    cor = sweep("corbel", ogee, [(-0.13, 0.0), (0.13, 0.0)], "lead", place=lambda h, y, v: (h, y - 0.001, v),
+                smooth=40.0)
+    kit.join("cloister_kerb", [k, bead, cor])
+
+
+NBAY = 5.5  # glazed_nave: lancets 4.4 wide on 5.5 m bays, tiers 0.5..12.5 and 14.2..25.2
+
+
+def nave():
+    """One 5.5 m bay of nave wall, origin on the wall face at walk level (0), centred on a division between
+    two lancets; front -Y. An engaged shaft the full height on a corbelled base, a moulded string course
+    under the lower tier and a deep course with a corbel table filling the band between the tiers."""
+    def course(name, z, sec, mat):
+        return sweep(name, sec, [(-NBAY / 2, 0.0), (NBAY / 2, 0.0)], mat, place=lambda h, y, v: (h, y, z + v), smooth=40.0)
+    p = []
+    p.append(course("sill", 0.0, [(0.0, -0.3), (0.06, -0.3), (0.18, -0.12), (0.18, 0.3), (0.1, 0.42), (0.0, 0.42)], "lead"))
+    p.append(course("sill_roll", 0.44, [(u, v) for u, v in roll(0.04, 8, 0.04, 0.0)], "brass"))
+    p.append(course("band", 12.55, [(0.0, 0.0), (0.12, 0.0), (0.22, 0.12), (0.22, 0.3), (0.14, 0.38), (0.14, 1.2),
+                                    (0.26, 1.35), (0.26, 1.55), (0.0, 1.62)], "lead"))
+    p.append(course("band_roll", 12.92, [(u, v) for u, v in roll(0.05, 8, 0.16, 0.0)], "brass"))
+    p.append(course("cornice", 25.2, [(0.0, 0.0), (0.1, 0.0), (0.2, 0.1), (0.2, 0.3), (0.0, 0.3)], "lead"))
+    for x in (-2.25, -0.75, 0.75, 2.25):  # corbel table under the band's upper lip
+        c = kit.lathe("corbel", [(0.0, 13.5), (0.1, 13.5), (0.12, 13.62), (0.16, 13.75), (0.0, 13.75)], 10, mat="lead")
+        c.location = (x, -0.14, 0)
+        p.append(c)
+    r = 0.15
+    for z0, z1 in ((0.45, 12.55), (14.17, 25.2)):
+        base = kit.lathe("base", [(0.0, z0), (0.26, z0), (0.26, z0 + 0.3), (0.2, z0 + 0.38), (r, z0 + 0.5), (0.0, z0 + 0.5)], 16, mat="lead")
+        shaft = kit.lathe("shaft", [(0.0, z0 + 0.5), (r, z0 + 0.5), (r, z1 - 0.45), (0.0, z1 - 0.45)], 16, mat="brass")
+        cap = kit.lathe("capital", [(0.0, z1 - 0.45), (r + 0.03, z1 - 0.45), (r + 0.03, z1 - 0.38), (0.2, z1 - 0.15),
+                                    (0.26, z1 - 0.1), (0.26, z1), (0.0, z1)], 16, mat="lead")
+        for o in (base, shaft, cap):
+            o.location = (0, -0.17, 0)
+            p.append(o)
+        for t in (0.33, 0.66):
+            b = kit.torus("band", r + 0.014, 0.02, 16, 6, mat="brass")
+            b.location = (0, -0.17, z0 + (z1 - z0) * t)
+            p.append(b)
+    kit.join("cloister_nave", p)
 
 
 def build(args):
-    {"bay": bay, "rib": rib, "kerb": kerb}[args[0] if args else "bay"]()
+    {"bay": bay, "rib": rib, "kerb": kerb, "nave": nave}[args[0] if args else "bay"]()

@@ -1029,6 +1029,43 @@ def wind_chest():
     for k in range(3):
         b = kit.box("bellows_%d" % k, (2.0 - 0.1 * k, 0.25, 0.3), (-2.0, -D / 2 - 0.15 - 0.03 * k, 0.6 + 0.32 * k), mat="velvet", bevel=0.08)
         P.append(b)
+    # the chest as an organ case: gilt plinth and cornice all round, and on the front and west faces a flat
+    # of speaking pipes in two mitred towers, standing on a moulded impost under carved gilt pipe shades
+    ring = [(-W / 2 - 0.02, -D / 2 - 0.02), (W / 2 + 0.02, -D / 2 - 0.02), (W / 2 + 0.02, D / 2 + 0.02), (-W / 2 - 0.02, D / 2 + 0.02)]
+    P.append(sweep("plinth", [(0.0, 0.0), (0.12, 0.0), (0.12, 0.25), (0.06, 0.35), (0.0, 0.38)], [(x, y, 0.0) for x, y in ring], "gilt", closed_path=True))
+    P.append(sweep("cornice", [(0.0, 0.0), (0.05, 0.02), (0.1, 0.1), (0.18, 0.16), (0.18, 0.24), (0.0, 0.26)], [(x, y, H - 0.46) for x, y in ring], "gilt", closed_path=True))
+
+    def flat(cx, face, span, n):
+        """n pipes across `span` centred on cx along the face; face (x0, y0, ux, uy, ox, oy): a point on the
+        face, the run direction and the outward normal."""
+        x0, y0, ux, uy, ox, oy = face
+        out = 0.22
+        imp = 1.5  # impost top, where the pipe feet stand
+        q = []
+        P.append(kit.box("impost", (span + 0.3, 0.32, 0.18) if ux else (0.32, span + 0.3, 0.18),
+                         (x0 + ux * cx + ox * 0.14, y0 + uy * cx + oy * 0.14, imp - 0.09), mat="gilt", bevel=0.03))
+        for i in range(n):
+            t = i / (n - 1)
+            m = abs(t - 0.5) * 2  # 0 at the middle, 1 at the ends: tall at the ends (two towers)
+            L = 1.0 + 1.9 * m ** 1.4
+            r = 0.055 + 0.04 * m
+            u = cx - span / 2 + span * t
+            px, py = x0 + ux * u + ox * out, y0 + uy * u + oy * out
+            pipe = kit.lathe("pipe", [(0.0, imp), (0.02, imp), (r, imp + 0.32), (r, imp + 0.32 + L), (0.0, imp + 0.32 + L)], 12, mat="pipe_tin")
+            pipe.location = (px, py, 0)
+            P.append(pipe)
+            mouth = kit.box("mouth", (r * 1.2, 0.02, 0.07) if ux else (0.02, r * 1.2, 0.07),
+                            (px + ox * r, py + oy * r, imp + 0.42), mat="ebony")
+            P.append(mouth)
+            q.append((u, imp + 0.32 + L))
+        # carved shades over the pipe mouths' tops: a gilt pierced band following the pipe tops down to the middle
+        for (u0, z0), (u1, z1) in zip(q, q[1:]):
+            um, zm = (u0 + u1) / 2, max(z0, z1) + 0.12
+            P.append(kit.box("shade", (abs(u1 - u0) + 0.02, 0.06, 0.22) if ux else (0.06, abs(u1 - u0) + 0.02, 0.22),
+                             (x0 + ux * um + ox * (out + 0.12), y0 + uy * um + oy * (out + 0.12), min(zm, H - 0.6)), mat="gilt_orn", bevel=0.02))
+
+    flat(1.2, (0.0, -D / 2, 1, 0, 0, -1), 4.6, 15)
+    flat(0.0, (-W / 2, 0.0, 0, 1, -1, 0), 3.8, 13)
     kit.join("wind_chest", P)
 
 

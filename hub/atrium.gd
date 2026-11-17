@@ -725,11 +725,22 @@ func _build_docents() -> void:
 		key.light_color = Color(1.0, 0.86, 0.68)
 		key.light_energy = 9.0
 		key.spot_range = 9.0
-		key.spot_angle = 40.0  # wide enough to pool on the floor round the docent
+		key.spot_angle = 58.0  # wide enough to pool on the floor round the docent and lift the black marble
 		key.light_volumetric_fog_energy = 0.0
 		key.light_specular = 0.4
 		key.transform = _aim(Vector3(0.6, 4.6, 2.4), Vector3(0, 1.5, 0))
 		d.add_child(key)
+		# a soft warm wash up the damask behind the figure, so the docent stands against a wall, not a void
+		var wash := SpotLight3D.new()
+		wash.light_color = Color(1.0, 0.8, 0.56)
+		wash.light_energy = 12.0
+		wash.spot_range = 16.0
+		wash.spot_angle = 46.0
+		wash.spot_attenuation = 0.8
+		wash.light_volumetric_fog_energy = 0.0
+		wash.light_specular = 0.1
+		wash.transform = _aim(Vector3(0, 2.6, 1.0), Vector3(0, 12.0, -8.0))
+		d.add_child(wash)
 		_docents.append({"root": d, "head": head, "next": 4.0 + randf() * 6.0, "phase": float(i) * 1.7,
 			"arms": [d.find_child("arm_L", true, false), d.find_child("arm_R", true, false)],
 			"pencil": d.find_child("pencil", true, false)})

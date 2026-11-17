@@ -593,6 +593,9 @@ func _plaza() -> void:
 	omni(Vector3(0, 4.6, -64.8), Color(1.0, 0.9, 0.7), 1.2, 6.0)
 	facade_run_x(-6.0, 6.0, -65.6, 1.0, 6.0, ["facade_low"])
 	mass(Vector3(-6.0, 6.0, -90.0), Vector3(6.0, 13.2, -65.9), "brick_dark")
+	# hanging signs on scroll brackets over the plaza and the street
+	mm("sign_bracket", [xf(Vector3(-5.0, 3.6, -57.5), 90.0), xf(Vector3(-4.0, 3.4, -42.5), 90.0),
+		xf(Vector3(4.0, 5.4, -36.5), -90.0), xf(Vector3(-4.5, 7.0, -65.6), 0.0)])
 	for l: Node in (wing.get("_areas") as Node).get_node("DinerStreet").get_children():
 		if l is SpotLight3D and (l as Node3D).position.z < -55.0:
 			(l as SpotLight3D).light_volumetric_fog_energy = 3.0
@@ -749,6 +752,16 @@ func _precinct() -> void:
 	mass(Vector3(5.97, 0.0, -66.0), Vector3(6.02, 3.6, -59.0), "plaster")
 	mass(Vector3(5.97, 2.6, -59.0), Vector3(6.02, 3.6, -55.0), "plaster")
 	mm("wainscot", [xf(Vector3(6.02, 0, -54.0), 90.0), xf(Vector3(6.02, 0, -60.0), 90.0), xf(Vector3(6.02, 0, -62.0), 90.0), xf(Vector3(6.02, 0, -64.0), 90.0)])
+	# the plaster box dressed: a crown and picture rail round the walls, two cased beams across the ceiling
+	var cr := []
+	for x in [7.0, 9.0, 11.0]:
+		cr.append(xf(Vector3(x, 3.6, -53.0), 0.0))
+		cr.append(xf(Vector3(x, 3.6, -66.0), 180.0))
+	for z in [-54.0, -56.0, -58.0, -60.0, -62.0, -64.0, -65.0]:
+		cr.append(xf(Vector3(12.0, 3.6, z), -90.0))
+		cr.append(xf(Vector3(6.02, 3.6, z), 90.0))
+	mm("crown", cr)
+	mm("ceiling_beam", [xf(Vector3(9.0, 3.6, -55.0), 0.0, Vector3(6.0, 1, 1)), xf(Vector3(9.0, 3.6, -62.5), 0.0, Vector3(6.0, 1, 1))])
 	# the interview: a hard chair in the lamp's circle, facing the desk; the squad room's clutter
 	model(self, "chair", Vector3(9.5, 0, -56.8), -10.0)
 	mm("file_cabinet", [xf(Vector3(7.6, 0, -53.4), 0.0), xf(Vector3(8.1, 0, -53.4), 0.0)])
@@ -805,6 +818,19 @@ func _cinema() -> void:
 	mass(Vector3(-7.0, 9.2, -90.5), Vector3(7.0, 9.4, -66.0), "plaster")
 	mass(Vector3(-7.0, 6.0, -66.4), Vector3(7.0, 9.2, -66.0), "plaster")
 	mass(Vector3(-6.0, 6.0, -91.0), Vector3(6.0, 9.2, -90.4), "plaster")
+	# the house ceiling: crown round the walls, cased beams across every 4 m over the pilasters
+	var cr := []
+	for i in 12:
+		cr.append(xf(Vector3(-6.0, 9.2, -67.4 - i * 2.0), 90.0))
+		cr.append(xf(Vector3(6.0, 9.2, -67.4 - i * 2.0), -90.0))
+	for x in [-5.0, -3.0, -1.0, 1.0, 3.0, 5.0]:
+		cr.append(xf(Vector3(x, 9.2, -90.4), 0.0))
+		cr.append(xf(Vector3(x, 9.2, -66.4), 180.0))
+	mm("crown", cr)
+	var bm := []
+	for i in 6:
+		bm.append(xf(Vector3(0, 9.2, -68.0 - i * 4.0), 0.0, Vector3(12.0, 1, 1)))
+	mm("ceiling_beam", bm)
 	model(self, "pedestal_reel", Vector3(0, 0, -86.0))
 	omni(Vector3(0, 6.0, -88.5), Color(0.8, 0.85, 0.95), 2.2, 11.0)
 	omni(Vector3(0, 7.5, -72.0), Color(0.8, 0.85, 0.95), 1.6, 10.0)  # house lights at half

@@ -136,6 +136,19 @@ def landing():
     p.append(kit.sweep_closed("border", [(-0.015, 0.0), (0.015, 0.0), (0.015, 0.005), (-0.015, 0.005)], rect(1.1, 3.95, 0.0), mat="brass"))
     p.append(kit.sweep_closed("drip", [(0.0, 0.0), (0.035, -0.005), (0.035, -0.02), (0.0, -0.035)], rect(1.25, 4.1, -0.4), mat="lead"))
     p.append(prism("star", star_ring(), (0, 0, 0.005), "brass", smooth=10.0))
+    # the slab's faces dressed: a moulded lead fascia round the edge with a brass roll, and under it a
+    # ribbed soffit like the flights' (transverse ribs, two longitudinal, a boss at the crossing)
+    fascia = [(0.0, 0.0), (0.04, -0.02), (0.04, -0.12), (0.07, -0.16), (0.07, -0.3), (0.03, -0.42), (0.0, -0.44)]
+    p.append(kit.sweep_closed("fascia", fascia, rect(1.25, 4.1, 0.0), mat="lead"))
+    p.append(kit.sweep_closed("fascia_roll", [(u + 0.07, v - 0.2) for u, v in roll(0.025, 8, 0.0, 0.0)], rect(1.25, 4.1, 0.0), mat="brass"))
+    for k in range(7):
+        y = -3.6 + 1.2 * k
+        p.append(kit.box("rib", (2.4, 0.07, 0.09), (0, y, -0.44), mat="lead", bevel=0.012))
+    for x in (-0.6, 0.6):
+        p.append(kit.box("rib_long", (0.06, 8.0, 0.07), (x, 0, -0.43), mat="lead", bevel=0.01))
+    boss = kit.lathe("boss", [(0.0, 0.0), (0.1, 0.0), (0.12, -0.05), (0.07, -0.11), (0.0, -0.13)], 12, mat="brass")
+    boss.location = (0, 0, -0.44)
+    p.append(boss)
     kit.join("tower_landing", p)
 
 

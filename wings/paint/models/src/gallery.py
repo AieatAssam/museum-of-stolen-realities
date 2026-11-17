@@ -285,10 +285,36 @@ def B_pedestal():
     return out
 
 
+# --- 8. ceiling coffer --------------------------------------------------------------------------
+
+def B_coffer():
+    """One 1 x 1 m coffer of a plaster ceiling, origin at its centre on the ceiling plane, hanging down -Z.
+    Half a beam on each side (neighbours complete it), a stepped moulding into the sunk panel, a gilt bead
+    round the panel and a gilt rosette in its middle."""
+    bm = bmesh.new()
+    for s in (-1, 1):
+        for ax in (0, 1):
+            def at(u, v, z):  # u across the edge (into the coffer), v along it
+                c = s * (0.5 - u)
+                return (c, v, z) if ax == 0 else (v, c, z)
+            for (u0, u1, z0) in ((0.0, 0.07, -0.16), (0.07, 0.11, -0.11), (0.11, 0.14, -0.06)):
+                size = (u1 - u0, 1.0 - 2 * u0 if u0 else 1.0, -z0)
+                cx = at((u0 + u1) / 2, 0.0, z0 / 2)
+                _add_box(bm, size if ax == 0 else (size[1], size[0], size[2]), cx)
+    plaster = _bm_obj("coffer", bm, "r_plaster", 35.0)
+    gb = bmesh.new()
+    for s in (-1, 1):
+        _add_box(gb, (0.74, 0.018, 0.018), (0, s * 0.36, -0.05))
+        _add_box(gb, (0.018, 0.74, 0.018), (s * 0.36, 0, -0.05))
+    gilt = _bm_obj("coffer_bead", gb, "r_gilt", 35.0)
+    rose = _turn("rosette", [(0.0, 0.0), (0.09, 0.0), (0.1, -0.015), (0.07, -0.03), (0.075, -0.045), (0.03, -0.06), (0.0, -0.065)], "r_gilt", 16)
+    return [plaster, kit.join("coffer_gilt", [gilt, rose])]
+
+
 # --- dispatch -----------------------------------------------------------------------------------
 
 def build(args):
-    fns = {"bench": B_bench, "stanchion": B_stanchion, "rope": B_rope, "picture_light": B_picture_light,
+    fns = {"coffer": B_coffer, "bench": B_bench, "stanchion": B_stanchion, "rope": B_rope, "picture_light": B_picture_light,
            "cornice": B_cornice, "dado": B_dado, "skirting": B_skirting, "pedestal": B_pedestal}
     fn = fns.get(args[0]) if args else None
     if fn is None:

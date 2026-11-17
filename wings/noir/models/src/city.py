@@ -418,7 +418,22 @@ def lamp_bracket():
     kit.join("lamp_bracket", p)
 
 
+def sign_bracket():
+    """Wrought scroll bracket with a hanging framed board sign, origin on the wall, reaching 1.2 m out along -Y."""
+    p = [B("plate", (0.12, 0.04, 0.9), (0, -0.02, 0), "iron", bevel=0.01)]
+    p.append(kit.tube("arm", [(0, -0.02, 0.4), (0, -1.25, 0.4)], 0.022, 8, mat="iron"))
+    p.append(kit.tube("stay", [(0, -0.02, -0.4), (0, -0.4, -0.05), (0, -0.85, 0.3), (0, -1.0, 0.4)], 0.018, 8, mat="iron"))
+    p.append(kit.tube("scroll", [(0.0, -0.3, 0.4), (0, -0.42, 0.24), (0, -0.55, 0.22), (0, -0.62, 0.3), (0, -0.56, 0.36)], 0.012, 6, mat="iron"))
+    for y in (-0.45, -1.15):
+        p.append(kit.tube("chain", [(0, y, 0.38), (0, y, 0.22)], 0.01, 6, mat="iron"))
+    p.append(B("board", (0.05, 0.9, 0.6), (0, -0.8, -0.1), "paint", bevel=0.01))
+    p.append(kit.sweep_closed("frame", [(-0.03, -0.035), (0.0, -0.035), (0.0, 0.035), (-0.03, 0.035)],
+                              [(0, -0.35, -0.4), (0, -1.25, -0.4), (0, -1.25, 0.2), (0, -0.35, 0.2)], mat="iron"))
+    kit.join("sign_bracket", p)
+
+
 PARTS = {
+    "sign_bracket": sign_bracket,
     "facade_a": lambda: facade("a"), "facade_b": lambda: facade("b"), "facade_c": lambda: facade("c"), "facade_low": lambda: facade("low"),
     "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "neon_eat": neon_eat,
     "trash_can": trash_can, "crate": crate, "manhole": manhole, "hydrant": hydrant, "bench": bench,

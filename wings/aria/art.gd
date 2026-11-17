@@ -32,7 +32,7 @@ const LOOK := {
 	&"foyer": [5.0, 0.018, Color(0.55, 0.62, 0.6), 1.2],
 	&"auditorium": [4.2, 0.02, Color(0.5, 0.66, 0.62), 1.0],
 	&"pit": [6.0, 0.022, Color(0.45, 0.55, 0.52), 1.2],
-	&"corridor": [4.8, 0.014, Color(0.5, 0.6, 0.6), 1.2],
+	&"corridor": [4.6, 0.014, Color(0.5, 0.6, 0.6), 1.2],
 	&"flyloft": [6.0, 0.012, Color(0.55, 0.62, 0.66), 1.0],
 	&"dome": [4.2, 0.012, Color(0.55, 0.62, 0.6), 1.0],
 }
@@ -392,6 +392,9 @@ func _pit() -> void:
 	_multi("loft_wall", frame)
 	_hide_mesh("Gantry")
 	_put("wind_chest", Vector3(-22, -4, -17))
+	# warm fills on the organ case's two pipe flats (west and front), so it reads as gilt and tin, not a block
+	_omni(Vector3(-28.5, -0.5, -17.0), Color("ffd6a6"), 2.2, 6.0)
+	_omni(Vector3(-20.5, -0.5, -12.0), Color("ffd6a6"), 1.6, 5.5)
 	_hide_mesh("PitRamp")
 	_swap(_put("stair_pit", Vector3(-21.5, -3.13, -10), 90.0), {"marble_ivory": "boards", "marble_teal": "ebony"})
 	# the band's chairs and stands, left as they stood; a cello down on its side

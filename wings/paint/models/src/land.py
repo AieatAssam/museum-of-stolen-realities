@@ -792,7 +792,42 @@ def course_land(P):
         blob(P, rng.choice(("p_leaf", "p_violet")), Vector((x, y, _land_h(x, y) + r * 0.4)), (r, r, r * 0.6), rng)
 
 
+def paint_lip(P):
+    """4 m of a ground slab's edge over the void, along X; origin on the top edge, the void toward -Y, the 1 m
+    slab below z 0. The primer rolled over the edge in a thick lip that drips down the face; under it the
+    canvas wrapped down and tacked, torn into hanging tatters; the stretcher bar it is wrapped round shows
+    under the slab."""
+    rng = P.rng
+    n = 13
+    xs = [-2.05 + 4.1 * k / (n - 1) for k in range(n)]
+    lip = [Vector((x, -0.08 + rng.uniform(-0.03, 0.03), -0.04 + rng.uniform(-0.02, 0.02))) for x in xs]
+    stroke(P, "g_primed", lip, [0.5 + rng.uniform(-0.08, 0.1) for _ in xs], sides=8, thick=0.55, jit=0.01)
+    for _ in range(6):  # drips running off the lip down the face
+        x = rng.uniform(-1.85, 1.85)
+        L = rng.uniform(0.35, 1.0)
+        pts = [Vector((x + rng.uniform(-0.02, 0.02), -0.12 - 0.02 * k, -0.15 - L * k / 5)) for k in range(6)]
+        stroke(P, "g_primed", pts, [0.2 - 0.025 * k for k in range(6)], sides=6, thick=0.7, ref=Vector((0, 1, 0)), jit=0.005)
+        blob(P, "g_primed", pts[-1] + Vector((0, -0.01, -0.03)), (0.07, 0.07, 0.09), rng, detail=1, lump=0.1)
+    # canvas wrapped down the face, tacked along the top, its lower edge torn into tatters
+    box(P, "p_canvas", Vector((-2.05, -0.07, -1.05)), Vector((2.05, -0.02, -0.12)), n=4, amp=0.012)
+    for k in range(17):
+        x = -2.0 + 0.25 * k
+        blob(P, "p_steel", Vector((x, -0.08, -0.22)), (0.025, 0.02, 0.025), rng, detail=1, lump=0.05)
+    x = -1.9
+    while x < 1.9:
+        w = rng.uniform(0.18, 0.4)
+        L = rng.uniform(0.15, 0.7)
+        pts = [Vector((x + w / 2 + rng.uniform(-0.03, 0.03) * k, -0.05 - 0.03 * k, -1.0 - L * k / 4)) for k in range(5)]
+        stroke(P, "p_canvas", pts, [w * (1 - 0.2 * k) for k in range(5)], sides=4, thick=0.08, ref=Vector((0, 1, 0)), jit=0.01)
+        x += w + rng.uniform(0.02, 0.15)
+    # the stretcher bar under the slab's edge, with a corner key every other metre
+    box(P, "p_wood", Vector((-2.05, 0.02, -1.22)), Vector((2.05, 0.4, -1.0)), n=3, amp=0.008)
+    for x in (-1.0, 1.0):
+        box(P, "p_wood_dark", Vector((x - 0.08, 0.05, -1.3)), Vector((x + 0.08, 0.3, -1.22)), n=1, amp=0.006)
+
+
 MODELS = {
+    "paint_lip": ("paint_lip", 941, paint_lip, True),
     "orchard_tree_a": ("orchard_tree_a", 131, lambda P: orchard(P, "a", False), True),
     "orchard_tree_a_lod": ("orchard_tree_a_lod", 131, lambda P: orchard(P, "a", True), True),
     "orchard_tree_b": ("orchard_tree_b", 137, lambda P: orchard(P, "b", False), True),

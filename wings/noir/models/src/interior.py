@@ -652,7 +652,29 @@ def ceiling_fan_blades():
     kit.join("ceiling_fan_blades", p)
 
 
+def crown():
+    """2 m run of plaster crown and picture rail. Origin on the wall at the ceiling line, front -Y, hangs down."""
+    p = []
+    for d, z, h in ((0.05, -0.2, 0.06), (0.1, -0.13, 0.08), (0.16, -0.06, 0.06), (0.22, -0.015, 0.03)):  # stepped crown
+        p.append(B("crown", (2.0, d, h), (0, -d / 2, z), "plaster", bevel=0.012))
+    for i in range(10):  # a row of small modillions under the crown
+        p.append(B("modillion", (0.07, 0.1, 0.06), (-0.9 + i * 0.2, -0.05, -0.17), "plaster", bevel=0.01))
+    p.append(B("picture_rail", (2.0, 0.04, 0.05), (0, -0.02, -0.75), "wood", bevel=0.01))
+    kit.join("crown", p)
+
+
+def ceiling_beam():
+    """A cased beam across a ceiling, 1 m long along X (scaled in Godot), 0.36 wide, 0.28 deep; origin at its
+    top centre on the ceiling. Cyma at both soffit arrises, a sunk panel line down the soffit."""
+    p = [B("case", (1.0, 0.36, 0.26), (0, 0, -0.13), "plaster", bevel=0.02)]
+    for s in (-1, 1):
+        p.append(B("cyma", (1.0, 0.06, 0.06), (0, s * 0.2, -0.03), "plaster", bevel=0.02))
+        p.append(B("bead", (1.0, 0.03, 0.03), (0, s * 0.12, -0.27), "wood"))
+    kit.join("ceiling_beam", p)
+
+
 PARTS = {n: globals()[n] for n in (
+    "crown", "ceiling_beam",
     "desk", "desk_lamp", "chair", "file_cabinet", "locker", "blind_window", "hanging_lamp", "switch_box",
     "wainscot", "door_frame", "seat_block", "proscenium", "curtain", "pilaster", "balcony", "pedestal_reel",
     "cinema_gate", "projector", "film_shelf", "port_window", "pawn_ticket", "matchbook", "stub", "frame_stand",
