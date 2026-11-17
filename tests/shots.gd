@@ -90,7 +90,14 @@ func _run() -> void:
 	cam.far = 600.0
 	Game.wing.add_child(cam)
 	var marks := Game.wing.get_node_or_null("ShotMarks")
-	if marks:
+	if _args.has("views"):  # --views=<file.json>: {name: [[pos], [look-at]]} instead of the marks (surveys)
+		var views: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(String(_args["views"])))
+		for n: String in views:
+			var v: Array = views[n]
+			cam.global_position = Vector3(v[0][0], v[0][1], v[0][2])
+			cam.look_at(Vector3(v[1][0], v[1][1], v[1][2]))
+			await _measure_at(n, dir, cam)
+	elif marks:
 		for m: Node in marks.get_children():
 			if m is Node3D:
 				cam.global_transform = (m as Node3D).global_transform

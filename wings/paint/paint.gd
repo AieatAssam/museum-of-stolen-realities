@@ -773,6 +773,17 @@ func _build_river() -> void:
 		var x := 86.0 + i * 7.5
 		_model(A, "rock_a" if i % 2 == 0 else "rock_b", Vector3(x, 2.5 + 1.0 * float(i % 3), -204.0 + 0.8 * float(i % 2)),
 			float(i) * 1.7, 9.0 + 2.5 * float((i * 5) % 3), 260.0)
+	# the roof and the south wall in the same painted rock: flattened outcrops hung upside down under the
+	# weave roof, and heaped along the south wall (visual only; the weave boxes keep their colliders)
+	for i in 6:
+		for k in 5:
+			var r := _model(A, "rock_b" if (i + k) % 2 == 0 else "rock_a", Vector3(87.0 + i * 9.5 + 2.5 * float(k % 2), 6.6, -208.0 - k * 9.5 - 1.5 * float(i % 2)),
+				float(i * 5 + k * 3) * 0.9, 1.0, 260.0)
+			r.rotation.x = PI
+			r.scale = Vector3(6.0, 1.2 + 0.4 * float((i + 2 * k) % 3), 6.0)
+	for i in 6:
+		_model(A, "rock_a" if i % 2 == 1 else "rock_b", Vector3(87.0 + i * 7.5, 1.0 + 0.8 * float(i % 2), -251.6),
+			float(i) * 2.3, 5.0 + 1.0 * float(i % 3), 260.0)
 	_stroke(A, "cave_pencil", [Vector3(100, 0, -228), Vector3(125, 0, -228)], "pencil", 2.0, {"k": "pencil"})
 	_ground(A, "Source", 125, -214, 140, -242, 0.0, "goal")
 	_zone(A, Vector3(125, -1, -214), Vector3(140, 4, -242), _reach_source)

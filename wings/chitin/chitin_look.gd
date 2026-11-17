@@ -173,6 +173,8 @@ func dress(w: Node3D, environment: Environment, key: DirectionalLight3D) -> void
 	var areas := w.get_node("Areas")
 	for area: Node in areas.get_children():
 		_dress_area(area as Node3D, AREAS.get(String(area.name), AREAS["OuterGate"]))
+	# the gate shell's closed west end is straight behind the spawn: panel and rib it like a wall
+	_ribs(AABB(Vector3(-26.0, 0, -10), Vector3(0.6, 6, 20)), AREAS["OuterGate"])
 	for m: String in _xf:
 		# chunked so each MultiMesh frustum-culls and picks its own mesh LOD
 		var chunks := {}

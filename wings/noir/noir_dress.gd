@@ -476,6 +476,8 @@ func _street() -> void:
 	for i in 7:
 		dz.append(xf(Vector3(4.0, 0, -23.0 - i * 4.0), -90.0))
 	mm("diner_front", dz)
+	# the last 2.6 m before the plaza (past the diner's end) was open into the void behind the street
+	model(self, "shopfront", Vector3(4.0, 0, -50.5), -90.0, Vector3(0.7, 1.0, 1.0))
 	facade_run(-21.0, -51.0, 4.0, -1.0, 4.4)
 	mass(Vector3(4.35, 4.4, -52.0), Vector3(14.0, 18.0, -20.5), "brick_dark")
 	hide_box("DinerStreet", Vector3(4.5, 3, -36))
