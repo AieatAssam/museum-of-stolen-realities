@@ -343,8 +343,12 @@ def pit_bay():
          ext_box("field_wall", {"x": (-W / 2, W / 2), "y": (-0.06, 0.0), "z": (1.1, TOP)}, "ebony")]
     fielded_panels(P, "y", -1, (-1.0, 1.0), 1.5, 0.32, 0.98, 0.12, "boards")
     P.append(sweep("dado_rail", [(0.0, 0.0), (0.06, 0.0), (0.08, 0.04), (0.05, 0.08), (0.0, 0.08)], [(-W / 2, -0.12, 1.08), (W / 2, -0.12, 1.08)], "gilt"))
-    # one raised ebony field between the sconces, beaded in gilt
-    fielded_panels(P, "y", -1, (0.0,), 1.3, 1.32, 2.36, 0.06, "ebony")
+    # the upper field is upholstered: oxblood damask stretched between the pilasters in a moulded oak
+    # frame (so it reads as a hung wall, not an empty black picture frame)
+    P.append(ext_box("damask", {"x": (-1.74, 1.74), "y": (-0.08, -0.04), "z": (1.2, 2.56)}, "damask_ox", 0.004))
+    for x0, x1, z0, z1 in [(-1.78, 1.78, 1.14, 1.22), (-1.78, 1.78, 2.54, 2.62), (-1.78, -1.7, 1.14, 2.62), (1.7, 1.78, 1.14, 2.62)]:
+        P.append(ext_box("damask_frame", {"x": (x0, x1), "y": (-0.11, 0.0), "z": (z0, z1)}, "boards", 0.025))
+        P.append(ext_box("frame_bead", {"x": (x0 + 0.02, x1 - 0.02), "y": (-0.118, -0.1), "z": (z0 + 0.02, z1 - 0.02)}, "gilt", 0.006))
     for sx in (-1, 1):
         x = sx * W / 2
         P.append(ext_box("pil_plinth", {"x": (x - 0.24, x + 0.24), "y": (-0.2, 0.0), "z": (1.1, 1.22)}, "gilt", 0.01))
@@ -356,7 +360,7 @@ def pit_bay():
         P.append(ext_box("pil_cap", {"x": (x - 0.25, x + 0.25), "y": (-0.22, 0.0), "z": (2.5, 2.64)}, "gilt_orn", 0.015))
         for vx in (-0.2, 0.2):  # little volutes at the capital's corners
             P.append(kit.torus("pil_volute", 0.045, 0.014, seg=12, rseg=5, mat="gilt", loc=(x + vx, -0.2, 2.55), rot=(math.pi / 2, 0, 0)))
-        P.extend(lamp("sconce", (sx * 1.3, -0.06, 1.85), 1.1))
+        P.extend(lamp("sconce", (sx * 1.3, -0.08, 1.85), 1.1))
     P.append(sweep("head", [(0.0, 0.0), (0.05, 0.0), (0.09, 0.04), (0.12, 0.09), (0.12, 0.16), (0.0, 0.16)],
                    [(-W / 2, -0.06, 2.64), (W / 2, -0.06, 2.64)], "gilt"))
     kit.join("pit_bay", P)

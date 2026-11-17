@@ -1740,8 +1740,9 @@ func _burst(at: Vector3) -> void:
 	gt.gradient = grad
 	pm.color_initial_ramp = gt
 	p.process_material = pm
-	var q := QuadMesh.new()
-	q.size = Vector2(0.35, 0.28)
+	var q := PrismMesh.new()  # a thin triangular shard of coloured glass, not a square card
+	q.size = Vector3(0.3, 0.32, 0.008)
+	q.left_to_right = 0.3
 	var qm := StandardMaterial3D.new()
 	qm.vertex_color_use_as_albedo = true
 	qm.emission_enabled = true
