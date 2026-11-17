@@ -1171,6 +1171,16 @@ func _build_edge() -> void:
 	var gf := _model(M, "frame", Vector3(-261.6, -7, -200), PI * 0.5)
 	gf.name = "GreatFrame"
 	gf.scale = Vector3(400.0 / 13.0, 174.0 / 13.0, 6.0)
+	# 300 m off across the country the scene fog washed the gilt to a pale colonnade: it carries a light,
+	# warm aerial haze of its own instead, so it still reads as a gold frame round the world
+	for mi: MeshInstance3D in gf.find_children("*", "MeshInstance3D", true, false):
+		var src := mi.get_active_material(0) as ShaderMaterial
+		if src:
+			var m := src.duplicate() as ShaderMaterial
+			m.shader = _far_shader
+			m.set_shader_parameter(&"aerial", 0.35)
+			m.set_shader_parameter(&"haze", Color(0.86, 0.72, 0.56))
+			mi.material_override = m
 	_ground(M, "Ledge", -264, -170, -271, -187, 21.6, "frame")
 	_build_gallery(M)
 	_zone(M, Vector3(-264, 20, -170), Vector3(-271, 26, -187), _reveal_hall)
