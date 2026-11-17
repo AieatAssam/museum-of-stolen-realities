@@ -122,6 +122,27 @@ def triforium():
     kit.join("triforium", p)
 
 
+def tube_frame():
+    """A lead portal frame lining the glass passage tube (3.0 m wide inside, 3.0 m tall), 0.22 m along Y,
+    origin at floor centre: jambs on shoes, a head beam, knee braces with brass bosses, a floor sill."""
+    p = []
+    for s in (-1, 1):
+        p.append(kit.box("jamb", (0.16, 0.22, 2.9), (s * 1.42, 0, 1.5), mat="lead", bevel=0.03))
+        p.append(kit.box("shoe", (0.24, 0.3, 0.12), (s * 1.42, 0, 0.06), mat="brass", bevel=0.02))
+        knee = kit.box("knee", (0.5, 0.14, 0.1), (0, 0, 0), mat="lead", bevel=0.02)
+        knee.location = (s * 1.22, 0, 2.72)
+        knee.rotation_euler = (0, s * math.radians(40), 0)
+        p.append(knee)
+        b = kit.lathe("boss", [(0.0, 0.0), (0.07, 0.0), (0.07, 0.03), (0.04, 0.07), (0.0, 0.08)], 16, mat="brass")
+        b.rotation_euler = (math.radians(90), 0, 0)
+        b.location = (s * 1.42, -0.11, 2.9)
+        p.append(b)
+    p.append(kit.box("head", (3.0, 0.22, 0.16), (0, 0, 2.92), mat="lead", bevel=0.03))
+    p.append(kit.box("head_roll", (2.7, 0.06, 0.06), (0, -0.12, 2.82), mat="brass", bevel=0.015))
+    p.append(kit.box("sill", (3.0, 0.3, 0.04), (0, 0, 0.02), mat="lead", bevel=0.01))
+    kit.join("tube_frame", p)
+
+
 def _frustum(name, w0, w1, z0, z1, mat):
     bm = bmesh.new()
     vs = []
@@ -252,4 +273,4 @@ def icon_stand():
 
 def build(args):
     {"rotunda_bay": rotunda_bay, "triforium": triforium, "buttress": buttress, "flyer": flyer,
-     "icon_stand": icon_stand}[args[0]]()
+     "icon_stand": icon_stand, "tube_frame": tube_frame}[args[0]]()

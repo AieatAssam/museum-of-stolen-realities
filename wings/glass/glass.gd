@@ -878,6 +878,15 @@ func _build_nave() -> void:
 			break
 		tri.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(14.8, 12.0, z)))
 		tri.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-14.8, 12.0, z)))
+	# the same arcade dresses the flat west wall either side of the door (at the floor, and carried round
+	# at the triforium's level) and the crypt's side walls (visual only; the code walls stay the colliders)
+	for x: float in [-9.0, 9.0]:
+		for y: float in [0.0, 12.0]:
+			tri.append(Transform3D(Basis(Vector3.UP, PI), Vector3(x, y, -19.2)))
+	for z: float in [-113.5]:  # north of the ruby vestry (x -10..-15, z -90..-106)
+		tri.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-14.3, -8.0, z)))
+	for z: float in [-86.0, -97.0, -108.0]:
+		tri.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(14.3, -8.0, z)))
 	_mm("triforium", tri)
 	_light(Vector3(0, 4, -25), Color("ffd9a0"), 0.6, 10.0)
 	# Escalation 1½: a clockwork dial — light on a timetable. A: bridge to P1. B: onto mirror M1.
@@ -1109,6 +1118,11 @@ func _build_passage_and_tower() -> void:
 	_catch(Vector3(-19.5, -4.6, -86), Vector3(-15.4, -3.6, -30))
 	for k in 7:
 		_light(Vector3(-17.5, -5.8, -80 + k * 8.0), Color("2b54c9") if k % 2 else Color("1a7a5e"), 0.9, 6.0)
+	# the tube is lined with lead portal frames every 4 m, so its glass reads as panels between ribs
+	var frames: Array = []
+	for k in 14:
+		frames.append(Transform3D(Basis.IDENTITY, Vector3(-17.5, -8.0, -84.0 + k * 4.0)))
+	_mm("tube_frame", frames)
 	# tower: x -28..-16, z -30..-18; ten switchback legs, -8 → 16
 	_block(Vector3(-28, -9, -30), Vector3(-16, -8, -18), "glass_floor")
 	_block(Vector3(-28.5, -8, -18), Vector3(-15.5, 19, -17.5), "glazed_tower")
