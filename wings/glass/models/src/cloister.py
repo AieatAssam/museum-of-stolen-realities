@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kit  # noqa: E402
-from gothic import RIB, roll, sweep  # noqa: E402
+from gothic import RIB, pointed, roll, sweep  # noqa: E402
 
 BAY = 3.0
 CAP = 6.45  # wall shaft capital top
@@ -133,5 +133,78 @@ def nave():
     kit.join("cloister_nave", p)
 
 
+# --- the tower shaft (glass.gd _build_passage_and_tower) -------------------------------------------
+# glazed_tower: lancets 2.4 wide on 4 m bays, tiers -6.5..3.0 and 5.5..17.0 (world y); the shaft floor is
+# at -8 and its roof at 19. Origin of every part on the wall face at the shaft floor (local z 0 = y -8),
+# front -Y, X along the wall. Visual only: the glazed boxes and their colliders stay.
+TB = 4.0
+
+
+def _trun(name, z, sec, mat, w=TB):
+    return sweep(name, sec, [(-w / 2, 0.0), (w / 2, 0.0)], mat, place=lambda h, y, v: (h, y, z + v), smooth=40.0)
+
+
+def tower_pier():
+    """The masonry between two lancets, full height: a flat pier strip carrying a cluster of three engaged
+    shafts on moulded bases, ringed at each course, with capitals under the band and the cornice."""
+    H = 27.0
+    p = [kit.box("pier", (1.1, 0.14, H), (0, -0.07, H / 2), mat="lead", bevel=0.02)]
+    for x, r, y in ((0.0, 0.12, -0.2), (-0.36, 0.07, -0.15), (0.36, 0.07, -0.15)):
+        for z0, z1 in ((0.0, 11.15), (13.45, 25.2)):
+            prof = [(0.0, z0), (r + 0.09, z0), (r + 0.09, z0 + 0.3), (r + 0.04, z0 + 0.4), (r, z0 + 0.5),
+                    (r, z1 - 0.4), (r + 0.03, z1 - 0.4), (r + 0.03, z1 - 0.32), (r + 0.08, z1 - 0.12), (r + 0.08, z1), (0.0, z1)]
+            s = kit.lathe("shaft", prof, 14, mat="lead" if r < 0.1 else "brass")
+            s.location = (x, y, 0)
+            p.append(s)
+        for zr in (4.2, 8.0, 17.5, 21.5):
+            b = kit.torus("ring", r + 0.012, 0.018, 14, 6, mat="brass")
+            b.location = (x, y, zr)
+            p.append(b)
+    kit.join("tower_pier", p)
+
+
+def tower_sill():
+    """The sill course under the lower tier (top at world -6.55): a chamfered plinth with a roll."""
+    p = [_trun("sill", 0.0, [(0.0, 0.0), (0.26, 0.0), (0.26, 0.9), (0.14, 1.12), (0.0, 1.14)], "lead"),
+         _trun("sill_roll", 1.2, [(u, v) for u, v in roll(0.05, 8, 0.1, 0.0)], "brass"),
+         _trun("sill_drip", 1.3, [(0.0, 0.0), (0.18, 0.0), (0.18, 0.08), (0.0, 0.16)], "lead")]
+    kit.join("tower_sill", p)
+
+
+def tower_band():
+    """The deep course between the tiers (world 3.15..5.45): a roll, a frieze of four blind lancets in
+    moulded pointed recesses on colonnettes, and a dripstone lip."""
+    z0, z1 = 11.15, 13.45
+    p = [_trun("band_base", z0, [(0.0, 0.0), (0.22, 0.0), (0.26, 0.06), (0.22, 0.14), (0.0, 0.16)], "lead"),
+         _trun("band_roll", z0 + 0.22, [(u, v) for u, v in roll(0.04, 8, 0.2, 0.0)], "brass"),
+         _trun("frieze", z0 + 0.16, [(0.0, 0.0), (0.1, 0.0), (0.1, 1.9), (0.0, 1.9)], "lead"),
+         _trun("band_lip", z1 - 0.24, [(0.0, 0.0), (0.12, 0.0), (0.26, 0.1), (0.26, 0.2), (0.0, 0.24)], "lead")]
+    for x in (-1.5, -0.5, 0.5, 1.5):
+        zb = z0 + 0.34
+        arch = [(h, y + 1.0) for h, y in pointed(0.62, 0.42, 16)]
+        path = [(-0.31, 0.0)] + arch + [(0.31, 0.0)]
+        p.append(sweep("recess", [(u, v) for u, v in roll(0.035, 8, 0.0, 0.0)], path, "brass",
+                       place=lambda h, y, v, x=x, zb=zb: (x + h, -0.15 + v, zb + y), close=True, smooth=50.0))
+        for s in (-1, 1):
+            c = kit.lathe("colonnette", [(0.0, 0.0), (0.035, 0.0), (0.035, 1.0), (0.0, 1.0)], 8, mat="lead")
+            c.location = (x + s * 0.31, -0.15, zb)
+            p.append(c)
+    kit.join("tower_band", p)
+
+
+def tower_cornice():
+    """The wall head under the shaft's roof (world 17.2..19): a corbel table and a moulded cornice."""
+    z0 = 25.2
+    p = [_trun("head_course", z0, [(0.0, 0.0), (0.12, 0.0), (0.12, 0.9), (0.0, 0.9)], "lead"),
+         _trun("cornice", z0 + 1.2, [(0.0, 0.0), (0.14, 0.0), (0.24, 0.12), (0.32, 0.26), (0.32, 0.42), (0.0, 0.6)], "lead"),
+         _trun("cornice_roll", z0 + 1.15, [(u, v) for u, v in roll(0.04, 8, 0.2, 0.0)], "brass")]
+    for x in (-1.5, -0.5, 0.5, 1.5):
+        c = kit.lathe("corbel", [(0.0, z0 + 0.7), (0.12, z0 + 0.7), (0.14, z0 + 0.86), (0.2, z0 + 1.05), (0.2, z0 + 1.2), (0.0, z0 + 1.2)], 10, mat="lead")
+        c.location = (x, -0.2, 0)
+        p.append(c)
+    kit.join("tower_cornice", p)
+
+
 def build(args):
-    {"bay": bay, "rib": rib, "kerb": kerb, "nave": nave}[args[0] if args else "bay"]()
+    {"bay": bay, "rib": rib, "kerb": kerb, "nave": nave, "tower_pier": tower_pier, "tower_sill": tower_sill,
+     "tower_band": tower_band, "tower_cornice": tower_cornice}[args[0] if args else "bay"]()

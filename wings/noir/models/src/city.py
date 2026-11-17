@@ -177,18 +177,44 @@ def diner_front():
     p.append(B("apron", (L, 0.12, 1.1), (0, -0.06, 0.55), "steel", bevel=0.01))
     for z in (0.25, 0.45, 0.65, 0.85):
         p.append(B("rib", (L, 0.05, 0.04), (0, -0.13, z), "chrome", bevel=0.01))
-    p.append(B("sill", (L, 0.3, 0.08), (0, -0.05, 1.15), "chrome", bevel=0.02))
-    for x in (-L / 2, -L / 6, L / 6):
-        p.append(B("mullion", (0.1, 0.16, 2.3), (x + (0.05 if x == -L / 2 else 0), -0.04, 2.3), "chrome", bevel=0.015))
-    p.append(B("head", (L, 0.2, 0.12), (0, -0.06, 3.5), "chrome", bevel=0.02))
-    # venetian blinds behind the glass (+Y), slats tilted half open
-    for i in range(20):
-        z = 1.3 + i * 0.105
-        s = B("slat", (L - 0.04, 0.06, 0.008), (0, 0.12, z), "shirt")
-        s.rotation_euler = (math.radians(40), 0, 0)
-        p.append(s)
-    for x in (-1.4, -0.1, 1.2):
-        p.append(B("cord", (0.006, 0.006, 2.2), (x, 0.1, 2.3), "black"))
+    # sill: a chrome nosing sloped to shed rain, a drip bead under it, an inner stool behind the glass
+    sl = B("sill", (L, 0.34, 0.06), (0, -0.09, 1.14), "chrome", bevel=0.02)
+    sl.rotation_euler = (math.radians(-6), 0, 0)
+    p.append(sl)
+    p.append(B("drip", (L, 0.03, 0.04), (0, -0.25, 1.08), "chrome", bevel=0.01))
+    p.append(B("stool", (L, 0.3, 0.04), (0, 0.18, 1.17), "wood", bevel=0.01))
+    # deep box mullions (pane edges at x = -2, -2/3, 2/3; each mullion carries a pressed cover cap)
+    mx = (-L / 2, -L / 6, L / 6)
+    for x in mx:
+        c = x + (0.05 if x == -L / 2 else 0)
+        p.append(B("mullion", (0.1, 0.32, 2.3), (c, 0.0, 2.3), "chrome", bevel=0.015))
+        p.append(B("cap", (0.06, 0.04, 2.3), (c, -0.17, 2.3), "steel", bevel=0.01))
+    p.append(B("head", (L, 0.34, 0.14), (0, 0.0, 3.5), "chrome", bevel=0.02))
+    # each pane: a glazing bead round the glass (the wing's pane sits at y 0.02), then a venetian blind
+    # behind it (+Y): head rail, 20 crowned slats tilted half open on two ladder tapes, a bottom rail and a
+    # tilt wand. Slats stop short of the mullions so the blind reads as hung in the opening.
+    lefts = [mx[0] + 0.1, mx[1] + 0.05, mx[2] + 0.05]
+    rights = [mx[1] - 0.05, mx[2] - 0.05, L / 2]
+    for a, b in zip(lefts, rights):
+        w, cx = b - a, (a + b) / 2
+        for z, h in ((1.2, 0.04), (3.41, 0.04)):
+            p.append(B("bead", (w, 0.04, h), (cx, 0.0, z), "chrome", bevel=0.008))
+        for x in (a + 0.02, b - 0.02):
+            p.append(B("bead", (0.04, 0.04, 2.21), (x, 0.0, 2.305), "chrome", bevel=0.008))
+        bw = w - 0.1
+        p.append(B("head_rail", (bw, 0.07, 0.06), (cx, 0.13, 3.35), "steel", bevel=0.01))
+        for i in range(20):
+            z = 1.36 + i * 0.098
+            for k, (dy, dz) in enumerate(((-0.026, -0.003), (0.0, 0.003), (0.026, -0.003))):  # crowned: three strips
+                s = B("slat", (bw, 0.027, 0.006), (cx, 0.13 + dy * 0.77, z + dy * 0.64 + dz), "shirt")
+                s.rotation_euler = (math.radians(40 + (k - 1) * 8), 0, 0)
+                p.append(s)
+        p.append(B("bottom_rail", (bw, 0.06, 0.025), (cx, 0.13, 1.3), "steel", bevel=0.008))
+        for tx in (cx - bw * 0.32, cx + bw * 0.32):
+            for ty in (0.1, 0.16):
+                p.append(B("ladder", (0.012, 0.003, 2.05), (tx, ty, 2.33), "shirt"))
+        p.append(kit.tube("wand", [(b - 0.12, 0.09, 3.32), (b - 0.12, 0.08, 2.2)], 0.005, 6, mat="chrome"))
+        p.append(B("cord", (0.006, 0.006, 1.6), (a + 0.1, 0.1, 2.5), "black"))
     # enamel fascia with chrome bands
     p.append(B("fascia", (L, 0.16, 0.9), (0, -0.06, 4.05), "paint", bevel=0.01))
     for z in (3.66, 4.48):
@@ -198,6 +224,21 @@ def diner_front():
     for x in (-1.5, 0.0, 1.5):
         p.append(B("neon_clip", (0.03, 0.06, 0.05), (x, -0.16, 4.2), "chrome"))
     kit.join("diner_front", p)
+
+
+def diner_end():
+    """The diner run's closing pier (0.4 m along X, origin foot centre, front -Y): a steel-cased return from
+    the apron to the fascia, deep enough (to y 1.0) to close the lit room's end behind the glass, with the
+    apron's chrome ribs and the fascia bands wrapped round its front."""
+    p = [B("core", (0.4, 1.3, 4.5), (0, 0.35, 2.25), "steel", bevel=0.02)]
+    for z in (0.25, 0.45, 0.65, 0.85):
+        p.append(B("rib", (0.44, 0.05, 0.04), (0, -0.32, z), "chrome", bevel=0.01))
+    for z in (3.66, 4.48):
+        p.append(B("band", (0.44, 0.06, 0.05), (0, -0.32, z), "chrome", bevel=0.01))
+    for x in (-0.2, 0.2):
+        p.append(kit.tube("bead", [(x, -0.3, 0.0), (x, -0.3, 4.5)], 0.02, 8, mat="chrome"))
+    p.append(B("plate", (0.3, 0.02, 2.2), (0, -0.31, 2.3), "chrome", bevel=0.006))
+    kit.join("diner_end", p)
 
 
 LETTERS = {  # tube polylines in a 0.5 x 0.7 cell, (x, z)
@@ -435,7 +476,7 @@ def sign_bracket():
 PARTS = {
     "sign_bracket": sign_bracket,
     "facade_a": lambda: facade("a"), "facade_b": lambda: facade("b"), "facade_c": lambda: facade("c"), "facade_low": lambda: facade("low"),
-    "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "neon_eat": neon_eat,
+    "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "diner_end": diner_end, "neon_eat": neon_eat,
     "trash_can": trash_can, "crate": crate, "manhole": manhole, "hydrant": hydrant, "bench": bench,
     "shopfront": shopfront, "curb": curb, "lamp_bracket": lamp_bracket,
     "newsstand": newsstand, "crate_stack": crate_stack,

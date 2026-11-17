@@ -378,10 +378,10 @@ func _auditorium() -> void:
 
 
 func _pit() -> void:
-	var dark := {"damask_ox": "ebony", "marble_teal": "boards"}
-	_bays("panel_bay", Vector3(-32, -3, -2), Vector3(-32, -3, -18), 90.0, dark)
-	_bays("panel_bay", Vector3(-18, -3, -20), Vector3(-30, -3, -20), 0.0, dark)
-	_bays("panel_bay", Vector3(-18, -3, 0), Vector3(-30, -3, 0), 180.0, dark)
+	# the pit's own panelling: oak wainscot, ebony fields, whole ebony pilasters (no marble stubs)
+	_bays("pit_bay", Vector3(-32, -3, -2), Vector3(-32, -3, -18), 90.0)
+	_bays("pit_bay", Vector3(-18, -3, -20), Vector3(-30, -3, -20), 0.0)
+	_bays("pit_bay", Vector3(-18, -3, 0), Vector3(-30, -3, 0), 180.0)
 	# the upper fields are under-stage timberwork: the fly loft's oak framing over the boarding
 	var frame: Array[Transform3D] = []
 	for i: int in 5:
@@ -414,9 +414,9 @@ func _pit() -> void:
 
 func _corridor() -> void:
 	_bays("panel_bay", Vector3(17, 2.8, 36), Vector3(41, 2.8, 36), 0.0)
-	_put("panel_bay", Vector3(44.5, 2.8, 36), 0.0, Vector3(0.75, 1, 1))
+	_put("panel_bay", Vector3(44.35, 2.8, 36), 0.0, Vector3(0.7, 1, 1))  # its end pilaster stays inside the corridor mouth (x < 46), not loose in the loft
 	_bays("panel_bay", Vector3(17, 2.8, 42), Vector3(41, 2.8, 42), 180.0)
-	_put("panel_bay", Vector3(44.5, 2.8, 42), 180.0, Vector3(0.75, 1, 1))
+	_put("panel_bay", Vector3(44.35, 2.8, 42), 180.0, Vector3(0.7, 1, 1))
 	# the flip ceiling, coffered on its underside; chairs bolted to it as if it were the floor
 	_hide_mesh("FlipCeiling")
 	_put("coffer_panel", Vector3(27, 5.8, 39))
@@ -457,25 +457,36 @@ func _corridor() -> void:
 
 
 func _fly_loft() -> void:
-	# oak framing over the tower's ebony boarding, behind the lines (visual only; walls and colliders unchanged)
-	var frame: Array[Transform3D] = []
+	# the fly tower's brick skin: piers every 4 m, string courses, a corbel table, pin-rail brackets and rope
+	# cleats on the piers (visual only; walls and colliders unchanged)
+	var brick: Array[Transform3D] = []
+	var hi: Array[Transform3D] = []  # loading galleries high on the north and south walls
 	for i: int in 4:
-		frame.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 2.8, 32.0 + 4.0 * i)))
-		frame.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 2.8, 46)))
-		frame.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 2.8, 30)))
+		brick.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 2.8, 32.0 + 4.0 * i)))
+		brick.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 2.8, 46)))
+		brick.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 2.8, 30)))
+		hi.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 12.2, 46)))
+		hi.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 12.2, 30)))
 	for z: float in [31.0, 35.0, 44.0]:  # the west wall either side of the corridor's mouth (z 37..42)
-		frame.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(46, 2.8, z)))
-	_multi("loft_wall", frame)
-	_bays("rigging", Vector3(62, 2.8, 32), Vector3(62, 2.8, 44), -90.0)
-	_bays("rigging", Vector3(48, 2.8, 46), Vector3(60, 2.8, 46), 180.0)
-	_bays("rigging", Vector3(48, 2.8, 30), Vector3(60, 2.8, 30), 0.0)
+		brick.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(46, 2.8, z)))
+	_multi("loft_brick", brick)
+	var fly: Array[Transform3D] = []  # the fly gallery on the east wall carries the catwalk rail
+	for i: int in 4:
+		fly.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 9.0, 32.0 + 4.0 * i)))
+	_multi("loft_gallery", fly + hi)
+	# the lines hang 0.3 m off the brick, clear of the piers, onto the pin rail on its brackets
+	_bays("rigging", Vector3(61.7, 2.8, 32), Vector3(61.7, 2.8, 44), -90.0)
+	_bays("rigging", Vector3(48, 2.8, 45.7), Vector3(60, 2.8, 45.7), 180.0)
+	_bays("rigging", Vector3(48, 2.8, 30.3), Vector3(60, 2.8, 30.3), 0.0)
 	# a painted seascape flown out, hem at 7.6 m, and a second drop further up
 	_put("backdrop", Vector3(54.5, 14.2, 43.6), 180.0)
 	_spot(Vector3(54.5, 3.6, 36.0), Vector3(54.5, 8.5, 43.6), Color("ffd9a8"), 1.6, 14.0, 40.0, false, 0.3)  # footlight on the drop
 	_put("backdrop", Vector3(54.0, 18.5, 33.0), 0.0, Vector3(1.0, 1.0, 1.0))
 	var walk: Array[Transform3D] = []
 	for i: int in 4:
-		walk.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(61.0, 9.0, 32.0 + 4.0 * i)))
+		walk.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(60.7, 9.0, 32.0 + 4.0 * i)))  # on the gallery's front edge
+		walk.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 12.2, 44.7)))
+		walk.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 12.2, 31.3)))
 	_multi("catwalk", walk)
 	# moonlight down the skylight onto the fork; a warm work lamp on the floor
 	_spot(Vector3(52, 22, 36), Vector3(56, 2.8, 40), Color("bfe8ff"), 7.0, 30.0, 12.0, true, 0.8)
@@ -592,17 +603,33 @@ func _dust(centre: Vector3, extents: Vector3) -> void:
 	pm.scale_curve = ct
 	p.process_material = pm
 	var q := QuadMesh.new()
-	q.size = Vector2(0.025, 0.025)
+	q.size = Vector2(0.04, 0.04)  # the soft dot's core is about half of this
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = Color(1.0, 0.85, 0.6, 0.6)
+	mat.albedo_color = Color(1.0, 0.8, 0.55, 0.3)
+	mat.albedo_texture = _soft_dot()  # a round mote with a feathered edge, never a square
 	q.material = mat
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(p)
+
+
+static func _soft_dot() -> Texture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	g.add_point(0.35, Color(1, 1, 1, 0.45))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 32
+	gt.height = 32
+	return gt
 
 
 func _probes() -> void:

@@ -826,7 +826,56 @@ def paint_lip(P):
         box(P, "p_wood_dark", Vector((x - 0.08, 0.05, -1.3)), Vector((x + 0.08, 0.3, -1.22)), n=1, amp=0.006)
 
 
+def canvas_back(P):
+    """4 x 4 m of the back of a great unpainted canvas, seen from below; tiles edge to edge into a stretcher
+    lattice. Origin at the top centre (the canvas face, z 0), everything hangs below: the raw linen back,
+    sagging a little between the bars, pine stretcher bars on two edges (the neighbour tile supplies the
+    other two) and a cross brace, wedge keys in the corner, a row of tacks along each bar, and paint that
+    soaked through the weave hanging in drips."""
+    rng = P.rng
+    # linen back: a gently sagging sheet, lowest between the bars
+    N_ = 10
+    cos, faces = [], []
+    for j in range(N_ + 1):
+        for i in range(N_ + 1):
+            x, y = -2 + 4 * i / N_, -2 + 4 * j / N_
+            fx, fy = abs(math.sin(math.pi * (x + 2) / 2)), abs(math.sin(math.pi * (y + 2) / 2))  # bars every 2 m
+            on = i in (0, N_) or j in (0, N_)
+            cos.append(Vector((x, y, -0.02 - 0.05 * fx * fy)) + (Vector((0, 0, 0)) if on else P.jit(0.01)))
+    for j in range(N_):
+        for i in range(N_):
+            a = j * (N_ + 1) + i
+            faces.append((a, a + N_ + 1, a + N_ + 2, a + 1))  # facing down
+    P.add("p_canvas", cos, faces)
+    # half a stretcher bar on every edge (two tiles meet in one whole bar, so any tile may be turned) and a
+    # cross brace through the middle each way
+    for lo, hi in (((-2.0, -2.0), (2.0, -1.94)), ((-2.0, 1.94), (2.0, 2.0)), ((-2.0, -1.94), (-1.94, 1.94)),
+                   ((1.94, -1.94), (2.0, 1.94)), ((-1.94, -0.06), (1.94, 0.06)), ((-0.06, -1.94), (0.06, 1.94))):
+        box(P, "p_wood", Vector((lo[0], lo[1], -0.24)), Vector((hi[0], hi[1], -0.02)), n=2, amp=0.008)
+    for x, y in ((-1.86, -1.86), (-1.86, -1.78), (-1.78, -1.86)):  # corner keys
+        box(P, "p_wood_dark", Vector((x - 0.05, y - 0.05, -0.28)), Vector((x + 0.05, y + 0.05, -0.24)), n=1, amp=0.004)
+    for k in range(16):  # tacks along the cross braces' faces
+        t = -1.9 + 3.8 * k / 15
+        if abs(t) > 0.12:
+            blob(P, "p_steel", Vector((t, -0.072, -0.08)), (0.02, 0.012, 0.02), rng, detail=1, lump=0.05)
+            blob(P, "p_steel", Vector((-0.072, t, -0.08)), (0.012, 0.02, 0.02), rng, detail=1, lump=0.05)
+    # paint that came through: a stain or two on the linen and drips hanging from them
+    for _ in range(3):
+        cx, cy = rng.uniform(-1.7, 1.7), rng.uniform(-1.7, 1.7)
+        if min(abs(cx), abs(cy)) < 0.2 or rng.random() < 0.35:
+            continue
+        mat = rng.choice(["p_blue", "p_yellow", "p_violet", "p_leaf"])
+        blob(P, mat, Vector((cx, cy, -0.06)), (rng.uniform(0.15, 0.35), rng.uniform(0.12, 0.3), 0.02), rng, detail=1, lump=0.2)
+        for _ in range(rng.randint(1, 3)):
+            x, y = cx + rng.uniform(-0.12, 0.12), cy + rng.uniform(-0.1, 0.1)
+            L = rng.uniform(0.12, 0.5)
+            pts = [Vector((x + rng.uniform(-0.01, 0.01), y, -0.06 - L * k / 4)) for k in range(5)]
+            stroke(P, mat, pts, [0.06 - 0.01 * k for k in range(5)], sides=6, thick=1.0, ref=Vector((0, 1, 0)), jit=0.003)
+            blob(P, mat, pts[-1] + Vector((0, 0, -0.02)), (0.025, 0.025, 0.035), rng, detail=1, lump=0.1)
+
+
 MODELS = {
+    "canvas_back": ("canvas_back", 953, canvas_back, True),
     "paint_lip": ("paint_lip", 941, paint_lip, True),
     "orchard_tree_a": ("orchard_tree_a", 131, lambda P: orchard(P, "a", False), True),
     "orchard_tree_a_lod": ("orchard_tree_a_lod", 131, lambda P: orchard(P, "a", True), True),

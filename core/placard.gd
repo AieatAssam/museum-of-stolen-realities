@@ -212,7 +212,8 @@ static func _bezel_mesh(plate: Vector2) -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var o := h + Vector2.ONE * BEZEL_PROFILE[0].x
 	var z := -BEZEL_PROFILE[0].y * BACK_DEPTH + 0.002
-	for v: Vector3 in [Vector3(-o.x, -o.y, z), Vector3(o.x, o.y, z), Vector3(o.x, -o.y, z), Vector3(-o.x, -o.y, z), Vector3(-o.x, o.y, z), Vector3(o.x, o.y, z)]:
+	# wound to face -z (out of the back), so it is drawn from behind with ordinary back-face culling
+	for v: Vector3 in [Vector3(-o.x, -o.y, z), Vector3(o.x, -o.y, z), Vector3(o.x, o.y, z), Vector3(-o.x, -o.y, z), Vector3(o.x, o.y, z), Vector3(-o.x, o.y, z)]:
 		st.add_vertex(v)
 	for c in corners:
 		var at := Vector3(c.x * (h.x - 0.045), c.y * (h.y - 0.045), z)
@@ -222,7 +223,7 @@ static func _bezel_mesh(plate: Vector2) -> ArrayMesh:
 			ring.append(at + Vector3(cos(ang) * 0.011, sin(ang) * 0.011, -0.002))
 		var tip := at + Vector3(0, 0, -0.0055)
 		for k in 8:
-			for v: Vector3 in [tip, ring[(k + 1) % 8], ring[k]]:
+			for v: Vector3 in [tip, ring[k], ring[(k + 1) % 8]]:
 				st.add_vertex(v)
 	st.generate_normals()
 	st.commit(m)

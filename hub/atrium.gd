@@ -860,8 +860,8 @@ func _build_atmosphere() -> void:
 		add_child(wash)
 		var under := OmniLight3D.new()
 		under.light_color = Color(1.0, 0.76, 0.52)
-		under.light_energy = 2.4
-		under.omni_range = 9.0
+		under.light_energy = 4.0
+		under.omni_range = 10.0
 		under.omni_attenuation = 1.2
 		under.light_volumetric_fog_energy = 0.0
 		under.light_specular = 0.25

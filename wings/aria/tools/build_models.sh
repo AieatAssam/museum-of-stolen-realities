@@ -4,7 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../../.."
 KINDS=("$@")
-[[ ${#KINDS[@]} -gt 0 ]] || KINDS=(tier_bay panel_bay proscenium organ_case ceiling seat figure figure_head horn pipes glass_bowls fork_statue chandelier stair stair_pit balustrade wind_chest royal_box coffer_panel stave mirror stand cello backdrop rigging catwalk fragment prov_score prov_baton prov_fork)
+[[ ${#KINDS[@]} -gt 0 ]] || KINDS=(tier_bay panel_bay pit_bay proscenium organ_case ceiling seat figure figure_head horn pipes glass_bowls fork_statue chandelier stair stair_pit balustrade wind_chest royal_box coffer_panel stave mirror stand cello backdrop rigging loft_brick loft_gallery catwalk fragment prov_score prov_baton prov_fork)
 mkdir -p wings/aria/_tmp
 for k in "${KINDS[@]}"; do
   ( tools/blender_build.sh wings/aria/models/src/opera.py "wings/aria/models/$k.glb" "$k" > "wings/aria/_tmp/build_$k.log" 2>&1 || { echo "FAIL $k"; grep -E "Error|error|Traceback|line [0-9]+" "wings/aria/_tmp/build_$k.log" | tail -6; } ) &

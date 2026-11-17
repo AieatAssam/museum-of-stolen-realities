@@ -318,9 +318,9 @@ func _build_pit(areas: Node3D) -> void:
 	well.strength = 14.0
 	root.add_child(well)
 	_provenance(pit, "baton", Vector3(-30.5, -3, -3))
-	_placard(pit, Vector3(-20, -1.6, -4), 0.0, "IV", "The Orchestra Pit", "Acq. No. 003\nUnder-stage",
+	_placard(pit, Vector3(-22, -1.16, -0.12), 180.0, "IV", "The Orchestra Pit", "Acq. No. 003\nUnder-stage",
 		"Musicians descended here before each performance. The records show the pit was dry for the entire run, although the flood reports list it as the first room to fill.")
-	_placard(pit, Vector3(-30, -1.6, -15), 90.0, "V", "The Gantry", "Acq. No. 003\nTechnical",
+	_placard(pit, Vector3(-31.87, -1.16, -14.0), 90.0, "V", "The Gantry", "Acq. No. 003\nTechnical",
 		"Technicians reached the gantry by lifting with the pipes. The pipes are documented as silent during the period. The source of the sound is listed as unknown, which is listed as a finding.")
 
 
