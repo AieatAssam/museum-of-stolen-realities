@@ -14,6 +14,17 @@ def build(args):
     parts = []
     parts.append(kit.box("back", (W, 0.4, 17.0), (0, 0.2, 8.5), mat="damask"))
     parts.append(kit.box("dado", (W, 0.3, 1.3), (0, -0.15, 0.65), mat="marble_black", bevel=0.02))
+    # the dado fielded: five panels of a dark veined sienna marble a bay, raised in the black marble, each in a gilt bead
+    n, x0, x1 = 5, -(W / 2 - 0.85), W / 2 - 0.85
+    pw = (x1 - x0 - (n - 1) * 0.24) / n
+    for k in range(n):
+        cx = x0 + pw / 2 + k * (pw + 0.24)
+        parts.append(kit.box("dado_field%d" % k, (pw, 0.05, 0.78), (cx, -0.32, 0.73), mat="marble_dado", bevel=0.012))
+        hw = pw / 2 + 0.02
+        bead = [(0.0, 0.0), (0.0, 0.02), (0.015, 0.035), (0.035, 0.02), (0.035, 0.0)]
+        b = kit.sweep_closed("dado_bead%d" % k, [(u, -v) for u, v in bead], [(cx - hw, 0, 0.32), (cx + hw, 0, 0.32), (cx + hw, 0, 1.14), (cx - hw, 0, 1.14)], mat="gilt")
+        b.location = (0, -0.3, 0)
+        parts.append(orn.face_toward(b))
     parts.append(kit.box("dado_cap", (W, 0.42, 0.1), (0, -0.2, 1.33), mat="gilt", bevel=0.02))
     parts.append(kit.box("skirting", (W, 0.38, 0.18), (0, -0.19, 0.09), mat="gilt", bevel=0.015))
     # gilt panel moulding around the damask field
