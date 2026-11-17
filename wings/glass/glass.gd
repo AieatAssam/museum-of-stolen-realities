@@ -695,6 +695,11 @@ func _build_cloister() -> void:
 	_west_door = _block(Vector3(-2.5, 0, -18.2), Vector3(2.5, 4.5, -17.8), "lead")
 	_west_door.visible = false
 	(_west_door.get_child(0) as StaticBody3D).collision_layer = 0
+	# the west front's cloister face (west_front.glb, visual only): portal, buttresses, string courses
+	var front := _model("west_front")
+	if front:
+		front.position = Vector3(0, 0, -17.5)
+		geo.add_child(front)
 	# arcade around the garth: lead-framed glass piers, a glazed roof over the walks
 	var cpier := {"pier_base": [], "pier_shaft": [], "pier_capital": []}
 	var carch: Array = []
