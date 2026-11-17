@@ -345,6 +345,23 @@ func _model(area: String, name: String, pos: Vector3, yaw: float = 0.0, scale: f
 	return n
 
 
+## Repeats of a Blender model as MultiMeshes, one per mesh in it (one draw per surface for every copy).
+func _mm(area: String, name: String, xforms: Array) -> void:
+	var src := Art.model(name)
+	for mi: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
+		var m := MultiMesh.new()
+		m.transform_format = MultiMesh.TRANSFORM_3D
+		m.mesh = mi.mesh
+		m.instance_count = xforms.size()
+		for i in xforms.size():
+			m.set_instance_transform(i, xforms[i] * mi.transform)
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = m
+		mmi.material_override = mi.get_active_material(0)
+		_area(area).add_child(mmi)
+	src.free()
+
+
 func _sfx(n: String, at: Variant = null, db: float = 0.0, pitch: float = 1.0) -> void:
 	var path := SND + n + ".ogg"
 	if ResourceLoader.exists(path):
@@ -874,6 +891,22 @@ func _build_pentimento() -> void:
 		var b: Array = parts[i]
 		var g := _ground(A, "Ground_%d" % i, b[0], b[1], b[2], b[3])
 		(g.get_node("Visual") as MeshInstance3D).material_override = arena_mat
+	# the grounds' edges over the void: primer rolled over in a dripping lip, the canvas tacked down the face
+	# and torn, its stretcher bar under the slab (paint_lip.glb, 4 m a piece; visual only)
+	var lips := []
+	for k in 17:
+		var u := -32.0 + k * 4.0
+		lips.append(Transform3D(Basis(Vector3.UP, PI), Vector3(u, 0, -419)))
+		lips.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(-34, 0, -385.0 - u)))
+		lips.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(34, 0, -385.0 - u)))
+		if absf(u) > 8.0:
+			lips.append(Transform3D(Basis.IDENTITY, Vector3(u, 0, -351)))
+	for s: float in [-1.0, 1.0]:  # round the crack
+		lips.append(Transform3D(Basis(Vector3.UP, PI), Vector3(2.5 * s, 0, -380)))
+		lips.append(Transform3D(Basis.IDENTITY, Vector3(2.5 * s, 0, -390)))
+		lips.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-5, 0, -385 + 2.5 * s)))
+		lips.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(5, 0, -385 + 2.5 * s)))
+	_mm(A, "paint_lip", lips)
 	figure = _block(A, "Figure", C + Vector3(-4, -40, 4), C + Vector3(4, 22, -4), "figure")
 	figure.get_node("Visual").queue_free()
 	# the revelation: an earlier portrait, modelled in relief and half scraped back, standing in the
@@ -1167,6 +1200,12 @@ func _build_gallery(area: String) -> void:
 	_model(area, "picture_light", Vector3(-264.5, 23.5, -102), PI * 0.5, GS).name = "OwnPictureLamp"
 	var ceil := _block(area, "Ceiling", Vector3(-262, 90, 22), Vector3(FAR_X, 92, -422), "gallery", false)
 	(ceil.get_node("Visual") as MeshInstance3D).material_override = Art.mat("r_plaster")
+	# coffered at the visitors' scale: 4 x 11 sunk panels with gilt beads and rosettes (coffer.glb, visual only)
+	var cof := []
+	for i in 4:
+		for k in 11:
+			cof.append(Transform3D(Basis.from_scale(Vector3(42.0, GS, 40.36)), Vector3(-283.0 - 42.0 * i, 90.0, 1.82 - 40.36 * k)))
+	_mm(area, "coffer", cof)
 	_build_frames(area)
 
 
