@@ -713,6 +713,10 @@ func _build_cloister() -> void:
 			cbay.append(Transform3D(b, at))
 			if absf(u) < 11.0 and (wall[1] == Vector3.RIGHT or absf(u) > 5.5):
 				crib.append(Transform3D(b, at))
+	for k in 8:  # the north walk's roof, ribbed onto the west front between its portal and buttresses
+		var u := -10.5 + k * 3.0
+		if absf(u) > 3.0:
+			crib.append(Transform3D(Basis.IDENTITY, Vector3(u, 0, -17.5)))
 	_mm("cloister_bay", cbay)
 	_mm("cloister_rib", crib)
 	var ckerb: Array = []
@@ -818,6 +822,15 @@ func _build_nave() -> void:
 	_block(Vector3(-16.5, 12, -111.5), Vector3(-15.5, 26, -107.5), "glass_wall")
 	_block(Vector3(-16.5, -12, -121), Vector3(-15.5, -3, -88), "glass_wall")
 	_block(Vector3(-16.5, 25.5, -121), Vector3(16.5, 26.5, -17.5), "glass_quarry", false)
+	# the glazed walls' bays (cloister_nave.glb, visual only): an engaged shaft between each pair of the
+	# shader's lancets (5.5 m bays, divisions on the piers' 11 m and halfway), sill course, band between tiers
+	var nbay: Array = []
+	for k in 18:
+		var z := -22.0 - k * 5.5
+		nbay.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(15.5, 0, z)))
+		if z > -106.0 or z < -113.0:  # north wall: not across the Rose hall door
+			nbay.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-15.5, 0, z)))
+	_mm("cloister_nave", nbay)
 	# piers of the arcade
 	# Modelled: clustered piers (capitals at the arcade and vault springs), pointed arcade arches,
 	# a ribbed vault bay per bay. All MultiMesh; the code boxes stay as invisible colliders.
