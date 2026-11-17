@@ -414,9 +414,9 @@ func _pit() -> void:
 
 func _corridor() -> void:
 	_bays("panel_bay", Vector3(17, 2.8, 36), Vector3(41, 2.8, 36), 0.0)
-	_put("panel_bay", Vector3(44.5, 2.8, 36), 0.0, Vector3(0.75, 1, 1))
+	_put("panel_bay", Vector3(44.35, 2.8, 36), 0.0, Vector3(0.7, 1, 1))  # its end pilaster stays inside the corridor mouth (x < 46), not loose in the loft
 	_bays("panel_bay", Vector3(17, 2.8, 42), Vector3(41, 2.8, 42), 180.0)
-	_put("panel_bay", Vector3(44.5, 2.8, 42), 180.0, Vector3(0.75, 1, 1))
+	_put("panel_bay", Vector3(44.35, 2.8, 42), 180.0, Vector3(0.7, 1, 1))
 	# the flip ceiling, coffered on its underside; chairs bolted to it as if it were the floor
 	_hide_mesh("FlipCeiling")
 	_put("coffer_panel", Vector3(27, 5.8, 39))
