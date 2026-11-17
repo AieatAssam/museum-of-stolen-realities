@@ -2,6 +2,12 @@
 
 [resource]
 resource_name = "thief_mask"
-albedo_color = Color(0.02, 0.02, 0.025, 1)
+albedo_color = Color(0.06, 0.035, 0.04, 1)
 metallic = 0.0
-roughness = 0.25
+roughness = 0.3
+clearcoat_enabled = true
+clearcoat = 1.0
+clearcoat_roughness = 0.08
+rim_enabled = true
+rim = 0.35
+rim_tint = 0.6
