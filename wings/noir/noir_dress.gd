@@ -505,7 +505,11 @@ func _street() -> void:
 		return n is MeshInstance3D and (n as Node3D).position.is_equal_approx(Vector3(3.97, 2.3, -35.0)))[0]
 	glass.material_override = mat("window_clear")
 	glass.position.x = 4.02
-	mass(Vector3(4.9, 1.0, -48.5), Vector3(4.95, 3.6, -21.5), "diner_glow")
+	# the run's alley end is closed by a cased pier (z -21.0..-21.4); the glass and the lit room run up to it
+	(glass.mesh as BoxMesh).size.z = 26.6
+	glass.position.z = -34.7
+	model(self, "diner_end", Vector3(4.0, 0, -21.2), -90.0)
+	mass(Vector3(4.9, 1.0, -48.5), Vector3(4.95, 3.6, -21.3), "diner_glow")
 	var sil: MeshInstance3D = wing.get("_silhouette")
 	sil.mesh = mesh_of("figure_b")
 	sil.material_override = mat("silhouette")
