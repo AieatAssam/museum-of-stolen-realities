@@ -382,6 +382,14 @@ func _pit() -> void:
 	_bays("panel_bay", Vector3(-32, -3, -2), Vector3(-32, -3, -18), 90.0, dark)
 	_bays("panel_bay", Vector3(-18, -3, -20), Vector3(-30, -3, -20), 0.0, dark)
 	_bays("panel_bay", Vector3(-18, -3, 0), Vector3(-30, -3, 0), 180.0, dark)
+	# the upper fields are under-stage timberwork: the fly loft's oak framing over the boarding
+	var frame: Array[Transform3D] = []
+	for i: int in 5:
+		frame.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-31.9, -0.2, -2.0 - 4.0 * i)))
+	for i: int in 4:
+		frame.append(Transform3D(Basis.IDENTITY, Vector3(-18.0 - 4.0 * i, -0.2, -19.9)))
+		frame.append(Transform3D(Basis(Vector3.UP, PI), Vector3(-18.0 - 4.0 * i, -0.2, -0.1)))
+	_multi("loft_wall", frame)
 	_hide_mesh("Gantry")
 	_put("wind_chest", Vector3(-22, -4, -17))
 	_hide_mesh("PitRamp")
