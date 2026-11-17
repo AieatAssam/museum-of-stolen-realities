@@ -241,6 +241,24 @@ def diner_end():
     kit.join("diner_end", p)
 
 
+def alley_return():
+    """The brick return between the alley's last facade bay and the diner's end pier (1.1 m along X, origin
+    foot centre, front -Y, 1.4 m deep): plinth, toothed quoins, a stone coping and a cast-iron downpipe."""
+    p = [B("body", (1.1, 1.4, 4.6), (0, 0.7, 2.3), "brick")]
+    p.append(B("plinth", (1.14, 1.44, 0.55), (0, 0.7, 0.275), "brick_dark", bevel=0.02))
+    p.append(B("coping", (1.2, 1.5, 0.14), (0, 0.7, 4.67), "stone", bevel=0.02))
+    for i in range(12):
+        z = 0.75 + i * 0.32
+        w = 0.24 if i % 2 == 0 else 0.14
+        for s in (-1, 1):
+            p.append(B("quoin", (w, 0.05, 0.27), (s * (0.55 - w / 2), -0.02, z), "brick_dark", bevel=0.012))
+    p.append(kit.tube("pipe", [(0.2, -0.12, 0.05), (0.2, -0.12, 4.4), (0.2, 0.05, 4.6)], 0.045, 10, mat="iron"))
+    for z in (1.2, 2.4, 3.6):
+        p.append(B("clip", (0.13, 0.13, 0.04), (0.2, -0.07, z), "iron", bevel=0.01))
+    p.append(B("shoe", (0.14, 0.2, 0.06), (0.2, -0.18, 0.06), "iron", bevel=0.01))
+    kit.join("alley_return", p)
+
+
 LETTERS = {  # tube polylines in a 0.5 x 0.7 cell, (x, z)
     "E": [[(0.45, 0.7), (0.05, 0.7), (0.05, 0.0), (0.45, 0.0)], [(0.05, 0.35), (0.35, 0.35)]],
     "A": [[(0.0, 0.0), (0.25, 0.7), (0.5, 0.0)], [(0.1, 0.28), (0.4, 0.28)]],
@@ -476,7 +494,7 @@ def sign_bracket():
 PARTS = {
     "sign_bracket": sign_bracket,
     "facade_a": lambda: facade("a"), "facade_b": lambda: facade("b"), "facade_c": lambda: facade("c"), "facade_low": lambda: facade("low"),
-    "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "diner_end": diner_end, "neon_eat": neon_eat,
+    "back_door": back_door, "fire_escape": fire_escape, "diner_front": diner_front, "diner_end": diner_end, "alley_return": alley_return, "neon_eat": neon_eat,
     "trash_can": trash_can, "crate": crate, "manhole": manhole, "hydrant": hydrant, "bench": bench,
     "shopfront": shopfront, "curb": curb, "lamp_bracket": lamp_bracket,
     "newsstand": newsstand, "crate_stack": crate_stack,
