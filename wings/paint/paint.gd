@@ -816,12 +816,12 @@ func _build_river() -> void:
 			float(i) * 2.1 + 0.3, 5.0 + 1.0 * float(i % 2), 260.0)
 	# just enough light to read the rock: a cold blue wash under the roof, and the source's warm pigment
 	# glowing up onto the brow. Lights only (pencil solidity comes from yellow strokes, not from Light3D)
-	for p: Vector3 in [Vector3(92, 5.0, -216), Vector3(106, 5.0, -240), Vector3(120, 5.0, -218)]:
+	for p: Vector3 in [Vector3(92, 3.8, -216), Vector3(106, 3.8, -240), Vector3(120, 3.8, -218), Vector3(134, 3.8, -236)]:
 		var cold := OmniLight3D.new()
-		cold.light_color = Color("6a7cc8")
-		cold.light_energy = 1.6
-		cold.omni_range = 20.0
-		cold.omni_attenuation = 1.4
+		cold.light_color = Color("7a8cd8")
+		cold.light_energy = 2.6
+		cold.omni_range = 22.0
+		cold.omni_attenuation = 0.9
 		cold.light_specular = 0.2
 		cold.position = p
 		_area(A).add_child(cold)
