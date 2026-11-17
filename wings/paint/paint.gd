@@ -713,6 +713,13 @@ func _build_windfall() -> void:
 	# the Unpainted (Provenance: the pencil stub): underdrawing, solid only in yellow light
 	var U := "Unpainted"
 	_block(U, "Shade", Vector3(-16, 7, -158), Vector3(-68, 8, -182), "weave")
+	# its underside, seen from the path below: the back of the canvas on a stretcher lattice, tacked, with
+	# paint soaked through and dripping (visual only, inset from the torn edge; the box keeps its collider)
+	var backs: Array = []
+	for i in 10:
+		for k in 4:
+			backs.append(Transform3D(Basis(Vector3.UP, PI * 0.5 * float((i * 7 + k * 3) % 4)), Vector3(-60.0 + 4.0 * i, 7.0, -176.0 + 4.0 * k)))
+	_mm(U, "canvas_back", backs)
 	_stroke(U, "pencil_1", [Vector3(-17, 0.5, -170), Vector3(-37, 0.5, -170)], "pencil", 2.0, {"k": "pencil"})
 	_stroke(U, "pencil_2", [Vector3(-37, 0.5, -170), Vector3(-55, 0.5, -171)], "pencil", 2.0, {"k": "pencil"})
 	_ground(U, "Pedestal", -55, -166, -63, -175, 0.5, "crust")
@@ -801,6 +808,31 @@ func _build_river() -> void:
 	for i in 6:
 		_model(A, "rock_a" if i % 2 == 1 else "rock_b", Vector3(87.0 + i * 7.5, 1.0 + 0.8 * float(i % 2), -251.6),
 			float(i) * 2.3, 5.0 + 1.0 * float(i % 3), 260.0)
+	# the deep half of the south wall and the source's back wall in the same rock, so no wall is a smooth blob
+	for i in 4:
+		_model(A, "rock_b" if i % 2 == 0 else "rock_a", Vector3(116.0 + i * 6.5, 1.2 + 0.6 * float(i % 2), -251.4),
+			float(i) * 1.9 + 0.7, 5.5 + 1.0 * float(i % 2), 260.0)
+		_model(A, "rock_a" if i % 2 == 0 else "rock_b", Vector3(116.0 + i * 6.5, 1.0 + 0.6 * float((i + 1) % 2), -206.4),
+			float(i) * 2.1 + 0.3, 5.0 + 1.0 * float(i % 2), 260.0)
+	# just enough light to read the rock: a cold blue wash under the roof, and the source's warm pigment
+	# glowing up onto the brow. Lights only (pencil solidity comes from yellow strokes, not from Light3D)
+	for p: Vector3 in [Vector3(92, 5.0, -216), Vector3(106, 5.0, -240), Vector3(120, 5.0, -218)]:
+		var cold := OmniLight3D.new()
+		cold.light_color = Color("6a7cc8")
+		cold.light_energy = 1.6
+		cold.omni_range = 20.0
+		cold.omni_attenuation = 1.4
+		cold.light_specular = 0.2
+		cold.position = p
+		_area(A).add_child(cold)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color("ffc56a")
+	glow.light_energy = 1.4
+	glow.omni_range = 15.0
+	glow.omni_attenuation = 1.6
+	glow.light_specular = 0.2
+	glow.position = Vector3(132, 0.8, -228)
+	_area(A).add_child(glow)
 	_stroke(A, "cave_pencil", [Vector3(100, 0, -228), Vector3(125, 0, -228)], "pencil", 2.0, {"k": "pencil"})
 	_ground(A, "Source", 125, -214, 140, -242, 0.0, "goal")
 	_zone(A, Vector3(125, -1, -214), Vector3(140, 4, -242), _reach_source)
