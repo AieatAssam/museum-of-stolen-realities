@@ -378,10 +378,10 @@ func _auditorium() -> void:
 
 
 func _pit() -> void:
-	var dark := {"damask_ox": "ebony", "marble_teal": "boards"}
-	_bays("panel_bay", Vector3(-32, -3, -2), Vector3(-32, -3, -18), 90.0, dark)
-	_bays("panel_bay", Vector3(-18, -3, -20), Vector3(-30, -3, -20), 0.0, dark)
-	_bays("panel_bay", Vector3(-18, -3, 0), Vector3(-30, -3, 0), 180.0, dark)
+	# the pit's own panelling: oak wainscot, ebony fields, whole ebony pilasters (no marble stubs)
+	_bays("pit_bay", Vector3(-32, -3, -2), Vector3(-32, -3, -18), 90.0)
+	_bays("pit_bay", Vector3(-18, -3, -20), Vector3(-30, -3, -20), 0.0)
+	_bays("pit_bay", Vector3(-18, -3, 0), Vector3(-30, -3, 0), 180.0)
 	# the upper fields are under-stage timberwork: the fly loft's oak framing over the boarding
 	var frame: Array[Transform3D] = []
 	for i: int in 5:
@@ -592,17 +592,33 @@ func _dust(centre: Vector3, extents: Vector3) -> void:
 	pm.scale_curve = ct
 	p.process_material = pm
 	var q := QuadMesh.new()
-	q.size = Vector2(0.025, 0.025)
+	q.size = Vector2(0.04, 0.04)  # the soft dot's core is about half of this
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = Color(1.0, 0.85, 0.6, 0.6)
+	mat.albedo_color = Color(1.0, 0.8, 0.55, 0.3)
+	mat.albedo_texture = _soft_dot()  # a round mote with a feathered edge, never a square
 	q.material = mat
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(p)
+
+
+static func _soft_dot() -> Texture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	g.add_point(0.35, Color(1, 1, 1, 0.45))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 32
+	gt.height = 32
+	return gt
 
 
 func _probes() -> void:

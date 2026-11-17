@@ -1780,9 +1780,20 @@ func _start_wind() -> void:
 	q.size = Vector2(0.03, 0.9)
 	var qm := StandardMaterial3D.new()
 	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	qm.albedo_color = Color(0.85, 0.9, 1.0, 0.25)
+	qm.albedo_color = Color(0.85, 0.9, 1.0, 0.18)
 	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	var g := Gradient.new()  # a streak, not a bar: alpha feathers across and tapers to both ends
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 8
+	gt.height = 64
+	qm.albedo_texture = gt
 	q.material = qm
 	_wind_fx.draw_pass_1 = q
 	_wind_fx.position = Vector3(0, 12, -119)

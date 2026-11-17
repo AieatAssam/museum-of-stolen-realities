@@ -332,6 +332,36 @@ def panel_bay():
     kit.join("panel_bay", P)
 
 
+def pit_bay():
+    """A 4 m bay of the orchestra pit's lower wall, floor to the fly-loft sill (2.8 m), front -Y, origin on the
+    wall face at the floor: an ebony skirt, an oak wainscot with fielded panels and a gilt dado rail, then an
+    ebony upper field between whole ebony pilasters (gilt attic base and capital) with a pair of sconces, and a
+    gilt head moulding under the sill. Nothing ivory: the pit is the dark of the house."""
+    W, TOP = 4.0, 2.8
+    P = [ext_box("skirt", {"x": (-W / 2, W / 2), "y": (-0.16, 0.0), "z": (0.0, 0.2)}, "ebony", 0.015),
+         ext_box("wainscot", {"x": (-W / 2, W / 2), "y": (-0.12, 0.0), "z": (0.2, 1.1)}, "boards", 0.01),
+         ext_box("field_wall", {"x": (-W / 2, W / 2), "y": (-0.06, 0.0), "z": (1.1, TOP)}, "ebony")]
+    fielded_panels(P, "y", -1, (-1.0, 1.0), 1.5, 0.32, 0.98, 0.12, "boards")
+    P.append(sweep("dado_rail", [(0.0, 0.0), (0.06, 0.0), (0.08, 0.04), (0.05, 0.08), (0.0, 0.08)], [(-W / 2, -0.12, 1.08), (W / 2, -0.12, 1.08)], "gilt"))
+    # one raised ebony field between the sconces, beaded in gilt
+    fielded_panels(P, "y", -1, (0.0,), 1.3, 1.32, 2.36, 0.06, "ebony")
+    for sx in (-1, 1):
+        x = sx * W / 2
+        P.append(ext_box("pil_plinth", {"x": (x - 0.24, x + 0.24), "y": (-0.2, 0.0), "z": (1.1, 1.22)}, "gilt", 0.01))
+        P.append(ext_box("pil_torus", {"x": (x - 0.21, x + 0.21), "y": (-0.18, 0.0), "z": (1.22, 1.28)}, "gilt", 0.02))
+        P.append(ext_box("pil_shaft", {"x": (x - 0.18, x + 0.18), "y": (-0.15, 0.0), "z": (1.28, 2.44)}, "ebony", 0.01))
+        for fx in (-0.09, 0.0, 0.09):  # three gilt-lined flutes
+            P.append(ext_box("pil_flute", {"x": (x + fx - 0.012, x + fx + 0.012), "y": (-0.157, -0.14), "z": (1.36, 2.36)}, "gilt", 0.004))
+        P.append(ext_box("pil_neck", {"x": (x - 0.2, x + 0.2), "y": (-0.17, 0.0), "z": (2.44, 2.5)}, "gilt", 0.01))
+        P.append(ext_box("pil_cap", {"x": (x - 0.25, x + 0.25), "y": (-0.22, 0.0), "z": (2.5, 2.64)}, "gilt_orn", 0.015))
+        for vx in (-0.2, 0.2):  # little volutes at the capital's corners
+            P.append(kit.torus("pil_volute", 0.045, 0.014, seg=12, rseg=5, mat="gilt", loc=(x + vx, -0.2, 2.55), rot=(math.pi / 2, 0, 0)))
+        P.extend(lamp("sconce", (sx * 1.3, -0.06, 1.85), 1.1))
+    P.append(sweep("head", [(0.0, 0.0), (0.05, 0.0), (0.09, 0.04), (0.12, 0.09), (0.12, 0.16), (0.0, 0.16)],
+                   [(-W / 2, -0.06, 2.64), (W / 2, -0.06, 2.64)], "gilt"))
+    kit.join("pit_bay", P)
+
+
 def proscenium():
     """The hero: a 30 m gilt proscenium. Paired giant columns on pedestals, a moulded arch with a lyre
     cartouche, an ornament band, heavy oxblood swags across the top and side curtains pooled on the
@@ -1019,12 +1049,29 @@ def wind_chest():
     P.append(kit.box("deck", (W + 0.2, D + 0.2, 0.2), (0, 0, H - 0.1), mat="boards", bevel=0.02))
     P.append(sweep("deck_edge", [(0.0, -0.1), (0.06, -0.1), (0.08, -0.05), (0.06, 0.0), (0.0, 0.0)],
                    [(-W / 2 - 0.1, -D / 2 - 0.1, H - 0.2), (W / 2 + 0.1, -D / 2 - 0.1, H - 0.2), (W / 2 + 0.1, D / 2 + 0.1, H - 0.2), (-W / 2 - 0.1, D / 2 + 0.1, H - 0.2)], "gilt", closed_path=True))
-    # rail on three sides of the deck (the open side faces the pipes)
-    rail = [(-W / 2, D / 2 - 0.1, H + 1.0), (W / 2, D / 2 - 0.1, H + 1.0)]
-    P.append(kit.tube("rail", rail, 0.035, 8, "brass"))
-    for k in range(9):
-        x = -W / 2 + W * k / 8
-        P.append(kit.tube("post", [(x, D / 2 - 0.1, H), (x, D / 2 - 0.1, H + 1.0)], 0.025, 6, "brass"))
+    # a gallery balustrade along the back and the west end of the deck (the east end is the stair, the
+    # front is the pipe flat): turned newels with ball finials, a moulded oak handrail on a gilt bead,
+    # a bottom rail and brass-turned balusters, so it reads as furniture and not a thin wire frame
+    by, wx = D / 2 - 0.12, -W / 2 + 0.12
+    run = [(W / 2 - 0.12, by), (wx, by), (wx, -D / 2 + 0.12)]
+    P.append(sweep("handrail", [(-0.07, 0.0), (0.07, 0.0), (0.08, 0.04), (0.06, 0.09), (0.0, 0.11), (-0.06, 0.09), (-0.08, 0.04)],
+                   [(x, y, H + 0.92) for x, y in run], "boards"))
+    P.append(sweep("hand_bead", [(-0.05, -0.03), (0.05, -0.03), (0.05, 0.0), (-0.05, 0.0)], [(x, y, H + 0.92) for x, y in run], "gilt"))
+    P.append(sweep("bottom_rail", [(-0.05, 0.0), (0.05, 0.0), (0.05, 0.08), (-0.05, 0.08)], [(x, y, H + 0.02) for x, y in run], "boards"))
+    for (x0, y0), (x1, y1) in zip(run, run[1:]):
+        L = math.hypot(x1 - x0, y1 - y0)
+        n = int(L / 0.22)
+        for i in range(1, n):
+            t = i / n
+            b = kit.lathe("baluster", [(0.0, 0.1), (0.03, 0.1), (0.03, 0.16), (0.045, 0.3), (0.02, 0.5), (0.018, 0.7), (0.03, 0.8), (0.022, 0.86), (0.022, 0.92), (0.0, 0.92)], segments=8, mat="brass")
+            b.location = (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, H)
+            P.append(b)
+    for x, y in run + [(0.0, by)]:
+        P.append(kit.box("newel", (0.16, 0.16, 1.0), (x, y, H + 0.5), mat="ebony", bevel=0.02))
+        P.append(kit.box("newel_cap", (0.22, 0.22, 0.05), (x, y, H + 1.04), mat="gilt", bevel=0.01))
+        f = kit.lathe("finial", [(0.0, 0.0), (0.04, 0.0), (0.03, 0.04), (0.07, 0.1), (0.06, 0.16), (0.0, 0.2)], segments=12, mat="gilt")
+        f.location = (x, y, H + 1.06)
+        P.append(f)
     # bellows on the front face
     for k in range(3):
         b = kit.box("bellows_%d" % k, (2.0 - 0.1 * k, 0.25, 0.3), (-2.0, -D / 2 - 0.15 - 0.03 * k, 0.6 + 0.32 * k), mat="velvet", bevel=0.08)
@@ -1493,7 +1540,7 @@ def dome_shell():
 
 
 KINDS = {k: v for k, v in globals().items() if callable(v) and k in (
-    "tier_bay", "panel_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
+    "tier_bay", "panel_bay", "pit_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
     "glass_bowls", "fork_statue", "chandelier", "stair", "stair_pit", "balustrade", "wind_chest", "royal_box",
     "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "loft_wall", "catwalk", "fragment",
     "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain", "dome_shell", "page")}

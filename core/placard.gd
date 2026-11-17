@@ -248,6 +248,7 @@ func _build() -> void:
 		_back_mat.albedo_color = Color(0.36, 0.27, 0.17)
 		_back_mat.metallic = 0.75
 		_back_mat.roughness = 0.6
+		_back_mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # the back panel shows from behind too, never an empty frame
 	var bezel := MeshInstance3D.new()
 	bezel.mesh = _bezel_mesh(size)
 	bezel.set_surface_override_material(0, _bezel_mat)
