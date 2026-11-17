@@ -457,25 +457,36 @@ func _corridor() -> void:
 
 
 func _fly_loft() -> void:
-	# oak framing over the tower's ebony boarding, behind the lines (visual only; walls and colliders unchanged)
-	var frame: Array[Transform3D] = []
+	# the fly tower's brick skin: piers every 4 m, string courses, a corbel table, pin-rail brackets and rope
+	# cleats on the piers (visual only; walls and colliders unchanged)
+	var brick: Array[Transform3D] = []
+	var hi: Array[Transform3D] = []  # loading galleries high on the north and south walls
 	for i: int in 4:
-		frame.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 2.8, 32.0 + 4.0 * i)))
-		frame.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 2.8, 46)))
-		frame.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 2.8, 30)))
+		brick.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 2.8, 32.0 + 4.0 * i)))
+		brick.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 2.8, 46)))
+		brick.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 2.8, 30)))
+		hi.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 12.2, 46)))
+		hi.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 12.2, 30)))
 	for z: float in [31.0, 35.0, 44.0]:  # the west wall either side of the corridor's mouth (z 37..42)
-		frame.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(46, 2.8, z)))
-	_multi("loft_wall", frame)
-	_bays("rigging", Vector3(62, 2.8, 32), Vector3(62, 2.8, 44), -90.0)
-	_bays("rigging", Vector3(48, 2.8, 46), Vector3(60, 2.8, 46), 180.0)
-	_bays("rigging", Vector3(48, 2.8, 30), Vector3(60, 2.8, 30), 0.0)
+		brick.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(46, 2.8, z)))
+	_multi("loft_brick", brick)
+	var fly: Array[Transform3D] = []  # the fly gallery on the east wall carries the catwalk rail
+	for i: int in 4:
+		fly.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(62, 9.0, 32.0 + 4.0 * i)))
+	_multi("loft_gallery", fly + hi)
+	# the lines hang 0.3 m off the brick, clear of the piers, onto the pin rail on its brackets
+	_bays("rigging", Vector3(61.7, 2.8, 32), Vector3(61.7, 2.8, 44), -90.0)
+	_bays("rigging", Vector3(48, 2.8, 45.7), Vector3(60, 2.8, 45.7), 180.0)
+	_bays("rigging", Vector3(48, 2.8, 30.3), Vector3(60, 2.8, 30.3), 0.0)
 	# a painted seascape flown out, hem at 7.6 m, and a second drop further up
 	_put("backdrop", Vector3(54.5, 14.2, 43.6), 180.0)
 	_spot(Vector3(54.5, 3.6, 36.0), Vector3(54.5, 8.5, 43.6), Color("ffd9a8"), 1.6, 14.0, 40.0, false, 0.3)  # footlight on the drop
 	_put("backdrop", Vector3(54.0, 18.5, 33.0), 0.0, Vector3(1.0, 1.0, 1.0))
 	var walk: Array[Transform3D] = []
 	for i: int in 4:
-		walk.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(61.0, 9.0, 32.0 + 4.0 * i)))
+		walk.append(Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(60.7, 9.0, 32.0 + 4.0 * i)))  # on the gallery's front edge
+		walk.append(Transform3D(Basis(Vector3.UP, PI), Vector3(48.0 + 4.0 * i, 12.2, 44.7)))
+		walk.append(Transform3D(Basis.IDENTITY, Vector3(48.0 + 4.0 * i, 12.2, 31.3)))
 	_multi("catwalk", walk)
 	# moonlight down the skylight onto the fork; a warm work lamp on the floor
 	_spot(Vector3(52, 22, 36), Vector3(56, 2.8, 40), Color("bfe8ff"), 7.0, 30.0, 12.0, true, 0.8)

@@ -1345,6 +1345,64 @@ def loft_wall():
     kit.join("loft_wall", P)
 
 
+def loft_brick():
+    """A 4 m bay of the fly tower's brick wall (origin on the wall face at loft floor level, front -Y, 11.2 m):
+    a brick skin, half piers at x = +-2 (two bays make one 0.36 m pier) on a stepped plinth, two projecting
+    string courses, a three-step corbel table under the head; iron brackets off the piers carry the
+    rigging's pin rail (y -0.3, z 1.0) and each pier carries two iron rope cleats. The ropes (x -1.8..1.8,
+    y -0.3) hang clear of the piers (depth 0.2)."""
+    W, H = 4.0, 11.2
+    P = [ext_box("skin", {"x": (-W / 2, W / 2), "y": (-0.05, 0.0), "z": (0.0, H)}, "brick")]
+    for sx in (-1, 1):
+        o = sx * W / 2
+        P.append(ext_box("pier", {"x": (o, o - sx * 0.18), "y": (-0.2, -0.05), "z": (0.0, H)}, "brick", 0.01))
+        P.append(ext_box("plinth", {"x": (o, o - sx * 0.25), "y": (-0.28, -0.05), "z": (0.0, 0.6)}, "brick", 0.01))
+        P.append(ext_box("weather", {"x": (o, o - sx * 0.25), "y": (-0.29, -0.05), "z": (0.6, 0.66)}, "iron", 0.01))
+        # pin-rail bracket: a flat iron knee from the pier face out under the rail
+        P.append(ext_box("rail_arm", {"x": (o - sx * 0.06, o - sx * 0.12), "y": (-0.45, -0.2), "z": (0.82, 0.88)}, "iron", 0.004))
+        st = kit.box("rail_strut", (0.06, 0.32, 0.04), (0, 0, 0), mat="iron", bevel=0.004)
+        st.rotation_euler = (math.radians(-40), 0, 0)
+        st.location = (o - sx * 0.09, -0.31, 0.72)
+        P.append(st)
+        # two rope cleats on the pier face, a hitched line on the lower
+        for cz in (1.7, 2.25):
+            P.append(ext_box("cleat_base", {"x": (o - sx * 0.06, o - sx * 0.12), "y": (-0.23, -0.2), "z": (cz - 0.08, cz + 0.08)}, "iron", 0.004))
+            P.append(kit.tube("cleat", [(o - sx * 0.09, -0.25, cz - 0.13), (o - sx * 0.09, -0.27, cz - 0.04),
+                                        (o - sx * 0.09, -0.27, cz + 0.04), (o - sx * 0.09, -0.25, cz + 0.13)], 0.016, 6, "iron"))
+        P.append(kit.tube("hitch", [(o - sx * 0.09, -0.29, 1.62), (o - sx * 0.07, -0.3, 1.74), (o - sx * 0.11, -0.3, 1.82),
+                                    (o - sx * 0.08, -0.29, 1.4), (o - sx * 0.1, -0.27, 1.0)], 0.013, 5, "rope"))
+    for z in (4.0, 8.0):  # string courses: a header course on a soldier course
+        P.append(ext_box("course", {"x": (-W / 2, W / 2), "y": (-0.11, -0.05), "z": (z, z + 0.15)}, "brick", 0.008))
+        P.append(ext_box("drip", {"x": (-W / 2, W / 2), "y": (-0.14, -0.05), "z": (z + 0.15, z + 0.21)}, "brick", 0.008))
+    for k, d in enumerate((0.06, 0.12, 0.18)):  # corbel table stepping out under the head
+        z = H - 0.6 + 0.2 * k
+        P.append(ext_box("corbel", {"x": (-W / 2, W / 2), "y": (-0.05 - d, -0.05), "z": (z, z + 0.2)}, "brick", 0.006))
+    kit.join("loft_brick", P)
+
+
+def loft_gallery():
+    """4 m of fly gallery / loading gallery (origin on the wall face at deck level, front -Y): a plank deck
+    y -0.55..-1.35, its joists and fascia, carried on iron cantilever brackets with raking struts from the
+    piers at x = +-2; the gap behind the deck lets the lines (y -0.3) drop past."""
+    y0, y1 = -0.55, -1.35
+    P = [ext_box("fascia", {"x": (-2.0, 2.0), "y": (y1, y1 + 0.05), "z": (-0.22, 0.0)}, "boards", 0.006),
+         ext_box("back_joist", {"x": (-2.0, 2.0), "y": (y0, y0 - 0.08), "z": (-0.2, -0.04)}, "boards", 0.006)]
+    for k in range(8):  # deck planks across the 0.8 m depth, slightly varied
+        x = -2.0 + 0.5 * k
+        P.append(ext_box("plank", {"x": (x + 0.006, x + 0.494), "y": (y0, y1), "z": (-0.04 - 0.004 * (k % 2), 0.0)}, "boards", 0.004))
+    for sx in (-1, 1):  # half brackets: two bays share one at the pier
+        x = sx * (2.0 - 0.05)
+        P.append(ext_box("arm", {"x": (x - 0.03, x + 0.03), "y": (-0.2, y1 - 0.02), "z": (-0.3, -0.2)}, "iron", 0.004))
+        dy, dz = y1 + 0.2 + 0.25, 0.9
+        L = math.hypot(dy, dz)
+        st = kit.box("strut", (0.05, L, 0.05), (0, 0, 0), mat="iron", bevel=0.004)
+        st.rotation_euler = (math.atan2(dz, dy), 0, 0)
+        st.location = (x, -0.2 + dy / 2, -1.2 + dz / 2)
+        P.append(st)
+        P.append(ext_box("shoe", {"x": (x - 0.06, x + 0.06), "y": (-0.22, -0.2), "z": (-1.32, -1.1)}, "iron", 0.004))
+    kit.join("loft_gallery", P)
+
+
 def catwalk():
     """4 m of fly-gallery catwalk rail: iron stanchions, a timber handrail, a toe-board."""
     P = [kit.box("toe", (4.0, 0.03, 0.15), (0, 0, 0.075), mat="boards", bevel=0.005),
@@ -1546,7 +1604,7 @@ def dome_shell():
 KINDS = {k: v for k, v in globals().items() if callable(v) and k in (
     "tier_bay", "panel_bay", "pit_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
     "glass_bowls", "fork_statue", "chandelier", "stair", "stair_pit", "balustrade", "wind_chest", "royal_box",
-    "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "loft_wall", "catwalk", "fragment",
+    "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "loft_wall", "loft_brick", "loft_gallery", "catwalk", "fragment",
     "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain", "dome_shell", "page")}
 
 
