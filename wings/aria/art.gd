@@ -357,16 +357,34 @@ func _auditorium() -> void:
 	water.material_override = _water
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(water)
+	# the stalls: two banks of eight rows (the fifth row left out as the cross aisle) of 11 seats, a standard at each row end,
+	# raised to the floor so they read from the aisle; one collider box per row, the centre and cross aisles stay open
 	var seats: Array[Transform3D] = []
+	var ends: Array[Transform3D] = []
 	for r: int in 9:
+		if r == 4:
+			continue
 		var z := 3.4 + 1.15 * r
 		for sx: float in [-1.0, 1.0]:
 			for i: int in 11:
 				var x := sx * (2.6 + 0.78 * i)
-				var t := Transform3D(Basis(Vector3.UP, PI + sx * 0.012 * i), Vector3(x, -0.18 + 0.02 * r, z))
-				seats.append(t)
-	_multi("seat", seats)
-	# no collider on the seat banks: the sunk seats were an invisible wall at z 13.1 for a player in the front rows
+				seats.append(Transform3D(Basis(Vector3.UP, PI + sx * 0.012 * i), Vector3(x, 0.0, z)))
+			ends.append(Transform3D(Basis(Vector3.UP, 0.0 if sx < 0.0 else PI), Vector3(sx * 2.21, 0.0, z)))
+			ends.append(Transform3D(Basis(Vector3.UP, PI if sx < 0.0 else 0.0), Vector3(sx * 10.79, 0.0, z)))
+			var body := StaticBody3D.new()
+			body.position = Vector3(sx * 6.5, 0.5, z)
+			var cs := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(8.6, 1.0, 0.6)
+			cs.shape = box
+			body.add_child(cs)
+			add_child(body)
+	_multi("stall_seat", seats)
+	_multi("stall_end", ends)
+	# a low warm wash over the stalls so the velvet and gilt read from the aisle
+	for sx: float in [-1.0, 1.0]:
+		_omni(Vector3(sx * 6.5, 2.4, 5.5), Color("ffcf9a"), 3.0, 8.0)
+		_omni(Vector3(sx * 6.5, 2.4, 11.0), Color("ffcf9a"), 3.0, 8.0)
 
 
 func _pit() -> void:
