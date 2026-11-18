@@ -24,6 +24,7 @@ const WALK_SLOPE := 47.0
 const BEAM_W := 1.35        # collider width (visual is ~0.5 m): edge forgiveness
 const BEAM_T := 0.45
 const BEAM_LIFT := 0.06     # walk surface sits just above the light's axis
+const SLAB_T := 0.2         # visible thickness of the slab of light under that surface
 
 const COLORS := {
 	0: Color(0, 0, 0),
@@ -46,6 +47,9 @@ var _segs: Array = []
 var _used: int = 0
 var _beam_shader: Shader = preload("res://wings/glass/shaders/beam.gdshader")
 var _beam_mesh: Mesh
+var _slab_mesh: BoxMesh   # the walkable top: unit length, stretched to each segment's collider
+var _slab_mat: ShaderMaterial
+var _mote_mesh: QuadMesh
 var _flare_mat: Material
 
 
@@ -79,6 +83,30 @@ func _ready() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = _beam_shader
 	_beam_mesh.surface_set_material(0, m)
+	_slab_mesh = BoxMesh.new()
+	_slab_mesh.size = Vector3(BEAM_W, SLAB_T, 1.0)
+	_slab_mat = ShaderMaterial.new()
+	_slab_mat.shader = preload("res://wings/glass/shaders/beam_walk.gdshader")
+	_slab_mat.set_shader_parameter(&"half_w", BEAM_W * 0.5)
+	_slab_mat.set_shader_parameter(&"thick", SLAB_T)
+	_slab_mesh.material = _slab_mat
+	var grad := Gradient.new()
+	grad.colors = PackedColorArray([Color(1, 1, 1, 1), Color(0, 0, 0, 1)])  # additive: the fade is to black
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var mm := StandardMaterial3D.new()
+	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mm.vertex_color_use_as_albedo = true
+	mm.albedo_texture = tex
+	mm.disable_receive_shadows = true
+	_mote_mesh = QuadMesh.new()
+	_mote_mesh.size = Vector2(0.09, 0.09)
+	_mote_mesh.material = mm
 
 
 # --- registry -------------------------------------------------------------------------------
@@ -144,7 +172,7 @@ func _segment(a: Vector3, b: Vector3, mask: int) -> void:
 		s = _segs[_used]
 	else:
 		s = Segment.new()
-		s.setup(_beam_mesh)
+		s.setup(_beam_mesh, _slab_mesh, _mote_mesh)
 		add_child(s)
 		_segs.append(s)
 	_used += 1
@@ -180,7 +208,39 @@ class Segment extends Node3D:
 	var flare: OmniLight3D
 	var _shown := true
 
-	func setup(mesh: Mesh) -> void:
+	var slab: MeshInstance3D   # the visible walking top: exactly the collider's top face
+	var motes: GPUParticles3D
+	var _motes_pm: ParticleProcessMaterial
+
+	func setup(mesh: Mesh, slab_mesh: Mesh, mote_mesh: Mesh) -> void:
+		slab = MeshInstance3D.new()
+		slab.mesh = slab_mesh
+		slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		slab.position.y = GlassOptics.BEAM_LIFT - GlassOptics.SLAB_T * 0.5
+		add_child(slab)
+		motes = GPUParticles3D.new()
+		motes.amount = 28
+		motes.lifetime = 5.0
+		motes.local_coords = true
+		motes.draw_pass_1 = mote_mesh
+		motes.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_motes_pm = ParticleProcessMaterial.new()
+		_motes_pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		_motes_pm.direction = Vector3(0, 1, -0.3)
+		_motes_pm.spread = 40.0
+		_motes_pm.gravity = Vector3.ZERO
+		_motes_pm.initial_velocity_min = 0.03
+		_motes_pm.initial_velocity_max = 0.14
+		_motes_pm.scale_min = 0.5
+		_motes_pm.scale_max = 1.3
+		var fade := Gradient.new()
+		fade.colors = PackedColorArray([Color(0, 0, 0, 1), Color(1, 1, 1, 1), Color(0, 0, 0, 1)])
+		fade.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
+		var ft := GradientTexture1D.new()
+		ft.gradient = fade
+		_motes_pm.color_ramp = ft
+		motes.process_material = _motes_pm
+		add_child(motes)
 		vis = MeshInstance3D.new()
 		vis.mesh = mesh
 		vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -225,19 +285,33 @@ class Segment extends Node3D:
 		var up := Vector3.UP if absf(d.y) < 0.98 else Vector3.FORWARD
 		var basis := Basis.looking_at(d, up)
 		global_transform = Transform3D(basis, (a + b) * 0.5)
-		(get_node("Vis") as Node3D).scale = Vector3(1, 1, length)
+		var vis_pivot := get_node("Vis") as Node3D
+		vis_pivot.scale = Vector3(1, 1, length)
 		vis.set_instance_shader_parameter(&"beam_len", length)
 		flare.global_position = b - d * 0.4
 		var slope := rad_to_deg(asin(clampf(absf(d.y), 0.0, 1.0)))
 		var solid := slope < GlassOptics.WALK_SLOPE
 		body.collision_layer = GlassOptics.BEAM_LAYER if solid else 0
 		col.disabled = not solid
+		slab.visible = solid
+		motes.emitting = solid
+		# a walkable beam: the cylinder becomes the soft body of light under the slab; a shaft keeps it whole
+		vis_pivot.position.y = -0.3 if solid else 0.0
+		vis_pivot.scale = Vector3(1.5, 0.6, length) if solid else Vector3(1, 1, length)
 		if solid:
 			# trim the ends a little so the slab never pokes into the mirror/source it leaves
 			var l := maxf(length - 0.3, 0.1)
 			if changed_shape or absf(_shape_l - l) > 0.001:
 				_set_shape(l)
 			body.transform = Transform3D(Basis.IDENTITY, Vector3(0, GlassOptics.BEAM_LIFT - GlassOptics.BEAM_T * 0.5, 0))
+			# the slab is the collider's top face: same width, same trimmed length, same height
+			slab.scale = Vector3(1, 1, l)
+			slab.set_instance_shader_parameter(&"beam_color", colr)
+			slab.set_instance_shader_parameter(&"walk_len", l)
+			_motes_pm.emission_box_extents = Vector3(GlassOptics.BEAM_W * 0.4, 0.28, l * 0.5)
+			_motes_pm.color = colr.lerp(Color.WHITE, 0.5)
+			motes.visibility_aabb = AABB(Vector3(-1, -0.6, -l * 0.5 - 0.5), Vector3(2, 1.6, l + 1.0))
+			motes.position = Vector3(0, 0.25, 0)
 		body.set_meta(&"beam_a", a)
 		body.set_meta(&"beam_b", b)
 		body.set_meta(&"beam_mask", mask)
