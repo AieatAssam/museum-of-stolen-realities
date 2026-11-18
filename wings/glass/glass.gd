@@ -1026,6 +1026,7 @@ func _build_crypt() -> void:
 	_light(Vector3(0, -2, -100), Color("8a3fd1"), 0.9, 16.0)
 	_light(Vector3(12, -5, -94), Color("2b54c9"), 0.8, 7.0)
 	_light(Vector3(0, -5, -118), Color("1a7a5e"), 0.8, 8.0)
+	_light(Vector3(3, -3.2, -112), Color("c8d8ff"), 5.5, 16.0)  # a cold lamp over the panes' floor, so the tiles read
 	# White light falls through the choir grate onto the prism.
 	_source("shaft", Vector3(0, 1.8, -92), PRISM_O, GlassOptics.WHITE)
 	prism = GlassOptics.Prism.new()
@@ -1177,6 +1178,8 @@ func _build_passage_and_tower() -> void:
 		geo.add_child(ld)
 		if leg % 3 == 1:
 			_light(Vector3((lx.x + lx.y) * 0.5, y + 1.6, -23), Color("e8b54a"), 2.2, 8.0)
+		if leg % 2 == 1:  # a warm lamp hung in the well between the flights, so the stonework and soffits read
+			_light(Vector3(-22.0, y + 1.0, -24.0), Color("ffd9a0"), 2.4, 9.0)
 	_block(Vector3(-21.5, 15.6, -30.5), Vector3(-16, 16, -27.3), "glass_floor")
 	pts["tower_in"] = Vector3(-17.5, -8, -28.5)
 	pts["tower_top"] = Vector3(-17.5, 16, -26)
@@ -1971,7 +1974,7 @@ func _look_for(cam: Camera3D) -> void:
 	if c.y < -2.0:
 		ex = 2.8
 	elif c.z > -17.5:
-		ex = 2.5
+		ex = 2.3
 	elif c.x < -16.2 and c.y < 14.5 and not in_hall:
 		ex = 4.3
 	env.tonemap_exposure = ex
