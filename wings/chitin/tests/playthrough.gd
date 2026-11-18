@@ -142,6 +142,8 @@ func swing_chain(anchors: Array, fwd: Vector3, land_y: float, what: String) -> b
 			return false
 		if not check(silk.get("state") == SilkMode.ROPE, "%s: line %d holds" % [what, k + 1]):
 			return false
+		if what == "demo swing":
+			check(String((silk.call("prompt") as Dictionary).get("text", "")).contains("top of the swing"), "the first swing's prompt says when to let go")
 		chain = maxi(chain, int(silk.get("air_chain")))
 		if OS.has_environment("CHITIN_DEBUG"):
 			print("      %s k%d fired: rope %.2f dist %.2f pivot %s floor %s" % [what, k, silk.get("rope_len"), (silk.call("grip") as Vector3).distance_to(anchors[k].global_position), silk.call("pivot"), Game.player.is_on_floor()])
@@ -182,6 +184,7 @@ func _gate() -> void:
 	await swing_chain([demo], Vector3.RIGHT, -0.3, "demo swing")
 	var at := Game.player.global_position
 	check(at.x < -0.5 and at.y > -0.3, "demo swing lands on the walkway (%s)" % at)
+	check(bool(w.get("_demo_told")), "letting go of the demo hook tells her the ditch is crossed from the lip")
 	await walk_to(Vector3(-1.2, 0, 0), 20.0, 0.4)
 	# the gap swing's landing is eased: no hard impact, and never below the far floor (y -3)
 	var impacts: Array[float] = []
