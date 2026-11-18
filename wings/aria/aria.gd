@@ -197,6 +197,7 @@ func _build_foyer(areas: Node3D) -> void:
 	# the wordless demonstration horn at the ramp foot: a lift the player learns on
 	var demo := _instrument("horn", "note_horn", &"note_horn", &"lift", Vector3(0, 0, 19))
 	demo.name = "DemoHorn"
+	demo.strike_reach = 3.5  # only offered where the strike lifts her
 	foyer.add_child(demo)
 	_provenance(foyer, "score", Vector3(-13, 2.8, 39))
 	_placard(foyer, Vector3(-8, 1.4, 25), 0.0, "I", "The Foyer", "Acq. No. 003\nEntrance",
@@ -694,6 +695,7 @@ func _provenance(parent: Node3D, id: String, pos: Vector3) -> void:
 func _placard(parent: Node3D, pos: Vector3, yaw_deg: float, heading: String, title: String, catalog: String, body: String) -> void:
 	var pl := Placard.new()
 	pl.set_label(Placard.fields_from_legacy(title, catalog, body), false)  # catalog: "Acq. No. 003\nEntrance"
+	pl.size = Vector2(1.7, 1.18)  # a larger plate: the default is hard to read from the walkway
 	pl.position = pos
 	pl.rotation_degrees.y = yaw_deg
 	parent.add_child(pl)

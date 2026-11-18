@@ -114,6 +114,11 @@ func _run() -> void:
 
 	_section("foyer", "the demo horn lifts, the stair climbs to the gallery, the route leads back into the auditorium")
 	var demo := Game.wing.find_child("DemoHorn", true, false) as Node3D
+	# from the spawn the demo horn is not offered (a strike there would lift nobody); beside it, it is
+	await _stand(Vector3(0, 0.5, 26), demo.global_position + Vector3(0, 1.5, 0))
+	check(Game.player.mode.prompt().is_empty(), "the demo horn is not offered from the spawn")
+	await _stand(demo.global_position + Vector3(0, 0, 2.5), demo.global_position + Vector3(0, 1.5, 0))
+	check(not Game.player.mode.prompt().is_empty(), "the demo horn is offered where its strike lifts her")
 	await _stand(demo.global_position + Vector3(0, 0, 0.8), demo.global_position + Vector3(0, 1.5, 0))
 	var fy0 := Game.player.global_position.y
 	_tap(&"primary")

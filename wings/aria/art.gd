@@ -366,15 +366,7 @@ func _auditorium() -> void:
 				var t := Transform3D(Basis(Vector3.UP, PI + sx * 0.012 * i), Vector3(x, -0.18 + 0.02 * r, z))
 				seats.append(t)
 	_multi("seat", seats)
-	for sx: float in [-1.0, 1.0]:  # one invisible block per seat bank: the centre aisle and side aisles stay open
-		var body := StaticBody3D.new()
-		body.position = Vector3(sx * 6.5, 0.4, 8.0)
-		var cs := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(8.5, 1.2, 10.2)
-		cs.shape = box
-		body.add_child(cs)
-		add_child(body)
+	# no collider on the seat banks: the sunk seats were an invisible wall at z 13.1 for a player in the front rows
 
 
 func _pit() -> void:
