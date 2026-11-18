@@ -1026,7 +1026,7 @@ func _build_crypt() -> void:
 	_light(Vector3(0, -2, -100), Color("8a3fd1"), 0.9, 16.0)
 	_light(Vector3(12, -5, -94), Color("2b54c9"), 0.8, 7.0)
 	_light(Vector3(0, -5, -118), Color("1a7a5e"), 0.8, 8.0)
-	_light(Vector3(3, -3.2, -112), Color("c8d8ff"), 3.6, 15.0)  # a cold lamp over the panes' floor, so the tiles read
+	_light(Vector3(3, -3.2, -112), Color("c8d8ff"), 5.5, 16.0)  # a cold lamp over the panes' floor, so the tiles read
 	# White light falls through the choir grate onto the prism.
 	_source("shaft", Vector3(0, 1.8, -92), PRISM_O, GlassOptics.WHITE)
 	prism = GlassOptics.Prism.new()
