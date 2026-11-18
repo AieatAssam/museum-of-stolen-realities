@@ -12,6 +12,7 @@ const MARKS := [
 	["01_cloister", Vector3(1.0, 1.7, 15.5), Vector3(14.2, 0.4, 0.0), ""],
 	["01b_gap_edge_off", Vector3(14.2, 1.7, 7.5), Vector3(14.2, -0.4, -6.0), ""],
 	["01c_gap_edge_on", Vector3(14.2, 1.7, 7.5), Vector3(14.2, -0.4, -6.0), "d1"],
+	["01d_gap_side", Vector3(16.8, 0.9, 1.5), Vector3(13.6, -0.2, -1.5), "d1"],
 	["02_cloister_beam", Vector3(16.6, 1.8, 7.5), Vector3(13.0, -0.4, -7.0), "d1"],
 	["03_nave", Vector3(0.0, 1.7, -21.0), Vector3(0.0, 4.0, -70.0), ""],
 	["04_nave_clockwork", Vector3(-6.0, 3.0, -30.0), Vector3(1.0, -0.5, -50.0), "d2"],

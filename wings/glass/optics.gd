@@ -24,7 +24,6 @@ const WALK_SLOPE := 47.0
 const BEAM_W := 1.35        # collider width (visual is ~0.5 m): edge forgiveness
 const BEAM_T := 0.45
 const BEAM_LIFT := 0.06     # walk surface sits just above the light's axis
-const SLAB_T := 0.2         # visible thickness of the slab of light under that surface
 
 const COLORS := {
 	0: Color(0, 0, 0),
@@ -47,8 +46,8 @@ var _segs: Array = []
 var _used: int = 0
 var _beam_shader: Shader = preload("res://wings/glass/shaders/beam.gdshader")
 var _beam_mesh: Mesh
-var _slab_mesh: BoxMesh   # the walkable top: unit length, stretched to each segment's collider
-var _slab_mat: ShaderMaterial
+var _skin_mesh: PlaneMesh   # the walkable skin: unit length, stretched to each segment's collider
+var _pool_mesh: PlaneMesh   # the soft pool where a walkable beam lands
 var _mote_mesh: QuadMesh
 var _flare_mat: Material
 
@@ -83,13 +82,18 @@ func _ready() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = _beam_shader
 	_beam_mesh.surface_set_material(0, m)
-	_slab_mesh = BoxMesh.new()
-	_slab_mesh.size = Vector3(BEAM_W, SLAB_T, 1.0)
-	_slab_mat = ShaderMaterial.new()
-	_slab_mat.shader = preload("res://wings/glass/shaders/beam_walk.gdshader")
-	_slab_mat.set_shader_parameter(&"half_w", BEAM_W * 0.5)
-	_slab_mat.set_shader_parameter(&"thick", SLAB_T)
-	_slab_mesh.material = _slab_mat
+	_skin_mesh = PlaneMesh.new()
+	_skin_mesh.size = Vector2(BEAM_W, 1.0)
+	_skin_mesh.subdivide_depth = 0
+	var skin_mat := ShaderMaterial.new()
+	skin_mat.shader = preload("res://wings/glass/shaders/beam_walk.gdshader")
+	skin_mat.set_shader_parameter(&"half_w", BEAM_W * 0.5)
+	_skin_mesh.material = skin_mat
+	_pool_mesh = PlaneMesh.new()
+	_pool_mesh.size = Vector2(2.6, 2.6)
+	var pool_mat := ShaderMaterial.new()
+	pool_mat.shader = preload("res://wings/glass/shaders/beam_pool.gdshader")
+	_pool_mesh.material = pool_mat
 	var grad := Gradient.new()
 	grad.colors = PackedColorArray([Color(1, 1, 1, 1), Color(0, 0, 0, 1)])  # additive: the fade is to black
 	var tex := GradientTexture2D.new()
@@ -172,7 +176,7 @@ func _segment(a: Vector3, b: Vector3, mask: int) -> void:
 		s = _segs[_used]
 	else:
 		s = Segment.new()
-		s.setup(_beam_mesh, _slab_mesh, _mote_mesh)
+		s.setup(_beam_mesh, _skin_mesh, _pool_mesh, _mote_mesh)
 		add_child(s)
 		_segs.append(s)
 	_used += 1
@@ -208,39 +212,38 @@ class Segment extends Node3D:
 	var flare: OmniLight3D
 	var _shown := true
 
-	var slab: MeshInstance3D   # the visible walking top: exactly the collider's top face
-	var motes: GPUParticles3D
+	var skin: MeshInstance3D   # the walkable skin of light: exactly the collider's top face
+	var pool: MeshInstance3D
+	var motes: GPUParticles3D    # dust drifting in the shaft
+	var skaters: GPUParticles3D  # motes that settle onto the skin and skate along it
 	var _motes_pm: ParticleProcessMaterial
+	var _skate_pm: ParticleProcessMaterial
 
-	func setup(mesh: Mesh, slab_mesh: Mesh, mote_mesh: Mesh) -> void:
-		slab = MeshInstance3D.new()
-		slab.mesh = slab_mesh
-		slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		slab.position.y = GlassOptics.BEAM_LIFT - GlassOptics.SLAB_T * 0.5
-		add_child(slab)
-		motes = GPUParticles3D.new()
-		motes.amount = 28
-		motes.lifetime = 5.0
-		motes.local_coords = true
-		motes.draw_pass_1 = mote_mesh
-		motes.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_motes_pm = ParticleProcessMaterial.new()
-		_motes_pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	func setup(mesh: Mesh, skin_mesh: Mesh, pool_mesh: Mesh, mote_mesh: Mesh) -> void:
+		skin = MeshInstance3D.new()
+		skin.mesh = skin_mesh
+		skin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		skin.position.y = GlassOptics.BEAM_LIFT + 0.004
+		add_child(skin)
+		pool = MeshInstance3D.new()
+		pool.mesh = pool_mesh
+		pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(pool)
+		motes = _particles(mote_mesh, 28, 5.0)
+		_motes_pm = motes.process_material
 		_motes_pm.direction = Vector3(0, 1, -0.3)
 		_motes_pm.spread = 40.0
-		_motes_pm.gravity = Vector3.ZERO
 		_motes_pm.initial_velocity_min = 0.03
 		_motes_pm.initial_velocity_max = 0.14
-		_motes_pm.scale_min = 0.5
-		_motes_pm.scale_max = 1.3
-		var fade := Gradient.new()
-		fade.colors = PackedColorArray([Color(0, 0, 0, 1), Color(1, 1, 1, 1), Color(0, 0, 0, 1)])
-		fade.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
-		var ft := GradientTexture1D.new()
-		ft.gradient = fade
-		_motes_pm.color_ramp = ft
-		motes.process_material = _motes_pm
-		add_child(motes)
+		skaters = _particles(mote_mesh, 16, 4.0)
+		_skate_pm = skaters.process_material
+		_skate_pm.direction = Vector3(0, 0.05, -1)
+		_skate_pm.spread = 8.0
+		_skate_pm.initial_velocity_min = 0.12
+		_skate_pm.initial_velocity_max = 0.3
+		_skate_pm.scale_min = 0.4
+		_skate_pm.scale_max = 0.9
+
 		vis = MeshInstance3D.new()
 		vis.mesh = mesh
 		vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -265,6 +268,35 @@ class Segment extends Node3D:
 		flare.light_volumetric_fog_energy = 0.0
 		flare.shadow_enabled = false
 		add_child(flare)
+
+	func _particles(mote_mesh: Mesh, amount: int, life: float) -> GPUParticles3D:
+		var g := GPUParticles3D.new()
+		g.amount = amount
+		g.lifetime = life
+		g.local_coords = true
+		g.draw_pass_1 = mote_mesh
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var pm := ParticleProcessMaterial.new()
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.gravity = Vector3.ZERO
+		pm.scale_min = 0.5
+		pm.scale_max = 1.3
+		var fade := Gradient.new()
+		fade.colors = PackedColorArray([Color(0, 0, 0, 1), Color(1, 1, 1, 1), Color(0, 0, 0, 1)])
+		fade.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
+		var ft := GradientTexture1D.new()
+		ft.gradient = fade
+		pm.color_ramp = ft
+		g.process_material = pm
+		add_child(g)
+		return g
+
+	## The light answers her weight: the skin's shader spreads a ripple from her feet.
+	func _process(_delta: float) -> void:
+		if not _shown or not skin.visible:
+			return
+		var p: Node3D = Game.player
+		skin.set_instance_shader_parameter(&"foot", p.global_position if p else Vector3(0, -1000, 0))
 
 	func set_seg(na: Vector3, nb: Vector3, nmask: int) -> void:
 		if not _shown:
@@ -293,25 +325,33 @@ class Segment extends Node3D:
 		var solid := slope < GlassOptics.WALK_SLOPE
 		body.collision_layer = GlassOptics.BEAM_LAYER if solid else 0
 		col.disabled = not solid
-		slab.visible = solid
+		skin.visible = solid
+		pool.visible = solid
 		motes.emitting = solid
-		# a walkable beam: the cylinder becomes the soft body of light under the slab; a shaft keeps it whole
-		vis_pivot.position.y = -0.3 if solid else 0.0
-		vis_pivot.scale = Vector3(1.5, 0.6, length) if solid else Vector3(1, 1, length)
+		skaters.emitting = solid
+		# a walkable beam is a fatter shaft (its own width), the skin laid across it; a steep shaft stays slim
+		vis_pivot.scale = Vector3(2.3, 1.25, length) if solid else Vector3(1, 1, length)
 		if solid:
 			# trim the ends a little so the slab never pokes into the mirror/source it leaves
 			var l := maxf(length - 0.3, 0.1)
 			if changed_shape or absf(_shape_l - l) > 0.001:
 				_set_shape(l)
 			body.transform = Transform3D(Basis.IDENTITY, Vector3(0, GlassOptics.BEAM_LIFT - GlassOptics.BEAM_T * 0.5, 0))
-			# the slab is the collider's top face: same width, same trimmed length, same height
-			slab.scale = Vector3(1, 1, l)
-			slab.set_instance_shader_parameter(&"beam_color", colr)
-			slab.set_instance_shader_parameter(&"walk_len", l)
-			_motes_pm.emission_box_extents = Vector3(GlassOptics.BEAM_W * 0.4, 0.28, l * 0.5)
-			_motes_pm.color = colr.lerp(Color.WHITE, 0.5)
+			# the skin is the collider's top face: same width, same trimmed length, same height
+			skin.scale = Vector3(1, 1, l)
+			skin.set_instance_shader_parameter(&"beam_color", colr)
+			skin.set_instance_shader_parameter(&"walk_len", l)
+			pool.set_instance_shader_parameter(&"beam_color", colr)
+			pool.position = Vector3(0, GlassOptics.BEAM_LIFT + 0.01, -length * 0.5 + 0.1)
+			var tint := colr.lerp(Color.WHITE, 0.25)
+			_motes_pm.emission_box_extents = Vector3(GlassOptics.BEAM_W * 0.4, 0.3, l * 0.5)
+			_motes_pm.color = tint
 			motes.visibility_aabb = AABB(Vector3(-1, -0.6, -l * 0.5 - 0.5), Vector3(2, 1.6, l + 1.0))
 			motes.position = Vector3(0, 0.25, 0)
+			_skate_pm.emission_box_extents = Vector3(GlassOptics.BEAM_W * 0.4, 0.01, l * 0.5)
+			_skate_pm.color = tint
+			skaters.visibility_aabb = AABB(Vector3(-1, -0.2, -l * 0.5 - 0.5), Vector3(2, 0.6, l + 1.0))
+			skaters.position = Vector3(0, GlassOptics.BEAM_LIFT + 0.04, 0)
 		body.set_meta(&"beam_a", a)
 		body.set_meta(&"beam_b", b)
 		body.set_meta(&"beam_mask", mask)
