@@ -138,6 +138,20 @@ func _run() -> void:
 	_send(&"move_forward", false)
 	check(Game.player.global_position.z < 12.0 and Game.player.global_position.y < 1.5, "walking down from the gallery reaches the auditorium floor")
 
+	# the stalls are solid rows: the centre aisle is still a clear walk from the back row to the front, without stopping
+	await _stand(Vector3(0, 0.5, 14), Vector3(0, 0.5, 0))
+	_send(&"move_forward", true)
+	var aisle_z := Game.player.global_position.z
+	var aisle_stalled := false
+	var aisle_t0 := Time.get_ticks_msec()
+	while Game.player.global_position.z > 2.0 and Time.get_ticks_msec() - aisle_t0 < 15000:
+		await seconds(0.5)
+		if aisle_z - Game.player.global_position.z < 0.3 and Game.player.global_position.z > 2.0:
+			aisle_stalled = true
+		aisle_z = Game.player.global_position.z
+	_send(&"move_forward", false)
+	check(Game.player.global_position.z <= 2.0 and not aisle_stalled, "the centre aisle walks from the back row to the front without stopping (z %.1f)" % Game.player.global_position.z)
+
 	_section("brass", "strike the horns, lift under one")
 	# stand 0.8 m off the west horn's axis and aim at it: inside the column, the lift beats gravity
 	var horns: Array[Node3D] = []

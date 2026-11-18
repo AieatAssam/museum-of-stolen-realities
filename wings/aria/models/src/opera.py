@@ -1601,8 +1601,70 @@ def dome_shell():
     kit.join("dome_shell", P)
 
 
+def stall_seat():
+    """A stalls opera seat for the bank rows, 0.74 m module: origin on the floor at the seat's centre, front toward -Y.
+    Ebony skirt under a gilt moulding, a domed oxblood velvet cushion, a diamond-tufted back leaning 8 degrees (plain
+    velvet behind, so the rows read from the aisle and the foyer) under a gilt rail, ebony arms on gilt posts with ball
+    ends. Seat top 0.46, back top 1.02. Closed from every side."""
+    Matrix = kit.Matrix
+    LEAN = Matrix.Translation((0.0, 0.2, 0.46)) @ Matrix.Rotation(math.radians(-8), 4, "X")
+    P = []
+    P.append(kit.box("skirt", (0.64, 0.46, 0.3), (0, 0, 0.15), mat="ebony", bevel=0.012))
+    P.append(kit.box("skirt_mould", (0.68, 0.5, 0.035), (0, 0, 0.3), mat="gilt", bevel=0.01))
+
+    def cushion(u, v):
+        sx, sy = -1 + 2 * u, -1 + 2 * v
+        f = max(0.0, 1 - sx ** 6) * max(0.0, 1 - sy ** 6)
+        return (0.29 * sx, -0.01 + 0.23 * sy, 0.325 + 0.09 * math.sqrt(f) + 0.045 * f)
+    P.append(grid("cushion", 20, 14, cushion, "velvet"))
+    P.append(kit.box("cushion_body", (0.56, 0.44, 0.1), (0, -0.01, 0.37), mat="velvet", bevel=0.04))
+
+    # back: a closed velvet pillow with a tufted front skin, built in back-local space and leaned
+    def lean(ob, loc=(0, 0, 0)):
+        ob.matrix_world = LEAN @ Matrix.Translation(loc)
+        return ob
+    P.append(lean(kit.box("back_body", (0.58, 0.085, 0.5), (0, 0, 0.27), mat="velvet", bevel=0.03)))
+    NX, NZ = 12, 10
+
+    def tuft(u, v):
+        x, z = -0.28 + 0.56 * u, 0.04 + 0.48 * v
+        # diamond buttons on a 0.14 x 0.12 lattice: the cloth puffs between them and pinches at each button
+        a = (x / 0.14) * math.pi
+        b = (z / 0.12) * math.pi
+        d = 0.5 + 0.25 * (math.cos(a + b) + math.cos(a - b))
+        edge = min(1.0, 5 * u, 5 * (1 - u), 5 * v, 5 * (1 - v))
+        return (x, -0.044 - 0.018 * d * edge, z)
+    P.append(lean(grid("back_tuft", NX, NZ, tuft, "velvet")))
+    P.append(lean(kit.box("back_rail", (0.64, 0.07, 0.045), (0, 0, 0.545), mat="gilt", bevel=0.015)))
+    for sx in (-1, 1):
+        P.append(lean(kit.box("back_post", (0.025, 0.06, 0.5), (sx * 0.305, 0, 0.27), mat="gilt", bevel=0.008)))
+    # arms: ebony rail on a gilt post at the front and the back, a gilt ball at the front end
+    for sx in (-1, 1):
+        x = sx * 0.345
+        P.append(kit.box("arm", (0.045, 0.46, 0.04), (x, 0.0, 0.64), mat="ebony", bevel=0.012))
+        P.append(kit.box("arm_post", (0.03, 0.04, 0.34), (x, -0.19, 0.47), mat="gilt", bevel=0.008))
+        P.append(kit.box("arm_post", (0.03, 0.04, 0.34), (x, 0.17, 0.47), mat="gilt", bevel=0.008))
+        P.append(kit.lathe("arm_ball", [(0.0, -0.03), (0.026, -0.015), (0.03, 0.0), (0.026, 0.02), (0.0, 0.03)], segments=10, mat="gilt"))
+        P[-1].location = (x, -0.25, 0.64)
+    kit.join("stall_seat", P)
+
+
+def stall_end():
+    """The aisle end of a stalls row: an ebony standard 0.06 x 0.56 x 1.12, a gilt moulded edge and a carved cartouche
+    facing the aisle, a gilt scroll finial. Origin on the floor, its aisle face toward +X."""
+    P = [kit.box("standard", (0.06, 0.56, 1.0), (0, 0, 0.5), mat="ebony", bevel=0.012)]
+    P.append(kit.box("standard_cap", (0.09, 0.6, 0.05), (0, 0, 1.025), mat="gilt", bevel=0.015))
+    P.append(kit.box("standard_foot", (0.09, 0.6, 0.06), (0, 0, 0.03), mat="gilt", bevel=0.012))
+    P.append(kit.box("cartouche", (0.02, 0.26, 0.34), (0.035, -0.02, 0.62), mat="gilt", bevel=0.012))
+    P.append(kit.box("cartouche_in", (0.026, 0.2, 0.28), (0.04, -0.02, 0.62), mat="velvet", bevel=0.01))
+    sc = kit.lathe("finial", [(0.0, -0.06), (0.05, -0.03), (0.06, 0.0), (0.045, 0.04), (0.0, 0.07)], segments=12, mat="gilt")
+    sc.location = (0, -0.2, 1.1)
+    P.append(sc)
+    kit.join("stall_end", P)
+
+
 KINDS = {k: v for k, v in globals().items() if callable(v) and k in (
-    "tier_bay", "panel_bay", "pit_bay", "proscenium", "organ_case", "ceiling", "seat", "figure", "figure_head", "horn", "pipes",
+    "tier_bay", "panel_bay", "pit_bay", "proscenium", "organ_case", "ceiling", "seat", "stall_seat", "stall_end", "figure", "figure_head", "horn", "pipes",
     "glass_bowls", "fork_statue", "chandelier", "stair", "stair_pit", "balustrade", "wind_chest", "royal_box",
     "coffer_panel", "stave", "mirror", "stand", "cello", "backdrop", "rigging", "loft_wall", "loft_brick", "loft_gallery", "catwalk", "fragment",
     "prov_score", "prov_baton", "prov_fork", "screen", "portal", "chain", "dome_shell", "page")}

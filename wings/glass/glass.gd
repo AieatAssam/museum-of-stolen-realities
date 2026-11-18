@@ -799,6 +799,13 @@ func _build_cloister() -> void:
 	dials["d1"].turned.connect(func(i: int) -> void:
 		if i == 1:
 			toast("The gold beam is solid. Walk onto it from the gap's edge and follow its glow north to the far walk.", "The sun-dial"))
+	# a threshold stone at each end of the gap, centred on the beam (visual only; the walk's collider is untouched)
+	for sill: Array in [[Vector3(14.2, 0.0, 5.0), 0.0], [Vector3(14.2, 0.0, -5.0), PI]]:
+		var stone := _model("sill")
+		if stone:
+			stone.position = sill[0]
+			stone.rotation.y = sill[1]
+			geo.add_child(stone)
 	pts["d1_use"] = Vector3(14.2, 0, 6.5)
 	pts["gap_south"] = Vector3(14.2, 0, 5.4)
 	pts["gap_north"] = Vector3(14.2, 0, -6.5)
