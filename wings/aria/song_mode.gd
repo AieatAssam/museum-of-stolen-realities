@@ -111,7 +111,7 @@ func _aimed() -> Node3D:
 		var n := inst as Node3D
 		var to := n.global_position + Vector3.UP * 1.5 - cam.global_position
 		var dist := to.length()
-		if dist > 14.0 or dist < 0.5:
+		if dist > (n as Instrument).strike_reach or dist < 0.5:
 			continue
 		var score := fwd.dot(to / dist) - dist * 0.004
 		if score > best_score:

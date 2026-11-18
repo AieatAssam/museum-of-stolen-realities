@@ -36,10 +36,12 @@ var _dress: Node3D
 
 func objectives() -> Array[Dictionary]:
 	return [
-		{"id": "learn_dark", "title": "Learn the dark", "steps": [
+		{"id": "learn_dark", "title": "Learn the dark",
+			"hint": "Walk into the alley, face a dark wall and press secondary to cling to it. The wall ends at its top: let go, then leave through the gap in its east side.", "steps": [
 			{"id": "enter_shade", "title": "Walk into the alley"},
 			{"id": "latch_wall", "title": "Latch onto a dark wall"}]},
-		{"id": "cross_lit", "title": "Cross the lit street", "steps": [
+		{"id": "cross_lit", "title": "Cross the lit street",
+			"hint": "Light throws you back. Walk only in shade, crate to crate. Secondary clings to a dark wall; the ramp in the west wall leads to the roof, where the far roof's dark face carries you across the gap.", "steps": [
 			{"id": "cross_street", "title": "Cross the street in shade"},
 			{"id": "latch_gap", "title": "Latch across the rooftop gap"},
 			{"id": "better_half", "title": "Decide about The Better Half"}]},
@@ -73,6 +75,8 @@ func register_modes(player: Player) -> void:
 		if _player.global_position.y > 4.0:
 			_cross_gap(m)
 		else:
+			if not Quest.is_step_done(&"learn_dark", &"latch_wall"):
+				toast("The wall ends at its top. Right click lets go; the way on is the gap in the alley's east wall, into the street.", "Alley")
 			complete_step(&"learn_dark", &"latch_wall"))
 	m.ejected.connect(func() -> void:
 		# a train lamp that catches the traversal drops the player back to the last dark point
@@ -395,6 +399,9 @@ func _build_diner_street() -> void:
 		"The window shows the street eleven seconds before the street does. Figures inside are kept in place by a patrol that was never photographed. The diner's own record gives no date.")
 	_plaque(s, Vector3(-3.95, 1.6, -44.0), 90.0, "Gelatin silver print, 1941", "Three lamps, one street", "Acquisition No. 501.3",
 		"Three lamps were ordered as a set and installed as two. The third lamp appears in the frame, and its light does not. The crossing is the subject of the print.")
+	_zone(s, Vector3(0, 1.5, -23.5), Vector3(8, 3, 1), func(_p: Player) -> void:
+		if not Quest.is_step_done(&"cross_lit", &"cross_street"):
+			toast("The street is lit and you can only stand in shade. Slip from crate to crate and along the west wall, and read the diner window: it shows where the shadow will be.", "The lit street"))
 	_zone(s, Vector3(0, 1.5, -50.5), Vector3(8, 3, 1), func(_p: Player) -> void:
 		complete_step(&"cross_lit", &"cross_street"))
 	_checkpoint_at("street", Vector3(0, 0.05, -22))

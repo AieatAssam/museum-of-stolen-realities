@@ -23,6 +23,12 @@ func enter(_from: MovementMode) -> void:
 	latched = false
 
 
+func reset() -> void:
+	if latched:
+		release()
+	has_dark = false  # the last dark point belongs to the place she left
+
+
 func exit(_to: MovementMode) -> void:
 	if latched:
 		release()
@@ -64,7 +70,7 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 ## Shown while a dark wall is in latch reach (and how to let go once latched).
 func prompt() -> Dictionary:
 	if latched:
-		return {"action": &"secondary", "text": "let go of the wall"}
+		return {"action": &"secondary", "text": "let go (the wall ends at its top)"}
 	var p := player
 	if p.camera == null:
 		return {}

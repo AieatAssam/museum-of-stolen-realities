@@ -16,6 +16,9 @@ const GROUP := &"aria_instruments"
 @export var kind: StringName = &"lift"
 @export var radius: float = 2.2
 @export var height: float = 8.0
+## How near the player must be for a strike to be offered (prompt) and to work. The demo horn only
+## lifts someone standing in its column, so it is not offered from across the foyer.
+@export var strike_reach: float = 14.0
 @export var strength: float = 26.0
 @export var sound: AudioStream
 @export var pitch: float = 1.0

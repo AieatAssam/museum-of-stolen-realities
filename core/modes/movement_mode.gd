@@ -23,6 +23,12 @@ func exit(_to: MovementMode) -> void:
 	pass
 
 
+## Called when the player is moved by a respawn, checkpoint or debug teleport: drop any state tied to
+## the place she left (a wall latch, a line in flight) so the new spot starts clean.
+func reset() -> void:
+	pass
+
+
 func physics(_delta: float) -> void:
 	pass
 

@@ -73,7 +73,7 @@ func _ready() -> void:
 	_card_sub = Style.label("", Style.TEXT, Style.SIZE_META, Style.IVORY_DIM)
 	_card_box.add_child(_card_main)
 	_card_box.add_child(_card_sub)
-	_skip_label = Style.label("Hold to skip", Style.TEXT, Style.SIZE_MIN, Style.IVORY_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
+	_skip_label = Style.label("Hold %s to skip" % _jump_key(), Style.TEXT, Style.SIZE_MIN, Style.IVORY_DIM, HORIZONTAL_ALIGNMENT_RIGHT)
 	_skip_label.anchor_left = 1.0
 	_skip_label.anchor_right = 1.0
 	_skip_label.anchor_top = 1.0
@@ -305,3 +305,11 @@ func skip() -> void:
 	skipped = true
 	if _cam_tween:
 		_cam_tween.custom_step(9999.0)
+
+
+## The key bound to jump (one of the three skip actions), for the skip label.
+func _jump_key() -> String:
+	for e in InputMap.action_get_events(&"jump"):
+		if e is InputEventKey:
+			return (e as InputEventKey).as_text_physical_keycode().trim_suffix(" (Physical)")
+	return "Space"

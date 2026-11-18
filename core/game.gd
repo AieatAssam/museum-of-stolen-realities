@@ -427,5 +427,7 @@ func debug_teleport(pos: Vector3, look_at_pos: Variant = null) -> void:
 		return
 	player.global_position = pos
 	player.velocity = Vector3.ZERO
+	if player.mode:
+		player.mode.reset()
 	if look_at_pos is Vector3:
 		player.look_at_point(look_at_pos)

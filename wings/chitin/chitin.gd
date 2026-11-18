@@ -89,6 +89,8 @@ var _lifts: Array[Dictionary] = []    # {"node", "path", "speed", "i", "run"}
 var _cut_anchor: Node3D
 var _cut_tick := 0
 var _falling := false
+var _on_demo := false  # the current line hangs from the arrival's low demo hook
+var _demo_told := false
 
 
 # --- contract ------------------------------------------------------------------------------
@@ -129,8 +131,14 @@ func fragment() -> Dictionary:
 func register_modes(player: Player) -> void:
 	silk = SilkMode.new()
 	player.add_mode(&"silk", silk)
-	silk.connect(&"fired", func(a: Node3D) -> void: Audio.sfx(_sfx["fire"], a.global_position, -4.0))
-	silk.connect(&"released", func(top: bool) -> void: Audio.sfx(_sfx["release"], null, -6.0 if not top else -2.0, 0.0, 1.25 if top else 1.0))
+	silk.connect(&"fired", func(a: Node3D) -> void:
+		_on_demo = a.global_position.is_equal_approx(DEMO_HOOK)
+		Audio.sfx(_sfx["fire"], a.global_position, -4.0))
+	silk.connect(&"released", func(top: bool) -> void:
+		Audio.sfx(_sfx["release"], null, -6.0 if not top else -2.0, 0.0, 1.25 if top else 1.0)
+		if _on_demo and not _demo_told and not Quest.is_step_done(&"gate", &"swing"):
+			_demo_told = true  # the low hook only teaches the verb: it never crosses the ditch
+			toast("That short swing stays on the walkway. The ditch is crossed from its lip: walk to the edge, aim at the bright hook high over the gap, and let go at the top of the swing.", "The molted gate"))
 	silk.connect(&"woven", func(s: Node) -> void: Audio.sfx(_sfx["fire"], s.global_position, -6.0, 0.2, 0.8))
 	silk.connect(&"plucked", _on_plucked)
 

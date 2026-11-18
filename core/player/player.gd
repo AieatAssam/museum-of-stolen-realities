@@ -230,6 +230,8 @@ func teleport(xform: Transform3D) -> void:
 	_was_on_floor = true
 	_teleported = true
 	_step_offset = 0.0
+	if mode:
+		mode.reset()
 
 
 ## Point the view at a world position (used by cinematics/tests).

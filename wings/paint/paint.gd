@@ -55,12 +55,14 @@ var _surf_dist_acc: float = 0.0
 
 func objectives() -> Array[Dictionary]:
 	return [
-		{"id": "orchard", "title": "Walk the orchard of single strokes", "steps": [
+		{"id": "orchard", "title": "Walk the orchard of single strokes",
+			"hint": "Step onto a wet stroke and it carries you along it; Space leaps off. The last bough ends in an impasto ridge that kicks you up to the Old Tree's crown. Take the palette knife there: secondary scrapes a stroke onto it, primary lays it down again as a bridge.", "steps": [
 			{"id": "ride", "title": "Ride a bough across the first void"},
 			{"id": "chain", "title": "Cross three boughs without touching the ground"},
 			{"id": "crown", "title": "Kick off the impasto to the Old Tree's crown"},
 			{"id": "bridge", "title": "Lay a stroke of your own across the gap"}]},
-		{"id": "river", "title": "Follow the ultramarine to its source", "steps": [
+		{"id": "river", "title": "Follow the ultramarine to its source",
+			"hint": "Blue laid on water floats: lay it and cross. A blue wall across the mill inlet drains the basin. Red burns through the varnish crust, and yellow lights the pencil path in the dark cave.", "steps": [
 			{"id": "float", "title": "Cross the river on paint that floats"},
 			{"id": "dam", "title": "Hold the water back"},
 			{"id": "burn", "title": "Burn through the varnish"},

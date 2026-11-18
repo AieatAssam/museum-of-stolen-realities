@@ -206,6 +206,16 @@ func _run() -> void:
 	_tap(&"secondary")
 	await _until(func() -> bool: return Game.player.global_position.y < 0.5, 4.0)
 	check(Game.player.global_position.y < 0.5, "letting go of the wall drops the player back to the alley (y %.2f)" % Game.player.global_position.y)
+	# a teleport while latched ends the latch (the live play-test froze the player on the wall's gravity)
+	var sm := Game.player.mode as ShadowstepMode
+	await _tp(Vector3(-1.0, 0.05, -18.0), Vector3(-1.0, 1.2, -21.0))
+	await frames(10)
+	_tap(&"secondary")
+	await frames(6)
+	check(sm.latched, "re-latched the alley wall for the teleport check")
+	Game.debug_teleport(Vector3(0, 0.05, -8.0))
+	await frames(4)
+	check(not sm.latched and Game.player.gravity_vector.is_equal_approx(w.gravity), "a debug teleport while latched ends the latch and restores gravity")
 	# anything out of the wing's bounds (here: high above and far past the back wall) fades and respawns
 	var cp: Vector3 = w.find_checkpoint(Game.checkpoint_id).global_position
 	Game.debug_teleport(Vector3(0, 44, -216))

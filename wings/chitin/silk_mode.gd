@@ -158,7 +158,8 @@ func on_verb(verb: StringName, pressed: bool) -> bool:
 
 func prompt() -> Dictionary:
 	if state == ROPE:
-		return {"action": &"primary", "text": "let go"}
+		# the first swings say when: the top of the arc, where she hangs slow and high
+		return {"action": &"primary", "text": "let go at the top of the swing" if top_releases == 0 and swings <= 4 else "let go"}
 	if target:
 		return {"action": &"primary", "text": "spin a line"}
 	return {}
