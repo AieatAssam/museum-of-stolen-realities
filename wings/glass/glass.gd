@@ -32,6 +32,7 @@ var M: Dictionary = {}
 var uses: Dictionary = {}
 var pts: Dictionary = {}
 var dials: Dictionary = {}
+var _walked_light := false  # she has stood on a beam once: the "walk on the light" prompt retires
 var mirrors: Dictionary = {}
 var receptors: Dictionary = {}
 var srcs: Dictionary = {}
@@ -547,6 +548,17 @@ func _haze(a: Vector3, b: Vector3) -> void:
 	geo.add_child(fl)
 
 
+## The first time a beam is within a stride, say what to do with it; silent once she has stood on one.
+func verb_prompt() -> Dictionary:
+	var m: MovementMode = Game.player.mode if Game.player else null
+	if m is LightwalkMode and not _walked_light:
+		if (m as LightwalkMode).on_beam:
+			_walked_light = true
+		elif optics and optics.beam_near(Game.player.global_position, 2.5):
+			return {"action": &"move_forward", "text": "walk on the light"}
+	return super()
+
+
 func _zone(a: Vector3, b: Vector3, cb: Callable, once: bool = true) -> TriggerZone:
 	var tz := TriggerZone.make_box((b - a).abs(), once)
 	tz.position = (a + b) * 0.5
@@ -784,10 +796,15 @@ func _build_cloister() -> void:
 			["story_2", "win_history", "story_5"][k], 0.0, Vector3(x * 1.4, 0, 3.0), 6.0)
 	# the first dial sits in a notch at the gap's edge, its lens at walking height
 	_dial("d1", Vector3(14.2, -0.35, 4.7), [Vector3(8, -6, 1), Vector3(14.2, -0.07, -5.0)], GlassOptics.GOLD, "Turn the sun-dial")
+	dials["d1"].turned.connect(func(i: int) -> void:
+		if i == 1:
+			toast("The gold beam is solid. Walk onto it from the gap's edge and follow its glow north to the far walk.", "The sun-dial"))
 	pts["d1_use"] = Vector3(14.2, 0, 6.5)
 	pts["gap_south"] = Vector3(14.2, 0, 5.4)
 	pts["gap_north"] = Vector3(14.2, 0, -6.5)
-	_zone(Vector3(11, 0, -10), Vector3(17.5, 3, -6), func() -> void: complete_step(&"light", &"cloister_dial"))
+	_zone(Vector3(11, 0, -10), Vector3(17.5, 3, -6), func() -> void:
+		complete_step(&"light", &"cloister_dial")
+		toast("Across. The nave's door is the open arch in the middle of this north walk, 12 m west. Beyond it, straight ahead, stands the clockwork dial.", "The cloister"))
 	# congregation along the south and north walks, facing east (−Z)
 	var xf: Array = []
 	for k in 5:

@@ -188,6 +188,7 @@ func _run() -> void:
 	await _secs(1.0)
 	check(_w.optics.beam_near(Vector3(14.2, 0, 0)), "the sun-dial lays a beam across the gap")
 	await walk(Vector3(14.2, 0, 3.0))
+	check(String(_w.verb_prompt().get("text", "")) == "walk on the light", "approaching the beam the HUD says to walk on the light (%s)" % _w.verb_prompt())
 	var was_on_beam := false
 	for i in 300:
 		Input.action_press(&"move_forward")
