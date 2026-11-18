@@ -149,15 +149,21 @@ func _run() -> void:
 	var kx: float = _w.KNOLL.x
 	var kz: float = _w.KNOLL.z
 	# at the knoll's foot, looking level at it (not down): the prompt shows and the pull works
-	var foot_z: float = kz + _w.KNOLL_HALF.y + 2.0
-	await _stand(kx, foot_z, Vector3(kx, _ground(kx, foot_z) + 1.62, kz - 20.0))
+	# (hugging the wall, 1.3 m off, looking up at the sky: the live play-test's spot, which never pulled)
+	var foot_z: float = kz + _w.KNOLL_HALF.y + 1.3
+	kx -= 0.5
+	await _stand(kx, foot_z, Vector3(kx, _ground(kx, foot_z) + 9.0, kz - 3.0))
 	await frames(6)
 	check(String(_w.verb_prompt().get("text", "")) == "pull the clay up", "looking level at the knoll from its foot shows the pull prompt (%s)" % _w.verb_prompt())
 	check(not Quest.is_step_done(&"raise", &"ledge"), "standing at the knoll's foot does not tick the ledge step")
 	await _hold(&"primary", 2.5)
 	check(Quest.is_step_done(&"raise", &"pull_step"), "held primary at the knoll pulls a step (pull_step)")
 	check(not Quest.is_step_done(&"raise", &"ledge"), "pulling the step does not tick the ledge step")
-	# walk (real input, no jump) up the pulled step onto the knoll
+	# walk (real input, no jump) up the pulled step onto the knoll; against the wall the step is built
+	# beside her, so she sidesteps first
+	Input.action_press(&"move_right")
+	await seconds(0.8)
+	Input.action_release(&"move_right")
 	Input.action_press(&"move_forward")
 	await _until(func() -> bool: return Quest.is_step_done(&"raise", &"ledge"), 5.0)
 	Input.action_release(&"move_forward")

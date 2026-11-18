@@ -22,6 +22,7 @@ const KNOLL := Vector3(-9.0, 0.0, 13.0)
 const KNOLL_HALF := Vector2(5.0, 3.0)  # the plateau's flat top (x, z half extents); 1.2 m high
 const KNOLL_TOP := 1.2
 const STEP_REACH := 3.5   # a pull aimed this close to the knoll builds the first step against it
+const KNOLL_APPROACH := 5.0  # within this of the knoll (before its step) the pull prompt shows and works
 const STEP_SLOPE := 0.42  # m of fall per m out from the knoll edge: walkable (about 23 degrees)
 const AIM_AHEAD := 2.2    # looking roughly level, the verb works the ground this far ahead
 const HILL := Vector3(12.0, 0.0, -20.0)
@@ -218,6 +219,13 @@ func _physics_process(_delta: float) -> void:
 	_aim_kind = &""
 	var p := Game.player
 	if p == null or p.camera == null or not p.is_inside_tree():
+		return
+	# Near the knoll, before its step exists, the verb works the knoll's edge wherever she looks,
+	# so the prompt and the first pull are there on approach (not only when looking at the floor).
+	if not _stepped and p.is_on_floor() and _knoll_dist(p.global_position.x, p.global_position.z) < KNOLL_APPROACH:
+		_aim = _ground_at(Vector3(clampf(p.global_position.x, KNOLL.x - KNOLL_HALF.x, KNOLL.x + KNOLL_HALF.x), 0.0,
+			clampf(p.global_position.z, KNOLL.z - KNOLL_HALF.y, KNOLL.z + KNOLL_HALF.y)))
+		_aim_kind = &"terrain"
 		return
 	var cam := p.camera
 	var from := cam.global_position
@@ -745,6 +753,10 @@ func _pull(keep: Vector3) -> void:
 		var out := Vector2(keep.x, keep.z) - edge
 		out = out.normalized() if out.length() > 0.1 else Vector2(0, 1)
 		var c := aim2 + out * 1.4
+		# standing against the wall, her feet would hold the step's centre flat: build it beside her
+		if c.distance_to(Vector2(keep.x, keep.z)) < 1.5:
+			var side := Vector2(-out.y, out.x)
+			c += side * (1.7 if side.dot(Vector2(KNOLL.x - keep.x, 0.0)) >= 0.0 else -1.7)
 		at = Vector3(c.x, 0.0, c.y)
 		r = 2.0
 		ceiling = func(x: float, z: float) -> float:
@@ -757,10 +769,22 @@ func _pull(keep: Vector3) -> void:
 	var moved := terrain.brush(at, r, dh, keep, ClayTerrain.MIN_H, ceiling)
 	if moved > 0.0:
 		_pulled = true
-		if ceiling.is_valid() and terrain.height_at(at.x, at.z) - base_height(at.x, at.z) > 0.35:
+		# any raised cell counts: standing against the wall leaves the cells under her feet untouched
+		if ceiling.is_valid() and _raised_near(at):
 			_stepped = true
 		pouch = clampf(pouch - moved, 0.0, _pouch_cap())
 		Audio.sfx(_stream("pull"), _aim, -6.0, 0.0, randf_range(0.9, 1.1))
+
+
+## Any cell in the step's footprint (at least a metre off the knoll's edge) raised over 0.35 m.
+func _raised_near(at: Vector3) -> bool:
+	for dz in range(-2, 3):
+		for dx in range(-2, 3):
+			var x := roundf(at.x) + dx
+			var z := roundf(at.z) + dz
+			if _knoll_dist(x, z) >= 1.0 and terrain.height_at(x, z) - base_height(x, z) > 0.35:
+				return true
+	return false
 
 
 func _scoop(keep: Vector3) -> void:

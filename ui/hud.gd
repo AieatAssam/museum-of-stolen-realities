@@ -41,7 +41,11 @@ func _ready() -> void:
 
 	# Prompt: under the centre (at 70% height), never over it.
 	_prompt = PanelContainer.new()
-	_prompt.add_theme_stylebox_override(&"panel", Style.backing(0.9, 12))
+	# a thin ivory rim: an ink chip on a near-black wall (noir) has no edge otherwise
+	var chip := Style.backing(0.9, 12)
+	chip.set_border_width_all(2)
+	chip.border_color = Color(Style.IVORY, 0.55)
+	_prompt.add_theme_stylebox_override(&"panel", chip)
 	_prompt.anchor_left = 0.5
 	_prompt.anchor_right = 0.5
 	_prompt.anchor_top = 0.7
