@@ -188,7 +188,7 @@ def hand(s, W, G):
     Zh = (-s * Yh.cross(T)).normalized()  # back of the hand
     Xh = Yh.cross(Zh)
     M = Matrix.Translation(W) @ Matrix((Xh, Yh, Zh)).transposed().to_4x4()
-    return bake(kit.hand(s, "grip", 1.0, "hand_L" if s > 0 else "hand_R", mat=GLOVE_M), M)
+    return bake(kit.hand(s, "hold", 1.0, "hand_L" if s > 0 else "hand_R", mat=GLOVE_M), M)
 
 def _board():
     plate = kit.box("bd_plate", (0.44, 0.02, 0.36), (0, 0, 0), mat="ebony", bevel=0.006, segments=2)
