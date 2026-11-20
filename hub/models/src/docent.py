@@ -43,8 +43,8 @@ BELT = 1.40
 BOARD_C = Vector((0.0, -0.36, 1.27))
 BOARD_ROT = Matrix.Rotation(math.radians(-38), 4, "X")
 BOARD_M = Matrix.Translation(BOARD_C) @ BOARD_ROT
-W_R = Vector((-0.27, -0.33, 1.30))  # right wrist (holds the pencil)
-W_L = Vector((0.27, -0.33, 1.30))  # left wrist (holds the board edge)
+W_R = Vector((-0.30, -0.30, 1.10))  # right wrist: the hand cups the board's lower right edge
+W_L = Vector((0.30, -0.30, 1.10))  # left wrist: the hand cups the board's lower left edge
 SHEET_TIP = BOARD_M @ Vector((-0.10, -0.02, -0.04))  # pencil lies on the sheet (axis 7.5 mm in front of it)
 PENCIL_U = (BOARD_ROT @ Vector((-0.9, 0.0, 0.434))).normalized()  # in the sheet plane, toward the right wrist
 PENCIL_G = SHEET_TIP + PENCIL_U * 0.12  # grip point
@@ -385,8 +385,10 @@ def build(args):
     arms = {}
     for s, name in ((1, "arm_L"), (-1, "arm_R")):
         W = W_L if s > 0 else W_R
-        G = BOARD_M @ V(s * 0.22, 0.0, 0.02 if s > 0 else 0.06)
-        arms[s] = pivot(kit.join(name, [sleeves[s], hand(s, W, G)]), SHOULDER[s])
+        G = BOARD_M @ V(s * 0.23, 0.0, -0.13)  # lower side edge: fingers under it, thumb on the front
+        E = V(s * 0.25, -0.12, 1.45)
+        fore = sweep(name + "_fore", [E, W], [0.05, 0.04], 10, ROBE_M)
+        arms[s] = pivot(kit.join(name, [sleeves[s], fore, hand(s, W, G)]), SHOULDER[s])
     head_ob = pivot(kit.join("head", [vl]), HEAD_PIVOT)
     board = _board()
     pencil = _pencil()
