@@ -42,9 +42,16 @@ var grade: PostGrade
 var area: String = "shore"
 var _cur: Array = []
 var _last_cam := Vector3.INF
+var _compat := false
+
+# Web (gl_compatibility) has no SSAO, so the recipes come out ~15% too bright and flat (shot_check.py
+# fails them at mean luma 0.70). Trim exposure and push chroma back on that renderer only.
+const COMPAT_EXPOSURE := 0.8
+const COMPAT_SAT := 1.12
 
 
 func build(wing: Node) -> void:
+	_compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
@@ -146,13 +153,13 @@ func update(cam_pos: Vector3, mood: float, delta: float) -> void:
 	env.ambient_light_energy = r[5]
 	env.fog_light_color = (r[6] as Color).lerp(Color(0.62, 0.62, 0.66), (1.0 - m) * 0.6)
 	env.fog_density = float(r[7]) * lerpf(0.9, 0.35, m)
-	env.tonemap_exposure = r[8]
+	env.tonemap_exposure = r[8] * (COMPAT_EXPOSURE if _compat else 1.0)
 	for sm: ShaderMaterial in [sky_mat, backdrop]:
 		sm.set_shader_parameter(&"tint", r[9])
 		sm.set_shader_parameter(&"haze", (r[10] as Color).lerp(Color(0.6, 0.6, 0.64), (1.0 - m) * 0.6))
 		sm.set_shader_parameter(&"storm_amount", clampf(float(r[11]) + (0.55 - m) * 1.6, 0.0, 1.0))
 	backdrop.set_shader_parameter(&"fog_colour", env.fog_light_color)
 	grade.saturation = float(r[12]) * lerpf(0.9, 1.18, m)
-	env.adjustment_saturation = 1.3 * float(r[12]) / 1.12   # the museum, outside the paint, is greyer
+	env.adjustment_saturation = 1.3 * float(r[12]) / 1.12 * (COMPAT_SAT if _compat else 1.0)   # the museum, outside the paint, is greyer
 	# screen-space reflections only where something is glossy and large: the river and the parquet
 	env.ssr_enabled = area == "river" or area == "museum"
