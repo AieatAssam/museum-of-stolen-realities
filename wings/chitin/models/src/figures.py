@@ -450,10 +450,11 @@ def _limb(pre, hip, knee, ankle, toe, r, mat="carapace_dull"):
 
 
 def B_usher():
-    """Beetle doorkeeper in livery, standing on four legs. Origin at the centre; feet on z -1.15, top at z 1.05.
+    """Beetle doorkeeper in livery, standing on four legs. Origin at the centre; feet on z -1.10, top at z 1.05.
     Tall tapered thorax with a broad collar, a rounded abdomen split by the elytra, six limbs rooted inside the
-    body, a silk sash with brass buttons, and a ceremonial staff along Y (3.0 m) at x -0.62, clear of the body,
-    held in both upper hands."""
+    body, a silk sash with brass buttons, and a ceremonial staff along X (3.0 m) at y -0.4, level at chest height
+    across the front of the thorax and held in both upper hands. In Godot the front (-Y) faces the approach and
+    X runs across the doorway."""
     sd = 400
     parts = []
     # abdomen: two elytra split down the middle, rounded behind and below the thorax
@@ -483,22 +484,22 @@ def B_usher():
                                           (s * 0.38, 0.18, 0.92)], 0.024, 0.012, "carapace_dull", joints=3, club=1.6)
         # middle pair: rooted at the thorax base, feet planted in front of the body
         parts += _limb("u_mid%d" % s, (s * 0.16, 0.0, -0.1), (s * 0.48, -0.1, -0.45), (s * 0.44, -0.05, -0.95),
-                       (s * 0.5, -0.2, -1.13), 0.08)
+                       (s * 0.5, -0.2, -1.10), 0.08)
         # hind pair: rooted in the abdomen, feet planted behind
-        parts += _limb("u_hind%d" % s, (s * 0.18, 0.4, -0.45), (s * 0.5, 0.3, -0.75), (s * 0.42, 0.4, -1.05),
-                       (s * 0.46, 0.52, -1.13), 0.09)
-    # upper pair: arms rooted in the chest, both hands on the staff at x -0.62
-    parts += _limb("u_armA", (-0.14, -0.08, 0.42), (-0.4, -0.28, 0.52), (-0.6, -0.3, 0.4), (-0.61, -0.3, 0.36), 0.075)
-    parts += _limb("u_armB", (0.14, -0.08, 0.42), (0.2, -0.5, 0.5), (-0.4, -0.5, 0.42), (-0.61, -0.48, 0.36), 0.075)
-    # staff: 3.0 m along Y, finials at the ends, claws curled round it where each hand grips
-    parts.append(_tube("u_staff", [(-0.62, -1.44, 0.36), (-0.62, 1.44, 0.36)], [0.025, 0.025], "brass", sd, sides=10, steps=1))
-    for k, y in enumerate((-1.44, 1.44)):
-        parts.append(S.blob("u_finial%d" % k, (0.1, 0.1, 0.1), (-0.62, y, 0.36), "brass", sd + k, lump=0.0, subdiv=2))
-    for y in (-0.3, -0.48):
+        parts += _limb("u_hind%d" % s, (s * 0.18, 0.4, -0.45), (s * 0.5, 0.3, -0.75), (s * 0.42, 0.4, -1.02),
+                       (s * 0.46, 0.52, -1.10), 0.09)
+    # upper pair: arms rooted in the chest, hands on the staff either side of the middle
+    parts += _limb("u_armA", (-0.14, -0.08, 0.42), (-0.34, -0.3, 0.56), (-0.44, -0.38, 0.42), (-0.46, -0.4, 0.36), 0.075)
+    parts += _limb("u_armB", (0.14, -0.08, 0.42), (0.34, -0.3, 0.56), (0.44, -0.38, 0.42), (0.46, -0.4, 0.36), 0.075)
+    # staff: 3.0 m along X, level at chest height, finials at the jambs, claws curled round it where each hand grips
+    parts.append(_tube("u_staff", [(-1.44, -0.4, 0.36), (1.44, -0.4, 0.36)], [0.025, 0.025], "brass", sd, sides=10, steps=1))
+    for k, x in enumerate((-1.44, 1.44)):
+        parts.append(S.blob("u_finial%d" % k, (0.1, 0.1, 0.1), (x, -0.4, 0.36), "brass", sd + k, lump=0.0, subdiv=2))
+    for x in (-0.46, 0.46):
         for a in (1.0, -1.0):
-            base = Vector((-0.62 + 0.03 * math.cos(a), y, 0.36 + 0.03 * math.sin(a)))
-            tang = Vector((-math.sin(a), 0.0, math.cos(a)))
-            parts.append(_thorn("u_grip%d_%d" % (round(y * 100), round(a)), base, tang, 0.06, 0.012, "carapace"))
+            base = Vector((x, -0.4 + 0.03 * math.cos(a), 0.36 + 0.03 * math.sin(a)))
+            tang = Vector((0.0, -math.sin(a), math.cos(a)))
+            parts.append(_thorn("u_grip%d_%d" % (round(x * 100), round(a)), base, tang, 0.06, 0.012, "carapace"))
     kit.join("usher", parts)
 
 

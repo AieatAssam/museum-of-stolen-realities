@@ -49,7 +49,7 @@ var _sfx := {}
 
 # districts
 var _usher: Node3D
-var _usher_home := Vector3(27.0, -1.9, 0.0)
+var _usher_home := Vector3(27.0, -1.89, 0.0)  # the model's feet (glb y -1.11) sit on the floor at y -3
 var _usher_away_t := 0.0
 var _harp_usher: Node
 var _harp_moth: Node
@@ -729,6 +729,11 @@ func _dress() -> void:
 			L.light(Vector3(x, 3.2, z), Color(0.85, 0.95, 0.9), 2.2, 10.0, 0.0).light_specular = 0.15
 	# the usher, the doors, the curtain, the case, the dais: models in their boxes
 	_skin(_usher, "usher", Basis(Vector3.UP, -PI / 2.0))
+	# the eyes catch the light: a small warm glow on each compound eye, moves with him
+	for s: float in [-1.0, 1.0]:
+		var eye := _halo(0.3, Color(1.0, 0.85, 0.5, 0.9))
+		eye.position = Vector3(-0.5, 0.86, s * 0.13)
+		_usher.add_child(eye)
 	_skin(_guild_door, "door_guild")
 	_skin(_vault_door, "door_vault")
 	_skin(_curtain, "curtain")
@@ -828,6 +833,7 @@ func _dress() -> void:
 	L.light(Vector3(6, 7, 0), warm, 2.0, 10.0, 1.5)              # the first hook
 	L.light(Vector3(46, -8, 0), Color("ffc060"), 4.0, 14.0, 3.0)  # the light-well glows up
 	L.light(Vector3(30, 0, 0), warm, 1.5, 10.0)                  # the usher's door
+	L.light(Vector3(25.6, -0.8, 0), warm, 3.0, 7.0, 1.0)         # a lamp on the usher's side: carapace, sash, staff read from the approach
 	L.light(Vector3(21, 1.5, 11), Color("7affd8"), 4.0, 12.0, 0.5)  # fungus glow over the harp line
 	L.light(Vector3(21.5, -0.4, 11.5), Color("ffb060"), 4.5, 12.0, 0.0)  # and warm comb light across it
 	L.light(Vector3(75, 1.5, -5), Color("ffb04a"), 3.2, 10.0)     # the perch: the lost bell's ledge glows honey
