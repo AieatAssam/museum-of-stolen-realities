@@ -27,10 +27,32 @@ var env: float = 0.0       # 0..1 eased envelope
 var timer: float = 0.0     # sustain left (seconds)
 var held: bool = false     # the player is holding this note with the secondary verb
 var carry_to: Node3D       # while held, the field follows this node in x and z (a carried lift)
+var _vol: MeshInstance3D   # the visible field: a column (lift) or a well (sink), fading with env
+var _vol_mat: StandardMaterial3D
 
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	# Gravity direction made visible on every renderer: a teal column rises from the lift's foot, a
+	# violet well is drawn down through the sink's footprint. Unshaded and translucent, so it works on
+	# Compatibility too; it is alpha-scaled by env, so it swells in with the note and dies with it.
+	var cm := CylinderMesh.new()
+	cm.top_radius = radius
+	cm.bottom_radius = radius
+	cm.height = height + 0.6 if kind == &"lift" else height * 2.0
+	cm.radial_segments = 32
+	cm.rings = 1
+	_vol_mat = StandardMaterial3D.new()
+	_vol_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_vol_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_vol_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_vol_mat.albedo_color = Color(0.45, 1.0, 0.85, 0.0) if kind == &"lift" else Color(0.5, 0.25, 0.9, 0.0)
+	_vol = MeshInstance3D.new()
+	_vol.mesh = cm
+	_vol.material_override = _vol_mat
+	_vol.top_level = true
+	_vol.visible = false
+	add_child(_vol)
 
 
 func strike() -> void:
@@ -49,6 +71,21 @@ func _physics_process(delta: float) -> void:
 		timer = maxf(timer - delta, 0.0)
 	var target := 1.0 if timer > 0.0 else 0.0
 	env = move_toward(env, target, delta / (ATTACK if target > env else RELEASE))
+	_show_field()
+
+
+## Places and fades the field volume to match the envelope and the (possibly carried) centre.
+func _show_field() -> void:
+	_vol.visible = env > 0.001
+	_vol_mat.albedo_color.a = env * 0.16
+	var c := global_position
+	if carry_to:
+		c.x = carry_to.global_position.x
+		c.z = carry_to.global_position.z
+	if kind == &"lift":
+		_vol.global_position = Vector3(c.x, c.y + (height - 0.6) * 0.5, c.z)
+	else:
+		_vol.global_position = c
 
 
 ## Acceleration (m/s^2, world Y) this instrument adds at point p.

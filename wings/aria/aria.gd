@@ -38,6 +38,7 @@ var _fragment: Pickup
 var _fragment_spot: Node3D
 var _chord_done: bool = false
 var _flip_clock: float = 0.0
+var _flip_zone: MeshInstance3D  # translucent cue over the reversed-gravity volume, shown only while it reverses
 var _duet_box := AABB(Vector3(-15, -2, -31), Vector3(30, 14, 11))
 var _duet_on: bool = false
 var _duet_round: int = 0
@@ -161,6 +162,8 @@ func _process(delta: float) -> void:
 	if flipping and not SongMode.flipping:
 		Audio.sfx(load(AUDIO + "gravity_release.ogg"), Vector3(27, 4, 39), 0.0, 0.2, 1.0)
 	SongMode.flipping = flipping
+	if _flip_zone:
+		_flip_zone.visible = flipping
 	_fragment_spot.rotate_y(delta * Game.world_time_scale * 0.6)
 	if _duet_open:
 		_duet_left -= delta
@@ -347,6 +350,20 @@ func _build_corridor(areas: Node3D) -> void:
 	drop.triggered.connect(func(_p: Player) -> void: Game.respawn())
 	cor.add_child(drop)
 	SongMode.flip_box = AABB(Vector3(22, 0, 36), Vector3(10, 8, 6))
+	# the reversed-gravity volume, drawn translucent while it is live (Compatibility-safe: unshaded, alpha)
+	var zone := BoxMesh.new()
+	zone.size = SongMode.flip_box.size
+	var zone_mat := StandardMaterial3D.new()
+	zone_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	zone_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	zone_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	zone_mat.albedo_color = Color(0.6, 0.9, 1.0, 0.09)
+	_flip_zone = MeshInstance3D.new()
+	_flip_zone.mesh = zone
+	_flip_zone.material_override = zone_mat
+	_flip_zone.position = SongMode.flip_box.get_center()
+	_flip_zone.visible = false
+	geo.add_child(_flip_zone)
 	_placard(cor, Vector3(18, 4.2, 36.05), 0.0, "VI", "The Scored Corridor", "Acq. No. 003\nPassage",
 		"Gravity here reverses on the downbeat, as composed. The score marks each reversal with a rest, which is the only part of the score the audience is said to remember.")
 
@@ -428,6 +445,8 @@ func _build_dome(areas: Node3D) -> void:
 	glow.light_volumetric_fog_energy = 2.0
 	glow.shadow_enabled = false  # an omni shadow re-renders the whole rotunda six times; the crystals read without it
 	_chandelier.add_child(glow)
+	if Art.compat():  # no volumetric fog on the web build: the shaft down from the chandelier is drawn instead
+		Art.shaft(_chandelier, glow.position, Vector3(0, -4.0, 0), Color("ffc98a"), 16.0)
 	# the heist's chord route: two pipes that must sound together, a sink between them, and a ledge
 	var root := _group(dome, "Instruments")
 	for p: Array in [[Vector3(-2, 0, -56), &"heist_a", "note_organ_c"], [Vector3(2, 0, -56), &"heist_b", "note_organ_g"]]:
