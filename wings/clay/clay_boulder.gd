@@ -6,7 +6,9 @@ extends RigidBody3D
 signal flattened
 
 const FLAT_Y := 0.32
+const LONG := 2.2  # the flattened stone stretches along the trench to span it
 const SQUASH_TIME := 1.6
+const TRENCH_Z := -4.5  # the middle of the trench: a flat stone lies across it here
 
 var visual: Node3D
 var _squash: float = 0.0
@@ -42,18 +44,26 @@ func press(dt: float) -> void:
 	if flat or not in_trench():
 		return
 	_squash = minf(_squash + dt / SQUASH_TIME, 1.0)
-	visual.scale = Vector3(1.0, lerpf(1.0, FLAT_Y, _squash), 1.0)
+	visual.scale = Vector3(1.0, lerpf(1.0, FLAT_Y, _squash), lerpf(1.0, LONG, _squash))
 	if _squash >= 1.0:
-		_become_bridge()
+		become_bridge()
 
 
-func _become_bridge() -> void:
+## Freeze the stone into a slab across the middle of the trench. `announce` is false when a saved
+## game restores it (the step is already done then).
+func become_bridge(announce: bool = true) -> void:
 	flat = true
 	var cs := get_node("Ball") as CollisionShape3D
 	var bx := BoxShape3D.new()
-	bx.size = Vector3(2.3, FLAT_Y * 2.0, 2.4)
+	bx.size = Vector3(2.3, FLAT_Y * 2.0, 2.3 * LONG)
 	cs.shape = bx
 	cs.position = Vector3(0, 0.0, 0)
+	# it may have rolled in: lay it flat across the trench, level, and stop it spinning
+	global_transform = Transform3D(Basis.IDENTITY, Vector3(global_position.x, global_position.y, TRENCH_Z))
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	visual.scale = Vector3(1.0, FLAT_Y, LONG)
 	freeze = true
 	sleeping = true
-	flattened.emit()
+	if announce:
+		flattened.emit()

@@ -258,7 +258,10 @@ func verb_prompt() -> Dictionary:
 		&"terrain":
 			if not _taught:
 				return {"action": &"primary", "text": "scoop the clay out" if _in_pit(_aim) else "pull the clay up", "hold": true}
-		&"boulder", &"gate", &"plug":
+		&"boulder":
+			if _boulder and _boulder.in_trench():
+				return {"action": &"secondary", "text": "press it flat", "hold": true}
+		&"gate", &"plug":
 			return {"action": &"secondary", "text": "press it down", "hold": true}
 	return super()
 
@@ -276,6 +279,9 @@ func base_height(x: float, z: float) -> float:
 	var dz := absf(z + 4.5)
 	h -= 1.6 * (1.0 - smoothstep(1.5, 2.2, dz))
 	h += 0.28 * clampf(z + 2.2, 0.0, 5.2) * (1.0 - smoothstep(-2.2, 5.0, absf(x) - 6.0))
+	# A walkable ramp down the south bank into the trench, so the player can always climb out.
+	var ramp := smoothstep(-15.0, -13.5, x) * (1.0 - smoothstep(-10.5, -9.0, x))
+	h = lerpf(h, maxf(h, -1.6 * clampf((-2.2 - z) / 2.3, 0.0, 1.0)), ramp)
 	return h
 
 
@@ -676,9 +682,7 @@ func _apply_saved() -> void:
 		var bp: Array = st["boulder"]
 		_boulder.global_position = Vector3(bp[0], bp[1], bp[2])
 		if bool(st.get("boulder_flat", false)):
-			_boulder.freeze = true
-			_boulder.visual.scale = Vector3(1.0, ClayBoulder.FLAT_Y, 1.0)
-			_boulder.flat = true
+			_boulder.become_bridge(false)
 	if _plug and bool(st.get("plug_open", false)):
 		_plug.queue_free()
 		_plug = null
