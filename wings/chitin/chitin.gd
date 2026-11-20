@@ -49,7 +49,7 @@ var _sfx := {}
 
 # districts
 var _usher: Node3D
-var _usher_home := Vector3(27.0, -1.9, 0.0)
+var _usher_home := Vector3(27.0, -1.89, 0.0)  # the model's feet (glb y -1.11) sit on the floor at y -3
 var _usher_away_t := 0.0
 var _harp_usher: Node
 var _harp_moth: Node
@@ -274,6 +274,9 @@ func _build_gate(area: Node3D) -> void:
 	# then the gap's hook: the brightest thing at the lip
 	_beacon(_anchor(area, Vector3(6, 10, 0)), 9.0, 5.0)
 	_abyss(area, Vector3(0, -14, -16), Vector3(13, -10, 16))
+	_zone(area, Vector3(-3, -4, -14), Vector3(0.5, 2, 14), func() -> void:
+		if not Quest.is_step_done(&"gate", &"swing"):
+			toast("The ditch is four metres down. Aim at the bright hook over the gap and let go at the top of the swing: primary (left mouse). Secondary (right mouse, or Q) plucks and weaves.", "The molted gate"))
 	_zone(area, Vector3(13, -3, -14), Vector3(28, 0, 14), func() -> void: complete_step(&"gate", &"swing"))
 	_placard(area, Vector3(-11.9, 1.4, -2.7), Vector3(0, 0, 1), "The molted gate", "Shed in the present reign", "Chitin, one hinge",
 		"The court's outer gate is the skin its first doorkeeper grew out of. He was promoted inside it. Visitors pass through him. The hinge is original. His whereabouts are not recorded.")
@@ -299,7 +302,14 @@ func _build_districts(area: Node3D) -> void:
 	_usher.name = "Usher"
 	_harp_usher = Strand.create(area, Vector3(18, -1.2, 13.3), Vector3(26, -1.2, 13.3))
 	_harp_usher.name = "UsherHarp"
+	var harp_lamp := Node3D.new()  # the harp line is the way past him: lit from the doorway
+	harp_lamp.position = Vector3(22, -1.2, 13.3)
+	area.add_child(harp_lamp)
+	_beacon(harp_lamp, 3.0, 2.2)
 	_zone(area, Vector3(29, -3, -3), Vector3(32, 0, 3), func() -> void: complete_step(&"districts", &"usher"))
+	_zone(area, Vector3(20, -4, -4), Vector3(26.5, 0, 4), func() -> void:
+		if not Quest.is_step_done(&"districts", &"usher") and _usher_away_t <= 0.0:
+			toast("The usher blocks the door and will not move for a walk. Aim at the lit harp line on the far wall and pluck it: secondary (right mouse, or Q)."))
 	# light-well W1 (x 40..52): pegs on both lips, a line woven between them is the only way over
 	_peg(area, Vector3(40.3, -2.95, 0))
 	_peg(area, Vector3(51.7, -2.95, 0))
@@ -719,6 +729,11 @@ func _dress() -> void:
 			L.light(Vector3(x, 3.2, z), Color(0.85, 0.95, 0.9), 2.2, 10.0, 0.0).light_specular = 0.15
 	# the usher, the doors, the curtain, the case, the dais: models in their boxes
 	_skin(_usher, "usher", Basis(Vector3.UP, -PI / 2.0))
+	# the eyes catch the light: a small warm glow on each compound eye, moves with him
+	for s: float in [-1.0, 1.0]:
+		var eye := _halo(0.3, Color(1.0, 0.85, 0.5, 0.9))
+		eye.position = Vector3(-0.5, 0.86, s * 0.13)
+		_usher.add_child(eye)
 	_skin(_guild_door, "door_guild")
 	_skin(_vault_door, "door_vault")
 	_skin(_curtain, "curtain")
@@ -818,6 +833,7 @@ func _dress() -> void:
 	L.light(Vector3(6, 7, 0), warm, 2.0, 10.0, 1.5)              # the first hook
 	L.light(Vector3(46, -8, 0), Color("ffc060"), 4.0, 14.0, 3.0)  # the light-well glows up
 	L.light(Vector3(30, 0, 0), warm, 1.5, 10.0)                  # the usher's door
+	L.light(Vector3(25.6, -0.8, 0), warm, 3.0, 7.0, 1.0)         # a lamp on the usher's side: carapace, sash, staff read from the approach
 	L.light(Vector3(21, 1.5, 11), Color("7affd8"), 4.0, 12.0, 0.5)  # fungus glow over the harp line
 	L.light(Vector3(21.5, -0.4, 11.5), Color("ffb060"), 4.5, 12.0, 0.0)  # and warm comb light across it
 	L.light(Vector3(75, 1.5, -5), Color("ffb04a"), 3.2, 10.0)     # the perch: the lost bell's ledge glows honey

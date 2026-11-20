@@ -227,21 +227,13 @@ def arm(name, ctrl):
 
 
 def hand(name, wrist, elbow, sign):
-    P = []
+    # CC0 kit hand, fingers along the forearm; kit.hand's basis is Y=fingers, Z=back of hand
     f = (wrist - elbow).normalized()
-    s = f.cross(Y_AXIS).normalized()
-    n = s.cross(f).normalized()
-    c = wrist + f * 0.045
-    P.append(blob(name + "_palm", c, f * 0.045, s * 0.025, n * 0.01, "sirena_skin", nu=12, nv=6))
-    for k in range(4):
-        off = k - 1.5
-        base = c + f * 0.04 + s * (off * 0.016)
-        d = (f + s * off * 0.12).normalized()
-        P.append(kit.tube(name + "_finger", [base, base + d * 0.035, base + d * 0.07], 0.008, 6, mat="sirena_skin"))
-    tb = c - f * 0.005 + s * (sign * 0.025)
-    td = (f * 0.4 + s * sign * 1.0).normalized()
-    P.append(kit.tube(name + "_thumb", [tb, tb + td * 0.025, tb + td * 0.05], 0.009, 6, mat="sirena_skin"))
-    return P
+    n = f.cross(Y_AXIS).cross(f).normalized()
+    x = f.cross(n)
+    ob = kit.hand(1 if sign > 0 else -1, "relaxed", 0.5, name, "sirena_skin")
+    ob.data.transform(Matrix.Translation(wrist) @ Matrix((x, f, n)).transposed().to_4x4())
+    return [ob]
 
 
 # --- hair ----------------------------------------------------------------------------------------

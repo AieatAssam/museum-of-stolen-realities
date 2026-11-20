@@ -4,6 +4,7 @@ Everything builds real geometry with bmesh (no operators that need a GUI context
 deterministic and parallel-safe.
 """
 import math
+import os
 
 import bmesh
 import bpy
@@ -173,3 +174,38 @@ def duplicate(ob, name):
 def collision_box(name, size, loc=(0, 0, 0)):
     """Invisible convex collider: names it <name>-convcolonly."""
     return box(name + "-convcolonly", size, loc)
+
+
+# --- hands ------------------------------------------------------------------------------------
+# hand(side, pose, scale, name, mat) -> one object, all geometry real (no modifiers), origin at the wrist.
+# Hand meshes: CC0 Quaternius rig, cut and posed by tools/blender/src/make_hands.py into assets/hands.blend.
+# Frame of the stored right hand: origin at the wrist joint, fingers +Y, palm -Z, back +Z, thumb on -X.
+# hand() appends the mesh by name, mirrors it on X for side +1 (thumb on +X), and keeps the wrist at the origin.
+# Poses: "open", "relaxed", "grip" (fist), "hold" (shallow curl, flat objects), "point" (index out).
+HAND_POSES = ("open", "relaxed", "grip", "hold", "point")
+_HAND_ASSET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "hands.blend")
+
+
+def _hand_source(pose):
+    me = bpy.data.meshes.get("hand_" + pose)
+    if me is None:
+        with bpy.data.libraries.load(_HAND_ASSET) as (src, dst):
+            dst.meshes = ["hand_" + pose]
+        me = bpy.data.meshes["hand_" + pose]
+    return me
+
+
+def hand(side, pose="relaxed", scale=1.0, name="hand", mat="skin"):
+    """Hand at the wrist origin, fingers +Y, palm -Z. side +1 = left hand (thumb +X), -1 = right (thumb -X)."""
+    if pose not in HAND_POSES:
+        raise ValueError("hand pose must be one of %s" % list(HAND_POSES))
+    bm = bmesh.new()
+    bm.from_mesh(_hand_source(pose))
+    if side > 0:
+        for v in bm.verts:
+            v.co.x = -v.co.x
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    for v in bm.verts:
+        v.co *= scale
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return _obj(name, bm, mat, 180.0)

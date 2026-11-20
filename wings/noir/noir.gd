@@ -519,8 +519,7 @@ func _build_precinct() -> void:
 	p.add_child(swing)
 	var locker := Interactable.make_box(Vector3(1.0, 1.6, 0.8), "Open the evidence locker")
 	locker.position = Vector3(6.5, 0.8, -63.0)
-	locker.hold_time = 1.0
-	locker.once = true
+	locker.hold_time = 1.0  # not once: a refused attempt (lamp still on) must leave it usable
 	locker.interacted.connect(func(_p: Player) -> void: _get_key())
 	p.add_child(locker)
 	_plaque(p, Vector3(11.95, 1.6, -57.0), -90.0, "Desk lamp, enamelled steel, 1949", "Desk lamp, precinct", "Acquisition No. 501.7",

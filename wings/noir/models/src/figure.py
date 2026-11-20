@@ -264,8 +264,16 @@ def _man_legs(parts, b):
         _shoe(parts, foot[0], foot[1], rot)
 
 
-def _hand(parts, c):
-    parts.append(_ell("hand", c, (0.03, 0.025, 0.042), "skin", 10, 6))
+def _hand(parts, c, d=(0, 0, -1)):
+    """CC0 hand (kit.hand): wrist at c, fingers along d (default hanging down)."""
+    Yh = Vector(d).normalized()
+    Zh = Vector((0, 0, 1)) - Yh * Yh.z
+    if Zh.length < 1e-4:
+        Zh = Vector((0, 1, 0))
+    Zh = Zh.normalized()
+    Xh = Yh.cross(Zh)
+    side = 1 if c[0] >= 0 else -1
+    parts.append(_put(kit.hand(side, "relaxed", 1.0, "hand", "skin"), Matrix.Translation(c) @ Matrix((Xh, Yh, Zh)).transposed().to_4x4()))
 
 
 def _head(parts, dx, dz, yaw, hat):
@@ -297,7 +305,7 @@ def _man(parts, b):
         if b and s > 0:
             # hand raised to touch the brim
             parts.append(_tube("arm", [shoulder, (0.32 + dx, 0.14, 1.5), (0.16 + dx, 0.1, 1.71)], 0.055, "coat"))
-            _hand(parts, (0.16 + dx, 0.1, 1.72))
+            _hand(parts, (0.16 + dx, 0.1, 1.72), (0.4, 0.4, 0.8))
         else:
             # forearm angled into the side pocket, hand hidden in the coat
             parts.append(_tube("arm", [shoulder, (s * 0.29 + dx, 0.02, 1.08), (s * 0.2 + dx, 0.07, 0.93)], 0.055, "coat"))

@@ -52,6 +52,10 @@ var _mote_mesh: QuadMesh
 var _flare_mat: Material
 
 
+static func compat() -> bool:
+	return RenderingServer.get_current_rendering_method() == "gl_compatibility"
+
+
 static func color(mask: int) -> Color:
 	return COLORS.get(mask, Color.WHITE)
 
@@ -246,6 +250,10 @@ class Segment extends Node3D:
 
 		vis = MeshInstance3D.new()
 		vis.mesh = mesh
+		if GlassOptics.compat():
+			# Compatibility has no instance uniforms: each shaft carries its own material
+			vis.material_override = ShaderMaterial.new()
+			(vis.material_override as ShaderMaterial).shader = load("res://wings/glass/shaders/beam_compat.gdshader")
 		vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		vis.rotation.x = -PI / 2  # cylinder Y axis -> -Z
 		var pivot := Node3D.new()
@@ -298,6 +306,12 @@ class Segment extends Node3D:
 		var p: Node3D = Game.player
 		skin.set_instance_shader_parameter(&"foot", p.global_position if p else Vector3(0, -1000, 0))
 
+	func _beam_param(p: StringName, v: Variant) -> void:
+		if vis.material_override:
+			(vis.material_override as ShaderMaterial).set_shader_parameter(p, v)
+		else:
+			vis.set_instance_shader_parameter(p, v)
+
 	func set_seg(na: Vector3, nb: Vector3, nmask: int) -> void:
 		if not _shown:
 			_shown = true
@@ -310,7 +324,7 @@ class Segment extends Node3D:
 		var colr := GlassOptics.color(nmask)
 		if nmask != mask:
 			mask = nmask
-			vis.set_instance_shader_parameter(&"beam_color", colr)
+			_beam_param(&"beam_color", colr)
 			flare.light_color = colr
 		var d := a.direction_to(b)
 		var length := a.distance_to(b)
@@ -319,7 +333,7 @@ class Segment extends Node3D:
 		global_transform = Transform3D(basis, (a + b) * 0.5)
 		var vis_pivot := get_node("Vis") as Node3D
 		vis_pivot.scale = Vector3(1, 1, length)
-		vis.set_instance_shader_parameter(&"beam_len", length)
+		_beam_param(&"beam_len", length)
 		flare.global_position = b - d * 0.4
 		var slope := rad_to_deg(asin(clampf(absf(d.y), 0.0, 1.0)))
 		var solid := slope < GlassOptics.WALK_SLOPE
@@ -437,11 +451,23 @@ class Mirror extends Element:
 	var head: Node3D
 	var _tw: Tween
 
+	var _hit: MeshInstance3D
+
 	func setup(face_size: Vector2 = Vector2(1.5, 1.5)) -> void:
 		head = Node3D.new()
 		head.name = "Head"
 		add_child(head)
 		make_body(Vector3(face_size.x, face_size.y, 0.12), Vector3.ZERO, head)
+		# the glow over the face: lit only while light reaches it, so a struck mirror reads at a glance
+		_hit = MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2.ONE * face_size.x * 1.5
+		_hit.mesh = q
+		_hit.material_override = ShaderMaterial.new()
+		(_hit.material_override as ShaderMaterial).shader = load("res://wings/glass/shaders/hit_glow.gdshader")
+		_hit.position = Vector3(0, 0, 0.07)
+		_hit.visible = false
+		head.add_child(_hit)
 		normal = normals[index]
 		_orient(normal)
 
@@ -449,6 +475,15 @@ class Mirror extends Element:
 		normal = n.normalized()
 		var up := Vector3.UP if absf(normal.y) < 0.97 else Vector3.FORWARD
 		head.global_basis = Basis.looking_at(-normal, up)
+
+	func settle(delta: float) -> void:
+		super.settle(delta)
+		var lit_now := lit != 0
+		_hit.visible = lit_now
+		if lit_now:
+			var hm := _hit.material_override as ShaderMaterial
+			hm.set_shader_parameter(&"glow_color", GlassOptics.color(lit))
+			hm.set_shader_parameter(&"strength", 1.2)
 
 	func turn() -> void:
 		set_index((index + 1) % normals.size())

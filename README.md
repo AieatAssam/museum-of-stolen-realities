@@ -1,8 +1,21 @@
 # Museum of Stolen Realities
 
-A first-person game in Godot 4.7 (Forward+). The player is Vesper, a Reality Thief recovering
-fragments of her own world from a museum outside time. The Curator never speaks; it comments only
-through museum placards.
+**[Play in the browser](https://aieatassam.github.io/museum-of-stolen-realities/)** · [Downloads](https://github.com/AieatAssam/museum-of-stolen-realities/releases) (Windows, Linux, macOS)
+
+A first-person puzzle game in Godot 4.7. You are Vesper, a Reality Thief recovering fragments of
+her own world from a museum outside time. Six framed worlds hang in the atrium; each is made in
+one art medium and runs on one physics rule. The Curator never speaks; it comments only through
+museum placards.
+
+![The atrium](docs/screenshots/atrium.jpg)
+
+| | |
+|---|---|
+| ![The Vitrine Kingdom](docs/screenshots/glass.jpg) **The Vitrine Kingdom**: aim light through stained glass | ![The Pinched Forest](docs/screenshots/clay.jpg) **The Pinched Forest**: reshape a clay landscape |
+| ![The Long Shadow](docs/screenshots/noir.jpg) **The Long Shadow**: move only through shadow | ![The Drowned Aria](docs/screenshots/aria.jpg) **The Drowned Aria**: bend gravity with sound |
+| ![The Unfinished Wing](docs/screenshots/paint.jpg) **The Unfinished Wing**: scrape paint and lay it as bridges | ![The Chitin Court](docs/screenshots/chitin.jpg) **The Chitin Court**: swing on silk |
+
+The desktop builds use the Forward+ renderer. The browser build runs on WebGL 2 and looks plainer.
 
 ## Structure
 

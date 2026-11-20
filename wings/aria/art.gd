@@ -354,6 +354,8 @@ func _auditorium() -> void:
 	water.position = Vector3(0, 0.22, -2.5)
 	_water = ShaderMaterial.new()
 	_water.shader = load(SHADERS + "water.gdshader")
+	if compat():  # no SSR on the web build, so the mirror is missing: lift the basin so it reads as water, not void
+		_water.set_shader_parameter(&"deep", Vector3(0.02, 0.1, 0.1))
 	water.material_override = _water
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(water)
@@ -500,6 +502,8 @@ func _fly_loft() -> void:
 	_multi("catwalk", walk)
 	# moonlight down the skylight onto the fork; a warm work lamp on the floor
 	_spot(Vector3(52, 22, 36), Vector3(56, 2.8, 40), Color("bfe8ff"), 7.0, 30.0, 12.0, true, 0.8)
+	if compat():
+		shaft(self, Vector3(52, 22, 36), Vector3(56, 2.8, 40), Color("bfe8ff"), 12.0)
 	_omni(Vector3(54, 11, 38), Color("ffcf9a"), 2.0, 14.0, false, 0.3)  # grid lamp: the rigging and drops
 	_omni(Vector3(49.5, 4.2, 33.5), Color("ffd6a6"), 2.5, 8.0, false, 1.5)
 	_omni(Vector3(56, 5.0, 40), Color("8ff0d8"), 1.0, 5.0)
@@ -625,6 +629,34 @@ func _dust(centre: Vector3, extents: Vector3) -> void:
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(p)
+
+
+## Compatibility (the web build) has no volumetric fog, so a fogged light draws no shaft there.
+static func compat() -> bool:
+	return RenderingServer.get_current_rendering_method() == "gl_compatibility"
+
+
+## A faint additive cone standing in for a volumetric light shaft from `from` (narrow) to `to` (wide).
+static func shaft(parent: Node3D, from: Vector3, to: Vector3, col: Color, spread_deg: float) -> void:
+	var d := to - from
+	var len := d.length()
+	var cm := CylinderMesh.new()
+	cm.top_radius = len * tan(deg_to_rad(spread_deg))
+	cm.bottom_radius = 0.05
+	cm.height = len
+	cm.radial_segments = 24
+	cm.rings = 1
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.07)
+	var mi := MeshInstance3D.new()
+	mi.mesh = cm
+	mi.material_override = mat
+	mi.transform = Transform3D(Basis(Quaternion(Vector3.UP, d / len)), (from + to) * 0.5)
+	parent.add_child(mi)
 
 
 static func _soft_dot() -> Texture2D:

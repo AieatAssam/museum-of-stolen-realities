@@ -31,6 +31,8 @@ var mono: ShaderMaterial
 var _rain: GPUParticles3D
 var _fan: Node3D
 var _dirs: Array = []
+var _beams: Array = []  # [light, cone] pairs, Compatibility only
+var _compat := false  # WebGL 2 / gl_compatibility: no volumetric fog, so the exposure is lifted to compensate
 
 
 ## MSAA costs several ms at 1440p with this many lights; SMAA keeps edges clean for a fraction.
@@ -64,6 +66,7 @@ func build(w: Node3D) -> void:
 	_sound()
 	_skyline()
 	_probes()
+	_compat_beams()
 
 
 # ---------- helpers ----------
@@ -276,6 +279,7 @@ func steam(pos: Vector3, amount := 18, rise := 1.0) -> void:
 
 func _environment() -> void:
 	env = (wing.get_node("WorldEnvironment") as WorldEnvironment).environment
+	_compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	# the sky: black overhead, the city's glow on the low cloud at the horizon, so roofs and towers stand as silhouettes
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color(0.025, 0.026, 0.03)
@@ -413,6 +417,40 @@ func _probes() -> void:
 		add_child(rp)
 
 
+## Compatibility has no volumetric fog, so a spot's fog cone is a faint additive mesh cone instead.
+func _compat_beams() -> void:
+	if not _compat:
+		return
+	# alpha falls off toward the far end and toward the rim (view-facing centre is brightest), so no hard edge
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode unshaded, blend_add, cull_disabled, depth_draw_never;\n" \
+		+ "uniform vec3 tint : source_color = vec3(0.85, 0.85, 0.9);\nuniform float strength = 0.2;\nuniform float height = 1.0;\n" \
+		+ "varying float along;\nvoid vertex() { along = VERTEX.y / height + 0.5; }\n" \
+		+ "void fragment() {\n\tfloat centre = pow(abs(dot(normalize(NORMAL), normalize(VIEW))), 1.5);\n" \
+		+ "\tfloat fade = pow(1.0 - clamp(along, 0.0, 1.0), 1.5);\n\tALBEDO = tint;\n\tALPHA = strength * centre * fade;\n}\n"
+	for s: Node in wing.find_children("*", "SpotLight3D", true, false):
+		var l := s as SpotLight3D
+		if l.light_volumetric_fog_energy <= 0.0:
+			continue
+		var cm := CylinderMesh.new()
+		cm.top_radius = l.spot_range * tan(deg_to_rad(l.spot_angle))  # wide end, far from the lamp
+		cm.bottom_radius = 0.02
+		cm.height = l.spot_range
+		cm.cap_top = false
+		cm.cap_bottom = false
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.set_shader_parameter("height", l.spot_range)
+		var mi := MeshInstance3D.new()
+		mi.mesh = cm
+		mi.material_override = m
+		mi.rotation_degrees.x = -90.0  # local +Y points down the spot's -Z
+		mi.position = Vector3(0, 0, -l.spot_range * 0.5)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		l.add_child(mi)
+		_beams.append([l, mi])
+
+
 func area_of(at: Vector3) -> String:
 	if at.z > -20.5:
 		return "alley"
@@ -431,7 +469,8 @@ func _process(delta: float) -> void:
 		return
 	var at := cam.global_position
 	var a := area_of(at)
-	env.tonemap_exposure = move_toward(env.tonemap_exposure, EXPOSURE[a], delta * 2.0)
+	# Compatibility loses the volumetric haze and the reflections that lift the dark rooms, so it reads darker: lift it
+	env.tonemap_exposure = move_toward(env.tonemap_exposure, EXPOSURE[a] * (1.5 if _compat else 1.0), delta * 2.0)
 	env.volumetric_fog_density = move_toward(env.volumetric_fog_density, FOG[a], delta * 0.02)
 	env.fog_density = move_toward(env.fog_density, DEPTH_FOG[a], delta * 0.02)
 	if _fan:
@@ -440,6 +479,8 @@ func _process(delta: float) -> void:
 	_rain.emitting = outdoors
 	_rain.visible = outdoors
 	_rain.global_position = at + Vector3(0, 9, 0)
+	for p: Array in _beams:  # a cone follows its light: off when the light is dimmed or off
+		(p[1] as Node3D).visible = (p[0] as Light3D).is_visible_in_tree() and (p[0] as Light3D).light_energy > 0.0
 
 
 # ---------- areas ----------

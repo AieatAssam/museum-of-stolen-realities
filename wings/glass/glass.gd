@@ -1066,7 +1066,7 @@ func _build_crypt() -> void:
 	# yaw 0: gold straight on to the lens; blue +35 to M6; red -35 to the reliquary
 	var d_b := GlassOptics.dir_yaw(35.0)
 	var d_r := GlassOptics.dir_yaw(-35.0)
-	var m6 := PRISM_O + d_b * 7.0
+	var m6 := PRISM_O + d_b * 10.0  # 10 m out: at 7 m the yaw-45 gold ray passed 1.2 m from the centre
 	var reliq := PRISM_O + d_r * 9.8
 	lens_crypt = GlassOptics.Lens.new()
 	lens_crypt.position = Vector3(0, -7.88, -108)
