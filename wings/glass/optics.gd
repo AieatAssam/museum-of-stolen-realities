@@ -253,7 +253,7 @@ class Segment extends Node3D:
 		if GlassOptics.compat():
 			# Compatibility has no instance uniforms: each shaft carries its own material
 			vis.material_override = ShaderMaterial.new()
-			(vis.material_override as ShaderMaterial).shader = preload("res://wings/glass/shaders/beam_compat.gdshader")
+			(vis.material_override as ShaderMaterial).shader = load("res://wings/glass/shaders/beam_compat.gdshader")
 		vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		vis.rotation.x = -PI / 2  # cylinder Y axis -> -Z
 		var pivot := Node3D.new()
@@ -464,7 +464,7 @@ class Mirror extends Element:
 		q.size = Vector2.ONE * face_size.x * 1.5
 		_hit.mesh = q
 		_hit.material_override = ShaderMaterial.new()
-		(_hit.material_override as ShaderMaterial).shader = preload("res://wings/glass/shaders/hit_glow.gdshader")
+		(_hit.material_override as ShaderMaterial).shader = load("res://wings/glass/shaders/hit_glow.gdshader")
 		_hit.position = Vector3(0, 0, 0.07)
 		_hit.visible = false
 		head.add_child(_hit)
