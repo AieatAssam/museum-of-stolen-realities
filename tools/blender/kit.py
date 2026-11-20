@@ -4,6 +4,7 @@ Everything builds real geometry with bmesh (no operators that need a GUI context
 deterministic and parallel-safe.
 """
 import math
+import os
 
 import bmesh
 import bpy
@@ -177,122 +178,34 @@ def collision_box(name, size, loc=(0, 0, 0)):
 
 # --- hands ------------------------------------------------------------------------------------
 # hand(side, pose, scale, name, mat) -> one object, all geometry real (no modifiers), origin at the wrist.
-# Local frame in metres (before scale): wrist centre at (0, 0, 0); fingers point +Y; the palm faces -Z,
-# the back of the hand is +Z. side = +1 puts the thumb on +X, side = -1 on -X. A 4 cm forearm stub runs
-# to y = -0.06: sink it into a sleeve. Hand length, wrist to middle fingertip, is about 0.19 m.
-# Poses: "open", "relaxed", "grip" (fingers wrap about 2-3 cm across, thumb opposed), "point"
-# (index straight, the rest curled). Mesh is about 1000 tris. Place with matrix_world or kit.place().
-
-HAND_POSES = {
-    # spread deg per finger (index, middle, ring, pinky); flex deg (MCP, PIP, DIP) per finger;
-    # thumb: (splay deg, flex deg at its base joint, flex deg at its tip joint)
-    "open": ([8, 1, -4, -10], [(4, 6, 4), (4, 6, 4), (4, 6, 4), (5, 8, 5)], (40, 6, 4)),
-    "relaxed": ([6, 1, -3, -8], [(12, 22, 12), (14, 26, 16), (18, 32, 20), (22, 38, 24)], (35, 12, 10)),
-    "grip": ([3, 0, -2, -4], [(72, 88, 50), (82, 96, 58), (88, 100, 62), (92, 100, 66)], (28, 42, 50)),
-    "point": ([6, 1, -3, -8], [(0, 0, 0), (82, 96, 58), (88, 100, 62), (92, 100, 66)], (30, 40, 40)),
-}
-_HAND_FINGERS = [  # x (thumb side +), knuckle y, half-width, half-depth, length vs the middle finger
-    (0.031, 0.100, 0.0100, 0.0095, 0.93),  # index
-    (0.011, 0.104, 0.0105, 0.0100, 1.00),  # middle
-    (-0.010, 0.101, 0.0098, 0.0093, 0.94),  # ring
-    (-0.030, 0.093, 0.0082, 0.0078, 0.79),  # pinky
-]
-_HAND_PHALANGES = (0.047, 0.028, 0.021)  # proximal, middle, distal of the middle finger
-_HAND_PALM = [  # y, half-width, half-thickness (palm side -Z), wrist at 0, knuckles at 0.104
-    (-0.060, 0.024, 0.016), (-0.020, 0.026, 0.017), (0.0, 0.028, 0.018), (0.035, 0.036, 0.017),
-    (0.075, 0.041, 0.016), (0.104, 0.0425, 0.0145),
-]
+# Hand meshes: CC0 Quaternius rig, cut and posed by tools/blender/src/make_hands.py into assets/hands.blend.
+# Frame of the stored right hand: origin at the wrist joint, fingers +Y, palm -Z, back +Z, thumb on -X.
+# hand() appends the mesh by name, mirrors it on X for side +1 (thumb on +X), and keeps the wrist at the origin.
+# Poses: "open", "relaxed", "grip" (fist), "hold" (shallow curl, flat objects), "point" (index out).
+HAND_POSES = ("open", "relaxed", "grip", "hold", "point")
+_HAND_ASSET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "hands.blend")
 
 
-def _hand_ring(bm, c, d, B, a, b, sides):
-    """Ellipse around c in the plane normal to d: half-width a along B (the bend axis), half-depth b."""
-    u = (B - d * B.dot(d)).normalized()
-    v = d.cross(u).normalized()
-    return [bm.verts.new(c + u * (a * math.cos(2 * math.pi * k / sides)) + v * (b * math.sin(2 * math.pi * k / sides)))
-            for k in range(sides)]
-
-
-def _hand_stitch(bm, rings, sides, end_fan=True):
-    """Quads between consecutive rings, fan caps on both ends (a 'tube' with closed ends)."""
-    for i in range(len(rings) - 1):
-        r0, r1 = rings[i], rings[i + 1]
-        for k in range(sides):
-            bm.faces.new((r0[k], r0[(k + 1) % sides], r1[(k + 1) % sides], r1[k]))
-    for ring in (rings[0], rings[-1]):
-        ctr = bm.verts.new(sum((v.co for v in ring), Vector()) / sides)
-        for k in range(sides):
-            bm.faces.new((ring[k], ring[(k + 1) % sides], ctr))
-
-
-def _hand_digit(bm, base, d0, B, lens, flex, radii, sides=8):
-    """Phalanx chain. flex[i] (deg) bends the chain about B toward the palm before phalanx i.
-    radii[i] = (a, b) at joint i (0 = base, last = tip). Returns the ring list for _hand_stitch."""
-    rings = []
-    P, d = Vector(base), Vector(d0).normalized()
-    for i, L in enumerate(lens):
-        d = (Matrix.Rotation(-math.radians(flex[i]), 3, B) @ d).normalized()
-        a0, b0 = radii[i]
-        a1, b1 = radii[i + 1]
-        knuckle = 1.12 if i == 0 else 1.06  # bulge at each joint
-        rings.append(_hand_ring(bm, P, d, B, a0 * knuckle, b0 * knuckle, sides))
-        rings.append(_hand_ring(bm, P + d * (L * 0.5), d, B, (a0 + a1) / 2, (b0 + b1) / 2, sides))
-        P = P + d * L
-        rings.append(_hand_ring(bm, P, d, B, a1, b1, sides))
-    # rounded tip: three shrinking rings, then the fan cap closes it
-    a, b = radii[-1]
-    for along, k in ((0.45, 0.93), (0.8, 0.7), (0.97, 0.3)):
-        rings.append(_hand_ring(bm, P + d * (along * a), d, B, a * k, b * k, sides))
-    rings.append(_hand_ring(bm, P + d * (a * 1.0), d, B, a * 0.05, b * 0.05, sides))
-    return rings
+def _hand_source(pose):
+    me = bpy.data.meshes.get("hand_" + pose)
+    if me is None:
+        with bpy.data.libraries.load(_HAND_ASSET) as (src, dst):
+            dst.meshes = ["hand_" + pose]
+        me = bpy.data.meshes["hand_" + pose]
+    return me
 
 
 def hand(side, pose="relaxed", scale=1.0, name="hand", mat="skin"):
-    """Sculpted hand and forearm stub, origin at the wrist. See the block above for the frame and poses."""
+    """Hand at the wrist origin, fingers +Y, palm -Z. side +1 = left hand (thumb +X), -1 = right (thumb -X)."""
     if pose not in HAND_POSES:
-        raise ValueError("hand pose must be one of %s" % sorted(HAND_POSES))
-    s = 1.0 if side >= 0 else -1.0
-    spreads, flexes, (t_splay, t_f1, t_f2) = HAND_POSES[pose]
+        raise ValueError("hand pose must be one of %s" % list(HAND_POSES))
     bm = bmesh.new()
-    SIDES = 12
-
-    # palm and forearm: superellipse rings, cupped toward -Z, with a thenar bulge on the thumb side
-    prings = []
-    for y, w, t in _HAND_PALM:
-        ring = []
-        for k in range(SIDES):
-            th = 2 * math.pi * k / SIDES
-            cx, cz = math.cos(th), math.sin(th)
-            x = w * math.copysign(abs(cx) ** 0.77, cx)
-            z = t * math.copysign(abs(cz) ** 0.77, cz)
-            if z < 0 and 0.0 <= y <= 0.104:
-                z += 0.006 * max(0.0, math.sin(math.pi * y / 0.13)) * (1 - (x / w) ** 2)  # cup
-                if s * x > 0:
-                    z -= 0.005 * math.exp(-((y - 0.045) / 0.03) ** 2) * (s * x / w) ** 2  # thenar
-            ring.append(bm.verts.new((x * s, y, z)))
-        prings.append(ring)
-    _hand_stitch(bm, prings, SIDES)
-
-    # fingers: start inside the palm at the knuckle line, bend about their own axis
-    for fi, (fx, my, a, b, lsc) in enumerate(_HAND_FINGERS):
-        sp = math.radians(spreads[fi])
-        d0 = Vector((s * math.sin(sp), math.cos(sp), 0.0))
-        B = d0.cross(Vector((0, 0, 1))).normalized()
-        base = Vector((fx * s, my - 0.012, -0.002))
-        lens = [L * lsc for L in _HAND_PHALANGES]
-        radii = [(a, b), (a * 0.94, b * 0.94), (a * 0.88, b * 0.90), (a * 0.72, b * 0.70)]
-        rings = _hand_digit(bm, base, d0, B, lens, flexes[fi], radii, 10)
-        _hand_stitch(bm, rings, 10)
-
-    # thumb: from the thenar, splayed and opposed; two phalanges
-    sp = math.radians(t_splay)
-    d0 = Vector((s * math.sin(sp), math.cos(sp), 0.0))
-    B = d0.cross(Vector((0, 0, 1))).normalized()
-    base = Vector((0.026 * s, 0.030, -0.010))
-    radii = [(0.0135, 0.0125), (0.0115, 0.0105), (0.0100, 0.0092)]
-    rings = _hand_digit(bm, base, d0, B, [0.036, 0.027], (t_f1, t_f2), radii, 10)
-    _hand_stitch(bm, rings, 10)
-
+    bm.from_mesh(_hand_source(pose))
+    if side > 0:
+        for v in bm.verts:
+            v.co.x = -v.co.x
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
     for v in bm.verts:
         v.co *= scale
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     return _obj(name, bm, mat, 180.0)

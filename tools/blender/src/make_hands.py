@@ -5,7 +5,7 @@ Run once, by hand (the source .gltf is not in the repo):
       <path>/Superhero_Male_FullBody.gltf tools/blender/assets/hands.blend
 
 Source: Quaternius, "Universal Base Characters" (Standard), CC0. The rig's finger bones pose four
-static hands: relaxed, open, grip, point. Frame of each saved mesh (RIGHT hand, metres):
+static hands: relaxed, open, grip (fist), hold (shallow curl, for flat objects), point. Frame of each saved mesh (RIGHT hand, metres):
   origin at the wrist joint (hand_r head); fingers +Y; palm -Z; back of hand +Z; thumb on -X.
 kit.hand() mirrors the mesh on X for the left hand. Mesh names: hand_relaxed, hand_open, hand_grip, hand_point.
 Scale: the rig is 1.82 m tall, so the hand comes out at human size with no scaling.
@@ -36,6 +36,7 @@ POSES = {
     "relaxed": ({"index": (10, 14, 10), "middle": (12, 16, 12), "ring": (16, 20, 14), "pinky": (20, 24, 16)}, (12, 14)),
     "open": ({f: (0, 0, 0) for f in FINGERS}, (0, 0)),
     "grip": ({"index": (80, 95, 65), "middle": (85, 100, 70), "ring": (88, 100, 70), "pinky": (92, 100, 72)}, (35, 45)),
+    "hold": ({f: (35, 25, 15) for f in FINGERS}, (30, 35)),
     "point": ({"index": (0, 0, 0), "middle": (85, 100, 70), "ring": (88, 100, 70), "pinky": (92, 100, 72)}, (35, 45)),
 }
 
