@@ -50,6 +50,7 @@ const KEEP_OUT := [
 signal beat(dt: float)
 
 var world_fps: float = WORLD_FPS
+var _boil_mats: Array[ShaderMaterial] = []
 var pouch: float = POUCH_START
 var terrain: ClayTerrain
 var look: ClayLook
@@ -549,12 +550,16 @@ func _build_burrow() -> void:
 
 ## Stop-motion boil on every clay surface; Reduced Motion turns it off.
 func _apply_boil() -> void:
-	var on := 0.0 if bool(Save.settings.get("reduced_motion", false)) else 1.0
+	_boil_mats.clear()
+	# off on the web renderer too: with no MSAA/SMAA there, every edge and the whole ground jump at 12 fps
+	var web := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	var on := 0.0 if web or bool(Save.settings.get("reduced_motion", false)) else 1.0
 	var dir := "res://wings/clay/materials/"
 	for f in DirAccess.get_files_at(dir):
 		var mat := load(dir + f.trim_suffix(".remap")) as ShaderMaterial
 		if mat:
 			mat.set_shader_parameter("boil", on)
+			_boil_mats.append(mat)  # held: an unreferenced material drops out of the cache and reloads boiling
 
 
 ## The set beyond the play area: hills to close the horizon, clay clouds hung on wires, the village houses.
