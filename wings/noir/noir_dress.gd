@@ -32,6 +32,7 @@ var _rain: GPUParticles3D
 var _fan: Node3D
 var _dirs: Array = []
 var _beams: Array = []  # [light, cone] pairs, Compatibility only
+var _compat := false  # WebGL 2 / gl_compatibility: no volumetric fog, so the exposure is lifted to compensate
 
 
 ## MSAA costs several ms at 1440p with this many lights; SMAA keeps edges clean for a fraction.
@@ -278,6 +279,7 @@ func steam(pos: Vector3, amount := 18, rise := 1.0) -> void:
 
 func _environment() -> void:
 	env = (wing.get_node("WorldEnvironment") as WorldEnvironment).environment
+	_compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	# the sky: black overhead, the city's glow on the low cloud at the horizon, so roofs and towers stand as silhouettes
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color(0.025, 0.026, 0.03)
@@ -417,18 +419,15 @@ func _probes() -> void:
 
 ## Compatibility has no volumetric fog, so a spot's fog cone is a faint additive mesh cone instead.
 func _compat_beams() -> void:
-	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+	if not _compat:
 		return
-	var g := Gradient.new()
-	g.colors = PackedColorArray([Color(0.85, 0.85, 0.9, 0.09), Color(0.85, 0.85, 0.9, 0.0)])
-	var gt := GradientTexture2D.new()
-	gt.gradient = g
-	gt.fill_to = Vector2(0, 1)
-	var m := StandardMaterial3D.new()
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.albedo_texture = gt
+	# alpha falls off toward the far end and toward the rim (view-facing centre is brightest), so no hard edge
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode unshaded, blend_add, cull_disabled, depth_draw_never;\n" \
+		+ "uniform vec3 tint : source_color = vec3(0.85, 0.85, 0.9);\nuniform float strength = 0.2;\nuniform float height = 1.0;\n" \
+		+ "varying float along;\nvoid vertex() { along = VERTEX.y / height + 0.5; }\n" \
+		+ "void fragment() {\n\tfloat centre = pow(abs(dot(normalize(NORMAL), normalize(VIEW))), 1.5);\n" \
+		+ "\tfloat fade = pow(1.0 - clamp(along, 0.0, 1.0), 1.5);\n\tALBEDO = tint;\n\tALPHA = strength * centre * fade;\n}\n"
 	for s: Node in wing.find_children("*", "SpotLight3D", true, false):
 		var l := s as SpotLight3D
 		if l.light_volumetric_fog_energy <= 0.0:
@@ -439,6 +438,9 @@ func _compat_beams() -> void:
 		cm.height = l.spot_range
 		cm.cap_top = false
 		cm.cap_bottom = false
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.set_shader_parameter("height", l.spot_range)
 		var mi := MeshInstance3D.new()
 		mi.mesh = cm
 		mi.material_override = m
@@ -467,7 +469,8 @@ func _process(delta: float) -> void:
 		return
 	var at := cam.global_position
 	var a := area_of(at)
-	env.tonemap_exposure = move_toward(env.tonemap_exposure, EXPOSURE[a], delta * 2.0)
+	# Compatibility loses the volumetric haze and the reflections that lift the dark rooms, so it reads darker: lift it
+	env.tonemap_exposure = move_toward(env.tonemap_exposure, EXPOSURE[a] * (1.5 if _compat else 1.0), delta * 2.0)
 	env.volumetric_fog_density = move_toward(env.volumetric_fog_density, FOG[a], delta * 0.02)
 	env.fog_density = move_toward(env.fog_density, DEPTH_FOG[a], delta * 0.02)
 	if _fan:
