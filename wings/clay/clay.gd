@@ -157,6 +157,7 @@ func _ready() -> void:
 	terrain.name = "Ground"
 	add_child(terrain)
 	terrain.setup(Callable(self, "base_height"))
+	_mark_ramps()
 	terrain.collider().set_meta("surface", "clay")
 	var steps: Array[AudioStream] = []
 	for i in [1, 2, 3]:
@@ -260,7 +261,7 @@ func verb_prompt() -> Dictionary:
 				return {"action": &"primary", "text": "scoop the clay out" if _in_pit(_aim) else "pull the clay up", "hold": true}
 		&"boulder":
 			if _boulder and _boulder.in_trench():
-				return {"action": &"secondary", "text": "press it flat", "hold": true}
+				return {"action": &"secondary", "text": "press it flat (%d%%)" % roundi(_boulder.progress() * 100.0), "hold": true}
 		&"gate", &"plug":
 			return {"action": &"secondary", "text": "press it down", "hold": true}
 	return super()
@@ -280,9 +281,29 @@ func base_height(x: float, z: float) -> float:
 	h -= 1.6 * (1.0 - smoothstep(1.5, 2.2, dz))
 	h += 0.28 * clampf(z + 2.2, 0.0, 5.2) * (1.0 - smoothstep(-2.2, 5.0, absf(x) - 6.0))
 	# A walkable ramp down the south bank into the trench, so the player can always climb out.
-	var ramp := smoothstep(-15.0, -13.5, x) * (1.0 - smoothstep(-10.5, -9.0, x))
+	var ramp := maxf(_ramp_band(x, RAMP_XS[0]), _ramp_band(x, RAMP_XS[1]))
 	h = lerpf(h, maxf(h, -1.6 * clampf((-2.2 - z) / 2.3, 0.0, 1.0)), ramp)
+	# The trench ends in walls too steep to climb, so nobody walks out of the map along it.
+	h += 5.8 * smoothstep(33.0, 36.0, absf(x)) * (1.0 - smoothstep(2.5, 4.0, absf(z + 4.5)))
 	return h
+
+
+## The two clay ramps out of the trench (west and east of the stone), each about 3 m wide.
+const RAMP_XS := [-12.0, 10.0]
+
+
+func _ramp_band(x: float, cx: float) -> float:
+	return 1.0 - smoothstep(1.5, 3.0, absf(x - cx))
+
+
+## Dress the ramps as trodden clay: their cells read as worn, raw clay on the heightfield.
+func _mark_ramps() -> void:
+	var half := int(ClayTerrain.HALF)
+	for cx in RAMP_XS:
+		for ix in range(int(cx) - 3, int(cx) + 4):
+			for iz in range(-5, 0):
+				terrain.mark[(iz + half) * ClayTerrain.N + (ix + half)] = 0.6
+	terrain.dirty = true
 
 
 ## A flat-topped block of clay: a rounded rectangle (corner radius 1.2 m, edges thumbed +-0.12 m out of
@@ -372,6 +393,7 @@ func _build_river() -> void:
 	_boulder = ClayBoulder.new()
 	_boulder.name = "Boulder"
 	_boulder.setup(_model("boulder.glb"))
+	_boulder.ground = Callable(terrain, "height_at")
 	add_child(_boulder)
 	_boulder.position = _ground_at(Vector3(0.0, 0.0, 3.0)) + Vector3(0, 1.6, 0)
 	_boulder.flattened.connect(func() -> void: complete_step(&"cross", &"boulder"))
@@ -693,9 +715,30 @@ func _apply_saved() -> void:
 
 # --- beats, aiming and verbs -------------------------------------------------------------------
 
+var _floor_t := 0.0  # seconds on the trench floor
+var _floor_told := false
+
+
+## After 3 s on the trench floor, say where the way out is (once per visit).
+func _floor_watch(dt: float) -> void:
+	var g := Game.player.global_position
+	if g.y >= -0.9 or absf(g.z + 4.5) >= 3.5:
+		_floor_t = 0.0
+		_floor_told = false
+		return
+	_floor_t += dt
+	if _floor_t >= 3.0 and not _floor_told:
+		_floor_told = true
+		var rx: float = RAMP_XS[0] if absf(g.x - RAMP_XS[0]) < absf(g.x - RAMP_XS[1]) else RAMP_XS[1]
+		var side := "west" if rx < g.x else "east"
+		var metres := roundi(absf(g.x - rx))
+		Placards.toast("The way out is a clay ramp up the south bank, %d metres to the %s along the trench floor. The stone bridge is not the way out." % [metres, side], "Way out")
+
+
 func _on_beat(_dt: float) -> void:
 	if terrain == null or Game.player == null:
 		return
+	_floor_watch(_dt)
 	var p := Game.player
 	var keep := p.global_position
 	var primary := p.action_held(&"primary")
@@ -714,6 +757,7 @@ func _on_beat(_dt: float) -> void:
 	elif _aim_kind == &"boulder" and secondary and _boulder:
 		working = true
 		_boulder.press(STEP)
+		Audio.sfx(_stream("press"), _boulder.global_position, -4.0, 0.0, randf_range(0.9, 1.1))
 	elif _aim_kind == &"gate" and secondary and not _gate_down:
 		working = true
 		_gate_press += STEP

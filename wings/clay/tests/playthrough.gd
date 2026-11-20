@@ -201,8 +201,12 @@ func _run() -> void:
 	var bx: float = _w._boulder.global_position.x
 	await _stand(bx, -1.0, Vector3(bx, 0.0, -8.0))
 	await frames(5)
-	var across: bool = await _hold_until(&"move_forward", func() -> bool: return Game.player.global_position.z < -6.2, 12.0)
-	check(across and Game.player.global_position.y > -0.5, "the flattened stone carries the player across the trench")
+	var across: bool = await _hold_until(&"move_forward", func() -> bool: return Game.player.global_position.z < -8.5, 14.0)
+	check(across and Game.player.is_on_floor() and Game.player.global_position.y > -0.3, "the flattened stone carries the player across and onto the north bank")
+	Game.debug_teleport(Vector3(bx, _ground(bx, -1.0) + 0.2, -1.0), Vector3(bx, 0.0, -8.0))
+	await frames(10)
+	var up: bool = await _hold_until(&"move_forward", func() -> bool: return Game.player.global_position.y > -0.25 and Game.player.global_position.z < -2.4, 8.0)
+	check(up and Game.player.is_on_floor(), "the player steps onto the flat stone from the south bank without jumping")
 
 	# the river: a fall in must not be a dead end. Walk the trench floor to the bank ramp and climb out.
 	Game.debug_teleport(Vector3(-6.0, _ground(-6.0, -4.5) + 0.2, -4.5), Vector3(-12.0, 0.0, -4.5))
@@ -213,6 +217,11 @@ func _run() -> void:
 	await frames(10)
 	var out: bool = await _hold_until(&"move_forward", func() -> bool: return Game.player.global_position.z > -2.0, 12.0)
 	check(out and Game.player.is_on_floor(), "walking up the ramp gets the player out of the river (river)")
+	check(_w.terrain.height_at(38.0, -4.5) > 2.0, "the trench ends in a wall, so it cannot be walked out of the map (river)")
+	Game.debug_teleport(Vector3(10.0, _ground(10.0, -4.0) + 0.2, -4.0), Vector3(10.0, 0.0, 0.0))
+	await frames(10)
+	var east: bool = await _hold_until(&"move_forward", func() -> bool: return Game.player.global_position.z > -2.0 and Game.player.is_on_floor(), 12.0)
+	check(east, "the east clay ramp also gets the player out of the trench (river)")
 
 	await _stand(22.6, -11.0, Vector3(26.1, 1.2, -11.0))
 	var plug_ok: bool = await _hold_until(&"secondary", func() -> bool: return _w._plug == null, 10.0)
