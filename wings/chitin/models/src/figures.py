@@ -431,51 +431,76 @@ def B_courtier_c():
 
 # --- usher ------------------------------------------------------------------------------------------
 
+def _limb(pre, hip, knee, ankle, toe, r, mat="carapace_dull"):
+    """A beetle leg rooted inside the body: a coxa ball at the hip, three segments (femur, tibia, tarsus),
+    flared collars at the knee and ankle, and a pair of claws at the toe (kept level for feet on the floor)."""
+    H, K, A, T = (Vector(p) for p in (hip, knee, ankle, toe))
+    out = [S.blob(pre + "_coxa", (r * 2.6,) * 3, H, mat, 0, lump=0.0, subdiv=2)]
+    out.append(_lens(pre + "_femur", [H, K], [r, r * 0.8], mat, hr=0.7, keel=0.3))
+    out.append(_lens(pre + "_tibia", [K, A], [r * 0.8, r * 0.5], mat, hr=0.7, keel=0.3))
+    out.append(_lens(pre + "_tarsus", [A, T], [r * 0.5, r * 0.3], mat, hr=0.7, keel=0.3))
+    out.append(_collar(pre + "_knee", K, K - H, r * 0.8, r * 0.7, mat))
+    out.append(_collar(pre + "_ankle", A, A - K, r * 0.5, r * 0.42, mat))
+    dt = Vector((T.x - A.x, T.y - A.y, 0.0)).normalized()
+    side = dt.cross(Z).normalized()
+    for s in (1, -1):
+        pts = [T, T + dt * r * 0.9 + side * (s * r * 0.6), T + dt * r * 2.0 + side * (s * r * 0.9)]
+        out.append(_lens("%s_claw%d" % (pre, s), pts, [r * 0.3, r * 0.18, r * 0.03], "carapace", hr=0.7))
+    return out
+
+
 def B_usher():
-    """Stag-beetle usher in livery, standing on its hind legs (origin at centre, feet at z -1.15). Stag
-    mandibles, silk tabard with brass buttons, a brass chain of office across the chest, and a brass staff
-    along Y, 3.0 m end to end, held in the forelimbs."""
+    """Beetle doorkeeper in livery, standing on four legs. Origin at the centre; feet on z -1.15, top at z 1.05.
+    Tall tapered thorax with a broad collar, a rounded abdomen split by the elytra, six limbs rooted inside the
+    body, a silk sash with brass buttons, and a ceremonial staff along Y (3.0 m) at x -0.62, clear of the body,
+    held in both upper hands."""
     sd = 400
     parts = []
+    # abdomen: two elytra split down the middle, rounded behind and below the thorax
     for s in (-1, 1):
-        parts += _elytron("u_elytra%d" % s, s, [(0, 0.75, -0.45), (0, 0.35, -0.25), (0, 0.0, -0.22), (0, -0.22, -0.32)],
-                          [0.12, 0.18, 0.195, 0.16], [0.3, 0.46, 0.49, 0.38], "carapace", sd + s)
-    parts += _plate("u_thorax", [(0, 0.0, 0.36), (0, -0.2, 0.42), (0, -0.36, 0.34)], _spec([0.24, 0.28, 0.22], [0.22, 0.25, 0.2]),
-                    "carapace", rim=0.02, exp=2.4)
-    parts += _plate("u_head", [(0, -0.1, 0.86), (0, -0.26, 0.9), (0, -0.42, 0.84)], _spec([0.18, 0.22, 0.16], [0.17, 0.2, 0.16]),
-                    "carapace", exp=2.2)
-    # neck: bridges the head plate down onto the thorax so the head is not floating
-    parts.append(S.blob("u_neck", (0.26, 0.3, 0.6), (0, -0.2, 0.6), "carapace", sd + 5, lump=0.01, subdiv=3))
-    parts.append(S.slab("u_tabard", (0.4, 0.07, 0.62), (0, -0.3, -0.12), "silk", sd, lump=0.012, bevel=0.03, cuts=6))
-    for k, (x, z) in enumerate([(-0.13, -0.05), (0.13, -0.05), (-0.13, -0.3), (0.13, -0.3)]):
-        parts.append(S.blob("u_button%d" % k, (0.04, 0.04, 0.04), (x, -0.37, z), "brass", sd + k, lump=0.0, subdiv=2))
-    # brass chain of office: nine links sagging across the tabard
-    chain = []
-    for k in range(9):
-        t = -1 + 2 * k / 8
-        chain.append((0.26 * t, -0.42, 0.2 - 0.36 * (1 - t * t)))
-    parts += _chain("u_chain", chain, "brass", r=0.05, minor=0.011)
+        parts += _elytron("u_elytra%d" % s, s, [(0, 0.0, -0.2), (0, 0.35, -0.3), (0, 0.7, -0.45), (0, 0.98, -0.55)],
+                          [0.12, 0.2, 0.2, 0.1], [0.18, 0.3, 0.28, 0.18], "carapace", sd + s, striae=4, low=0.5)
+    # thorax: tall tapered column, broad pronotum collar over its top
+    parts += _plate("u_thorax", [(0, 0.0, -0.3), (0, -0.04, 0.1), (0, -0.08, 0.5)],
+                    _spec([0.2, 0.18, 0.15], [0.2, 0.19, 0.14]), "carapace", exp=2.4)
+    parts += _plate("u_collar", [(0, 0.12, 0.6), (0, -0.1, 0.62), (0, -0.32, 0.6)],
+                    _spec([0.28, 0.3, 0.26], [0.1, 0.11, 0.1]), "carapace", rim=0.015, exp=2.6)
+    # head, joined to the collar by a neck blob
+    parts += _plate("u_head", [(0, -0.2, 0.8), (0, -0.36, 0.84), (0, -0.5, 0.8)],
+                    _spec([0.16, 0.17, 0.14], [0.13, 0.14, 0.12]), "carapace", exp=2.2)
+    parts.append(S.blob("u_neck", (0.26, 0.26, 0.22), (0, -0.24, 0.7), "carapace", sd + 5, lump=0.01, subdiv=3))
+    # sash across the thorax front, five brass buttons sitting on it
+    parts.append(S.slab("u_sash", (0.5, 0.06, 0.1), (0, -0.24, 0.4), "silk", sd + 7, lump=0.0, bevel=0.015, cuts=4,
+                        rot=(0, math.radians(38.5), 0)))
+    for k, t in enumerate((-0.15, -0.08, 0.0, 0.08, 0.15)):
+        c = Vector((0.78 * t, -0.265, 0.4 - 0.62 * t))
+        parts.append(S.blob("u_button%d" % k, (0.04, 0.04, 0.04), c, "brass", sd + k, lump=0.0, subdiv=2))
     for s in (-1, 1):
-        # stag mandibles: long, curved, with an inner tooth
-        parts.append(_lens("u_mand%d" % s, [(s * 0.12, -0.42, 0.9), (s * 0.3, -0.72, 0.98), (s * 0.27, -0.98, 0.9)],
-                           [0.05, 0.045, 0.02], "carapace", hr=0.7))
-        parts.append(_thorn("u_tine%d" % s, (s * 0.2, -0.7, 0.96), (s * -0.4, -0.2, 0.8), 0.12, 0.022, "carapace"))
-        parts.append(_eye("u_eye%d" % s, (s * 0.14, -0.36, 0.92), (0.16, 0.18, 0.2), sd))
-        parts += _antenna("u_ant%d" % s, [(s * 0.08, -0.3, 1.04), (s * 0.18, -0.42, 1.08), (s * 0.12, -0.5, 1.02)],
-                          0.025, 0.015, "carapace_dull", joints=3, club=1.6)
-        # hind legs standing: knee forward and out, foot planted at z -1.15
-        parts += _leg("u_hind%d" % s, [(s * 0.22, 0.1, -0.4), (s * 0.42, -0.05, -0.72), (s * 0.3, 0.12, -1.05), (s * 0.28, 0.36, -1.14)],
-                      0.07, sd + 20 + s, spines=0)
-        # middle legs bent back, feet planted behind
-        parts += _leg("u_mid%d" % s, [(s * 0.3, 0.0, -0.1), (s * 0.5, 0.22, -0.35), (s * 0.44, 0.42, -0.55), (s * 0.34, 0.6, -1.12)],
-                      0.05, sd + 30 + s, spines=0)
-        # forelimbs close on the staff
-        parts += _leg("u_fore%d" % s, [(s * 0.28, -0.2, 0.05), (s * 0.44, -0.46, -0.02), (s * 0.2, -0.58, -0.08), (s * 0.08, -0.62, -0.1)],
-                      0.05, sd + 40 + s, spines=1)
-    parts.append(_tube("u_staff", [(0, -1.44, -0.1), (0, 1.44, -0.1)], [0.03, 0.03], "brass", sd, sides=10, steps=1))
+        parts.append(_eye("u_eye%d" % s, (s * 0.13, -0.4, 0.86), (0.17, 0.14, 0.17), sd + 3))
+        parts.append(_lens("u_mand%d" % s, [(s * 0.05, -0.42, 0.78), (s * 0.08, -0.5, 0.75), (s * 0.04, -0.55, 0.72)],
+                           [0.045, 0.04, 0.02], "carapace", hr=0.7))
+        parts += _antenna("u_ant%d" % s, [(s * 0.05, -0.3, 0.94), (s * 0.2, -0.36, 1.0), (s * 0.34, -0.14, 1.0),
+                                          (s * 0.38, 0.18, 0.92)], 0.024, 0.012, "carapace_dull", joints=3, club=1.6)
+        # middle pair: rooted at the thorax base, feet planted in front of the body
+        parts += _limb("u_mid%d" % s, (s * 0.16, 0.0, -0.1), (s * 0.48, -0.1, -0.45), (s * 0.44, -0.05, -0.95),
+                       (s * 0.5, -0.2, -1.13), 0.08)
+        # hind pair: rooted in the abdomen, feet planted behind
+        parts += _limb("u_hind%d" % s, (s * 0.18, 0.4, -0.45), (s * 0.5, 0.3, -0.75), (s * 0.42, 0.4, -1.05),
+                       (s * 0.46, 0.52, -1.13), 0.09)
+    # upper pair: arms rooted in the chest, both hands on the staff at x -0.62
+    parts += _limb("u_armA", (-0.14, -0.08, 0.42), (-0.4, -0.28, 0.52), (-0.6, -0.3, 0.4), (-0.61, -0.3, 0.36), 0.075)
+    parts += _limb("u_armB", (0.14, -0.08, 0.42), (0.2, -0.5, 0.5), (-0.4, -0.5, 0.42), (-0.61, -0.48, 0.36), 0.075)
+    # staff: 3.0 m along Y, finials at the ends, claws curled round it where each hand grips
+    parts.append(_tube("u_staff", [(-0.62, -1.44, 0.36), (-0.62, 1.44, 0.36)], [0.025, 0.025], "brass", sd, sides=10, steps=1))
     for k, y in enumerate((-1.44, 1.44)):
-        parts.append(S.blob("u_finial%d" % k, (0.12, 0.12, 0.12), (0, y, -0.1), "brass", sd + k, lump=0.0, subdiv=2))
+        parts.append(S.blob("u_finial%d" % k, (0.1, 0.1, 0.1), (-0.62, y, 0.36), "brass", sd + k, lump=0.0, subdiv=2))
+    for y in (-0.3, -0.48):
+        for a in (1.0, -1.0):
+            base = Vector((-0.62 + 0.03 * math.cos(a), y, 0.36 + 0.03 * math.sin(a)))
+            tang = Vector((-math.sin(a), 0.0, math.cos(a)))
+            parts.append(_thorn("u_grip%d_%d" % (round(y * 100), round(a)), base, tang, 0.06, 0.012, "carapace"))
     kit.join("usher", parts)
+
 
 
 # --- the Locksmith General --------------------------------------------------------------------------
