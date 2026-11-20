@@ -31,6 +31,7 @@ var mono: ShaderMaterial
 var _rain: GPUParticles3D
 var _fan: Node3D
 var _dirs: Array = []
+var _beams: Array = []  # [light, cone] pairs, Compatibility only
 
 
 ## MSAA costs several ms at 1440p with this many lights; SMAA keeps edges clean for a fraction.
@@ -64,6 +65,7 @@ func build(w: Node3D) -> void:
 	_sound()
 	_skyline()
 	_probes()
+	_compat_beams()
 
 
 # ---------- helpers ----------
@@ -413,6 +415,40 @@ func _probes() -> void:
 		add_child(rp)
 
 
+## Compatibility has no volumetric fog, so a spot's fog cone is a faint additive mesh cone instead.
+func _compat_beams() -> void:
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+		return
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(0.85, 0.85, 0.9, 0.09), Color(0.85, 0.85, 0.9, 0.0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_to = Vector2(0, 1)
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.albedo_texture = gt
+	for s: Node in wing.find_children("*", "SpotLight3D", true, false):
+		var l := s as SpotLight3D
+		if l.light_volumetric_fog_energy <= 0.0:
+			continue
+		var cm := CylinderMesh.new()
+		cm.top_radius = l.spot_range * tan(deg_to_rad(l.spot_angle))  # wide end, far from the lamp
+		cm.bottom_radius = 0.02
+		cm.height = l.spot_range
+		cm.cap_top = false
+		cm.cap_bottom = false
+		var mi := MeshInstance3D.new()
+		mi.mesh = cm
+		mi.material_override = m
+		mi.rotation_degrees.x = -90.0  # local +Y points down the spot's -Z
+		mi.position = Vector3(0, 0, -l.spot_range * 0.5)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		l.add_child(mi)
+		_beams.append([l, mi])
+
+
 func area_of(at: Vector3) -> String:
 	if at.z > -20.5:
 		return "alley"
@@ -440,6 +476,8 @@ func _process(delta: float) -> void:
 	_rain.emitting = outdoors
 	_rain.visible = outdoors
 	_rain.global_position = at + Vector3(0, 9, 0)
+	for p: Array in _beams:  # a cone follows its light: off when the light is dimmed or off
+		(p[1] as Node3D).visible = (p[0] as Light3D).is_visible_in_tree() and (p[0] as Light3D).light_energy > 0.0
 
 
 # ---------- areas ----------
