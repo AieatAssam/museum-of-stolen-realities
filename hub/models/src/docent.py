@@ -179,34 +179,16 @@ def mask():
     return kit._obj("mask", bm, PORC_M, 50.0)
 
 def hand(s, W, G):
-    """Grip on the board's side edge at G (board-local x = s*0.22). Built in board-local coords and placed
-    with BOARD_M. Palm wraps the edge; four tapered fingers lie behind the back face (+Y); the thumb wraps
-    the edge and lies flat on the front face (-Y), about 4 mm off the sheet, pointing at the board centre."""
-    K = 1.3  # hands ~30% larger so the grip on the board reads at 3 m
-    inv = BOARD_M.inverted()
-    wl, gl = inv @ W, inv @ G
-    zw, zg = wl.z, gl.z
-    N = BOARD_ROT @ V(0, 1, 0)  # board normal: flat sweeps lie in the board plane
-
-    def B(x, y, z):
-        return BOARD_M @ V(x, y, z)
-
-    # palm: flattened, from the wrist to the edge (its end cap just clears the board edge at x = 0.22)
-    parts = [sweep("palm", [B(wl.x, 0.004, zw), B(s * 0.245, 0.0, (zw + zg) / 2), B(s * 0.2225, 0.0, zg)],
-                   [0.03 * K, 0.034 * K, 0.036 * K], 10, GLOVE_M, flat=0.5, up=N)]
-    # fingers: behind the back face (y = +0.010), centre 26 mm off it, stacked along the edge
-    for i in range(4):
-        z = zg + (i - 1.5) * 0.026
-        pts = [B(s * 0.236, 0.026, z), B(s * 0.20, 0.026, z), B(s * 0.165, 0.026, z), B(s * 0.135, 0.026, z)]
-        parts.append(sweep("finger%d" % i, pts, [r * K for r in (0.0105, 0.0098, 0.0088, 0.0055)], 8, GLOVE_M,
-                           flat=0.8, up=N))
-    # thumb: round the edge, then flat on the front; centre 23 mm in front of the board plate (-0.0231),
-    # half-thickness ~6.8 mm at the base, so the inner face sits ~4 mm off the sheet (front at -0.0125)
-    thumb = [B(s * 0.24, -0.004, zg), B(s * 0.23, -0.018, zg), B(s * 0.20, -0.0231, zg),
-             B(s * 0.165, -0.0231, zg), B(s * 0.158, -0.0231, zg)]
-    parts.append(sweep("thumb", thumb, [r * K for r in (0.0095, 0.0092, 0.0085, 0.0070, 0.0040)], 8, GLOVE_M,
-                       flat=0.55, up=N))
-    return parts
+    """Gloved grip on the board edge: kit.hand in a 'grip' pose, wrist at W, fingers aimed at the grip point G,
+    thumb toward the board's front face (-Y board side). The basis is built so the hand's thumb side (s*X)
+    lies along the front normal and the palm faces the edge."""
+    Yh = (G - W).normalized()
+    T = (BOARD_ROT @ V(0, -1, 0))
+    T = (T - Yh * T.dot(Yh)).normalized()
+    Zh = (-s * Yh.cross(T)).normalized()  # back of the hand
+    Xh = Yh.cross(Zh)
+    M = Matrix.Translation(W) @ Matrix((Xh, Yh, Zh)).transposed().to_4x4()
+    return bake(kit.hand(s, "grip", 1.0, "hand_L" if s > 0 else "hand_R", mat=GLOVE_M), M)
 
 def _board():
     plate = kit.box("bd_plate", (0.44, 0.02, 0.36), (0, 0, 0), mat="ebony", bevel=0.006, segments=2)
@@ -404,10 +386,7 @@ def build(args):
     for s, name in ((1, "arm_L"), (-1, "arm_R")):
         W = W_L if s > 0 else W_R
         G = BOARD_M @ V(s * 0.22, 0.0, 0.02 if s > 0 else 0.06)
-        hp = hand(s, W, G)
-        for h in hp:
-            subsurf(h, 1)
-        arms[s] = pivot(kit.join(name, [sleeves[s]] + hp), SHOULDER[s])
+        arms[s] = pivot(kit.join(name, [sleeves[s], hand(s, W, G)]), SHOULDER[s])
     head_ob = pivot(kit.join("head", [vl]), HEAD_PIVOT)
     board = _board()
     pencil = _pencil()

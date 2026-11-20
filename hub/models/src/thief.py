@@ -214,27 +214,6 @@ def ellipsoid_mesh(name, centre, radii, mat, u=32, v=16):
 
 
 
-def fist(C):
-    """Closed left fist, about 9 x 8 x 10 cm, centred on C, knuckles forward (-Y): a back-of-hand block with four
-    curled fingers (index, middle, ring, little; middle longest, little shortest). The thumb is in left_arm()."""
-    parts = [limb("fist_hand", [(C + V(0, 0.030, 0), 0.036, 0.040), (C + V(0, 0.0, 0), 0.044, 0.046),
-                                (C + V(0, -0.026, 0), 0.043, 0.044), (C + V(0, -0.040, 0), 0.032, 0.034)],
-                  MAT_LEATHER, per=2, sides=14, sup=2.5)]
-    # (name, x across the knuckle row, forward reach factor); index on the inner (-X) side, little on the outer
-    # each finger is a tight arc (knuckle over the top, down the front, curling back under to the palm); the arc
-    # radius scales with the finger's reach. X hint keeps the loft frame stable where the tangent points along Z.
-    for name, xo, L in (("index", -0.027, 1.0), ("middle", -0.009, 1.08), ("ring", 0.009, 0.97),
-                        ("little", 0.027, 0.85)):
-        R, cy, cz = 0.018 * L, -0.024, -0.010
-        keys = []
-        for th, rad in ((90, 0.0105), (150, 0.0100), (210, 0.0093), (270, 0.0085)):
-            t = math.radians(th)
-            keys.append((C + V(xo, cy + R * math.cos(t), cz + R * math.sin(t)), rad, rad))
-        parts.append(limb("fist_" + name, keys, MAT_LEATHER, per=2, sides=8, sup=2.2, hint=(1, 0, 0)))
-    return parts
-
-
-
 # ---------------------------------------------------------------- the hidden body
 
 def torso_depth(co):
@@ -562,16 +541,24 @@ def mask():
 
 # ---------------------------------------------------------------- hands, cuffs, boots
 
+def hand_at(s, W, Yh, T, pose):
+    """kit.hand placed at wrist W: fingers along Yh, thumb toward T (both made perpendicular to each other).
+    The basis is chosen so the hand's thumb side (s*X) lies along T and the back of the hand faces away from it."""
+    Yh = Yh.normalized()
+    T = (T - Yh * T.dot(Yh)).normalized()
+    Zh = (-s * Yh.cross(T)).normalized()
+    Xh = Yh.cross(Zh)
+    M = Matrix.Translation(W) @ Matrix((Xh, Yh, Zh)).transposed().to_4x4()
+    return bake(kit.hand(s, pose, 1.0, "thief_hand", mat=MAT_LEATHER), M)
+
+
 def left_hand():
     Wr = ARM_L[-1]
     d = (Wr - ARM_L[-2]).normalized()
     parts = [subsurf(loft("cuff_L", [Wr - d * 0.035, Wr - d * 0.012, Wr + d * 0.006], [0.036, 0.04, 0.037],
                           [0.036, 0.04, 0.037], MAT_LEATHER, sides=16, sup=2.2), 1)]
-    C = V(0.075, -0.18, 1.25)
-    parts.extend(fist(C))
-    keys = [(C + V(-0.044, -0.016, 0.012), 0.0095, 0.0095), (C + V(-0.034, -0.048, 0.008), 0.0093, 0.0093),
-            (C + V(-0.018, -0.060, 0.0), 0.0089, 0.0089), (C + V(-0.005, -0.060, -0.014), 0.0085, 0.0085)]
-    parts.append(limb("thumb_L", keys, MAT_LEATHER, per=2, sides=8, sup=2.2))
+    # closed fist held at the chest: fingers continue the forearm, thumb up and across the front
+    parts.append(hand_at(1, Wr, d, V(0.3, -0.4, 1.0), "grip"))
     return parts
 
 
@@ -581,26 +568,9 @@ def right_hand():
     parts = [subsurf(loft("cuff_R", [W - d_arm * 0.045, W - d_arm * 0.02, W, W + d_arm * 0.012],
                           [0.036, 0.039, 0.041, 0.038], [0.036, 0.039, 0.041, 0.038],
                           MAT_LEATHER, sides=16, sup=2.2), 1)]
+    # open hand reaching forward and down, palm down, thumb toward the body's midline
     d = Vector((0, -0.8, -0.25)).normalized()
-    X, Z = V(1, 0, 0), V(0, 0, 1)
-    palm_end = W + d * 0.09
-    parts.append(subsurf(loft("palm", [W - d * 0.005, W + d * 0.03, W + d * 0.06, palm_end],
-                              [0.030, 0.042, 0.044, 0.038], [0.014, 0.020, 0.022, 0.018],
-                              MAT_LEATHER, sides=12, sup=2.4), 1))
-    for k, (off, fan, reach, curl) in enumerate(((-0.024, -6, 0.80, 1.3), (-0.008, -2, 1.0, 1.1),
-                                                 (0.008, 2, 1.08, 0.9), (0.024, 6, 1.0, 0.7))):
-        dk = Matrix.Rotation(math.radians(fan), 3, "Z") @ d
-        B = palm_end + X * off
-        keys = [(B, 0.0115 * 1.1, 0.0115 * 1.1),
-                (B + dk * 0.040 * reach - Z * 0.003 * curl, 0.0105, 0.0105),
-                (B + dk * 0.070 * reach - Z * 0.014 * curl, 0.0092, 0.0092),
-                (B + dk * 0.092 * reach - Z * 0.024 * curl, 0.0075, 0.0075)]
-        parts.append(limb("finger_R%d" % k, keys, MAT_LEATHER, per=3, sides=8, sup=2.2))
-    keys = [(W + d * 0.02 + X * 0.030 - Z * 0.004, 0.0115, 0.0115),
-            (W + d * 0.055 + X * 0.052 - Z * 0.008, 0.0102, 0.0102),
-            (W + d * 0.085 + X * 0.068 - Z * 0.014, 0.0090, 0.0090),
-            (W + d * 0.11 + X * 0.078 - Z * 0.018, 0.0075, 0.0075)]
-    parts.append(limb("thumb_R", keys, MAT_LEATHER, per=3, sides=8, sup=2.2))
+    parts.append(hand_at(-1, W, d, V(1, 0, 0.2), "open"))
     return parts
 
 
