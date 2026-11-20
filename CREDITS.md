@@ -30,3 +30,4 @@ Rows are appended by `tools/fetch_cc.sh`; CC-BY rows are also shown on the in-ga
 | assets/audio/hub_theme_4.ogg | Immersed (layer 4, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
 | assets/audio/hub_theme_5.ogg | Immersed (layer 5, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
 | assets/audio/hub_theme_6.ogg | Immersed (layer 6, derived) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600010 | CC-BY-4.0 |
+| tools/blender/assets/hands.blend | Hand meshes (cut from Universal Base Characters, posed) | Quaternius | https://quaternius.com/packs/universalbasecharacters.html | CC0 |
