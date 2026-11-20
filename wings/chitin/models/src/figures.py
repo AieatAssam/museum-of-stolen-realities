@@ -446,8 +446,8 @@ def B_usher():
                     "carapace", exp=2.2)
     # neck: bridges the head plate down onto the thorax so the head is not floating
     parts.append(S.blob("u_neck", (0.26, 0.3, 0.6), (0, -0.2, 0.6), "carapace", sd + 5, lump=0.01, subdiv=3))
-    parts.append(S.slab("u_tabard", (0.56, 0.08, 1.0), (0, -0.3, -0.3), "silk", sd, lump=0.012, bevel=0.03, cuts=6))
-    for k, (x, z) in enumerate([(-0.13, -0.1), (0.13, -0.1), (-0.13, -0.45), (0.13, -0.45)]):
+    parts.append(S.slab("u_tabard", (0.4, 0.07, 0.62), (0, -0.3, -0.12), "silk", sd, lump=0.012, bevel=0.03, cuts=6))
+    for k, (x, z) in enumerate([(-0.13, -0.05), (0.13, -0.05), (-0.13, -0.3), (0.13, -0.3)]):
         parts.append(S.blob("u_button%d" % k, (0.04, 0.04, 0.04), (x, -0.37, z), "brass", sd + k, lump=0.0, subdiv=2))
     # brass chain of office: nine links sagging across the tabard
     chain = []

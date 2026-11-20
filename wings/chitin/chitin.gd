@@ -274,6 +274,9 @@ func _build_gate(area: Node3D) -> void:
 	# then the gap's hook: the brightest thing at the lip
 	_beacon(_anchor(area, Vector3(6, 10, 0)), 9.0, 5.0)
 	_abyss(area, Vector3(0, -14, -16), Vector3(13, -10, 16))
+	_zone(area, Vector3(-3, -4, -14), Vector3(0.5, 2, 14), func() -> void:
+		if not Quest.is_step_done(&"gate", &"swing"):
+			toast("The ditch is four metres down. Aim at the bright hook over the gap and let go at the top of the swing: primary (left mouse). Secondary (right mouse, or Q) plucks and weaves.", "The molted gate"))
 	_zone(area, Vector3(13, -3, -14), Vector3(28, 0, 14), func() -> void: complete_step(&"gate", &"swing"))
 	_placard(area, Vector3(-11.9, 1.4, -2.7), Vector3(0, 0, 1), "The molted gate", "Shed in the present reign", "Chitin, one hinge",
 		"The court's outer gate is the skin its first doorkeeper grew out of. He was promoted inside it. Visitors pass through him. The hinge is original. His whereabouts are not recorded.")
@@ -299,7 +302,14 @@ func _build_districts(area: Node3D) -> void:
 	_usher.name = "Usher"
 	_harp_usher = Strand.create(area, Vector3(18, -1.2, 13.3), Vector3(26, -1.2, 13.3))
 	_harp_usher.name = "UsherHarp"
+	var harp_lamp := Node3D.new()  # the harp line is the way past him: lit from the doorway
+	harp_lamp.position = Vector3(22, -1.2, 13.3)
+	area.add_child(harp_lamp)
+	_beacon(harp_lamp, 3.0, 2.2)
 	_zone(area, Vector3(29, -3, -3), Vector3(32, 0, 3), func() -> void: complete_step(&"districts", &"usher"))
+	_zone(area, Vector3(20, -4, -4), Vector3(26.5, 0, 4), func() -> void:
+		if not Quest.is_step_done(&"districts", &"usher") and _usher_away_t <= 0.0:
+			toast("The usher blocks the door and will not move for a walk. Aim at the lit harp line on the far wall and pluck it: secondary (right mouse, or Q)."))
 	# light-well W1 (x 40..52): pegs on both lips, a line woven between them is the only way over
 	_peg(area, Vector3(40.3, -2.95, 0))
 	_peg(area, Vector3(51.7, -2.95, 0))
