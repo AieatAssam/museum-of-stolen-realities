@@ -16,6 +16,8 @@ const MARKS := [
 	["02_cloister_beam", Vector3(16.6, 1.8, 7.5), Vector3(13.0, -0.4, -7.0), "d1"],
 	["03_nave", Vector3(0.0, 1.7, -21.0), Vector3(0.0, 4.0, -70.0), ""],
 	["04_nave_clockwork", Vector3(-6.0, 3.0, -30.0), Vector3(1.0, -0.5, -50.0), "d2"],
+	["04b_nave_m1_lit", Vector3(-1.5, 1.6, -40.0), Vector3(2.0, 0.3, -46.5), "d2"],
+	["04c_nave_m1_rest", Vector3(-1.5, 1.6, -40.0), Vector3(2.0, 0.3, -46.5), "d2_rest"],
 	["05_choir_saints", Vector3(0.0, 4.2, -84.0), Vector3(0.0, 8.0, -110.0), ""],
 	["06_crypt_prism", Vector3(-6.0, -6.2, -86.0), Vector3(2.0, -7.6, -100.0), "prism"],
 	["07_crypt_panes", Vector3(5.0, -6.5, -112.0), Vector3(0.0, -7.2, -121.0), "prism3"],
@@ -69,6 +71,9 @@ func _state(s: String) -> void:
 		"d2":
 			_w.dials["d2"].set_index(2, true)
 			_w.mirrors["m1"].set_index(1, true)
+		"d2_rest":
+			_w.dials["d2"].set_index(2, true)
+			_w.mirrors["m1"].set_index(0, true)
 		"prism":
 			_w.prism.set_index(1, true)
 		"prism3":

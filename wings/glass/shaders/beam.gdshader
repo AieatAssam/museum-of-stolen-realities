@@ -26,7 +26,7 @@ void fragment() {
 	float ang = atan(local_pos.z, local_pos.x);
 	float rays = 0.55 + 0.45 * sin(ang * 9.0 + TIME * 0.35) * sin(ang * 5.0 - TIME * 0.22 + along * 0.05);
 	// fade the ends so the shaft meets surfaces softly
-	float ends = smoothstep(0.0, 0.6, along) * smoothstep(0.0, 0.5, beam_len - along);
+	float ends = smoothstep(0.0, 0.15, along) * smoothstep(0.0, 0.15, beam_len - along);  // short: the shaft must reach the mirror it hits
 	vec3 c = beam_color.rgb;
 	vec3 warm = mix(c, vec3(1.0), 0.15);  // stays in the beam's own colour: no clipping to white
 	ALBEDO = (c * halo * 0.5 * rays + warm * core * 0.75) * intensity * ends;
